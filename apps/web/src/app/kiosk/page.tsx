@@ -684,6 +684,22 @@ export default function KioskAppPage() {
           </div>
         </div>
       )}
+
+      {/* Kiosk Configuration Modal */}
+      <KioskConfigModal
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        currentKey={apiKey}
+        onSaveKey={async (newKey: string) => {
+          setApiKey(newKey);
+          const valid = await validateApiKey(newKey);
+          if (valid) {
+            localStorage.setItem("asistcontrol_kiosk_api_key", newKey);
+            setIsConfigOpen(false);
+          }
+          return valid;
+        }}
+      />
     </div>
   );
 }
