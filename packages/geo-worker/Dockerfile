@@ -21,7 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Instalar dependencias Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --retries 5 --timeout 60 -r requirements.txt
 
 # Copiar código fuente
 COPY app ./app
