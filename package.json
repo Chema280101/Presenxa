@@ -1,0 +1,27 @@
+{
+  "name": "asistencias",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "db:generate": "pnpm --filter @asistencias/db generate",
+    "db:migrate": "pnpm --filter @asistencias/db migrate:dev",
+    "db:studio": "pnpm --filter @asistencias/db studio",
+    "db:seed": "pnpm --filter @asistencias/db seed",
+    "db:clear": "pnpm --filter @asistencias/db clear",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.5.4",
+    "typescript": "^5.7.3"
+  }
+}

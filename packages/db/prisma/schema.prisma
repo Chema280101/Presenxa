@@ -1,0 +1,376 @@
+// This is your Prisma schema file
+// Learn more at https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, uuidOssp(map: "uuid-ossp")]
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ORGANIZACIÓN
+// ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  type      OrgType
+  slug      String   @unique
+  logoUrl   String?
+  // Configuración JSON de la organización. Estructura esperada:
+  // {
+  //   "grace_period_minutes": 10,   ← Minutos antes de marcar ABANDONO_PUESTO (default: 10)
+  //   "timezone": "America/Lima",   ← Zona horaria para reportes y logs
+  //   "ping_interval_seconds": 60   ← Frecuencia de geo-pings desde la app
+  // }
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations Location[]
+  users     User[]
+  schedules Schedule[]
+  auditLogs AuditLog[]
+
+  @@map("organizations")
+}
+
+enum OrgType {
+  EMPRESA
+  COLEGIO
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SEDE / UBICACIÓN (con geocerca)
+// ─────────────────────────────────────────────────────────────
+
+model Location {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  address        String?
+  timezone       String       @default("America/Lima")
+
+  // Geocerca circular (radio + centro)
+  geofenceRadius Float?  // Metros
+  geofenceLat    Float?
+  geofenceLng    Float?
+
+  // Geocerca poligonal (GeoJSON Polygon)
+  geofencePolygon Json?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  kiosks      Kiosk[]
+  users       User[]       @relation("UserLocation")
+  attendances Attendance[]
+
+  @@map("locations")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  USUARIOS
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locationId     String?      @db.Uuid
+  location       Location?    @relation("UserLocation", fields: [locationId], references: [id])
+
+  firstName  String
+  lastName   String
+  email      String  @unique
+  phone      String?
+  photoUrl   String?
+  documentId String? // DNI, carnet estudiantil, etc.
+
+  role UserRole @default(EMPLEADO)
+
+  // ── Núcleo QR ──────────────────────────────────────────────
+  qrToken          String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  qrGeneratedAt    DateTime  @default(now())
+  qrInvalidatedAt  DateTime? // Revocar QR sin borrar usuario
+
+  // ── Acceso al sistema ──────────────────────────────────────
+  passwordHash String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendances       Attendance[]
+  geoPings          GeoPing[]
+  userSchedules     UserSchedule[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  auditLogs         AuditLog[]
+
+  @@index([qrToken])
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPERVISOR
+  EMPLEADO
+  ALUMNO
+}
+
+// ─────────────────────────────────────────────────────────────
+//  HORARIOS Y TURNOS
+// ─────────────────────────────────────────────────────────────
+
+model Schedule {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+
+  // Días laborales (bitmask): Lu=1, Ma=2, Mi=4, Ju=8, Vi=16, Sa=32, Do=64
+  workdaysMask Int @default(31) // Lun-Vie por defecto
+
+  // Horario esperado (se guarda como hora del día, ej: 08:00)
+  entryHour   Int @default(8)
+  entryMinute Int @default(0)
+  exitHour    Int @default(17)
+  exitMinute  Int @default(0)
+
+  toleranceMinutes Int @default(5) // Minutos de tolerancia para tarde
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userSchedules UserSchedule[]
+
+  @@map("schedules")
+}
+
+model UserSchedule {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleId String   @db.Uuid
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+
+  @@map("user_schedules")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  DISPOSITIVOS KIOSK
+// ─────────────────────────────────────────────────────────────
+
+model Kiosk {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId String   @db.Uuid
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  name       String
+
+  apiKey    String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  isActive  Boolean   @default(true)
+  lastSeenAt DateTime?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendances Attendance[]
+
+  @@map("kiosks")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ASISTENCIAS — TABLA CENTRAL
+// ─────────────────────────────────────────────────────────────
+
+model Attendance {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId String   @db.Uuid
+  location   Location @relation(fields: [locationId], references: [id])
+  kioskId    String?  @db.Uuid
+  kiosk      Kiosk?   @relation(fields: [kioskId], references: [id])
+
+  date DateTime @db.Date // Fecha sin hora
+
+  // Marcaciones físicas (QR escaneado en kiosk)
+  entryTime DateTime? // Hora exacta de entrada
+  exitTime  DateTime? // Hora exacta de salida
+
+  // Estado calculado
+  status AttendanceStatus @default(PENDIENTE)
+
+  // Métricas calculadas al cierre del día
+  workedMinutes Int?
+  lateMinutes   Int? // Minutos de retraso respecto al horario
+
+  // Auditoría de cambios de estado
+  notes           String?
+  statusChangedAt DateTime?
+  statusChangedBy String? // UUID del admin o literal "SISTEMA_GEO" / "CRON_EOD"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  geoPings GeoPing[]
+
+  // Un solo registro por usuario por día
+  @@unique([userId, date])
+  @@index([date])
+  @@index([status])
+  @@index([userId])
+  @@map("attendances")
+}
+
+enum AttendanceStatus {
+  PENDIENTE       // Aún no termina el día laboral
+  PRESENTE        // Entró y salió correctamente
+  TARDE           // Llegó después del tiempo de tolerancia
+  AUSENTE         // No marcó entrada (fin de jornada)
+  ABANDONO_PUESTO // Salió del perímetro sin marcar salida
+  INCOMPLETO      // Marcó entrada pero no salida al cierre del día
+  JUSTIFICADO     // Falta con justificación aprobada por admin
+  FERIADO         // Día no laborable
+  PERMISO         // Permiso aprobado previamente
+}
+
+// ─────────────────────────────────────────────────────────────
+//  GEO PINGS — HISTORIAL DE UBICACIONES
+// ─────────────────────────────────────────────────────────────
+
+model GeoPing {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String      @db.Uuid
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendanceId String?     @db.Uuid
+  attendance   Attendance? @relation(fields: [attendanceId], references: [id])
+
+  latitude     Float
+  longitude    Float
+  accuracy     Float? // Precisión GPS en metros
+  isInsideZone Boolean // Resultado de la validación PostGIS
+  source       PingSource @default(APP) // APP | BACKGROUND_FETCH | MANUAL
+
+  timestamp DateTime @default(now())
+
+  @@index([userId, timestamp])
+  @@index([attendanceId])
+  @@map("geo_pings")
+}
+
+enum PingSource {
+  APP
+  BACKGROUND_FETCH
+  MANUAL
+}
+
+// ─────────────────────────────────────────────────────────────
+//  NOTIFICACIONES
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json? // Metadata extra (attendanceId, locationId, etc.)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SALIDA_PERIMETRO
+  ABANDONO_REGISTRADO
+  LLEGADA_TARDE
+  RECORDATORIO_SALIDA
+  FALTA_REGISTRADA
+  BIENVENIDA
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SUSCRIPCIONES PUSH (Web Push API / VAPID)
+// ─────────────────────────────────────────────────────────────
+
+model PushSubscription {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  LOGS DE AUDITORÍA (Trazabilidad y Seguridad)
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?       @db.Uuid
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?       @db.Uuid
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action     AuditAction
+  entityType String // ATTENDANCE | USER | LOCATION | KIOSK | SCHEDULE | SYSTEM
+  entityId   String?
+
+  oldData Json?
+  newData Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  ATTENDANCE_SCANNED
+  ATTENDANCE_STATUS_CHANGED
+  ATTENDANCE_JUSTIFIED
+  ATTENDANCE_EDITED_MANUAL
+  QR_GENERATED
+  QR_REGENERATED
+  QR_INVALIDATED
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  GEOFENCE_UPDATED
+  JOB_EXECUTED
+}
+
+
