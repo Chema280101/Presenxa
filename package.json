@@ -18,6 +18,7 @@
     "db:studio": "pnpm --filter @asistencias/db studio",
     "db:seed": "pnpm --filter @asistencias/db seed",
     "db:clear": "pnpm --filter @asistencias/db clear",
+    "db:init": "pnpm --filter @asistencias/db run setup",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\" --ignore-path .gitignore"
   },
   "devDependencies": {

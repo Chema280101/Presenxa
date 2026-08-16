@@ -12,7 +12,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "studio": "prisma studio",
     "seed": "tsx src/seed.ts",
-    "clear": "tsx src/clear.ts"
+    "clear": "tsx src/clear.ts",
+    "setup": "tsx src/init_admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
