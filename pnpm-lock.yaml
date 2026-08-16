@@ -115,7 +115,7 @@ importers:
   packages/db:
     dependencies:
       '@prisma/client':
-        specifier: ^6.7.0
+        specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       '@types/bcryptjs':
         specifier: ^3.0.0
@@ -128,7 +128,7 @@ importers:
         specifier: ^22.20.1
         version: 22.20.1
       prisma:
-        specifier: ^6.7.0
+        specifier: ^6.19.3
         version: 6.19.3(typescript@5.9.3)
       tsx:
         specifier: ^4.19.3
