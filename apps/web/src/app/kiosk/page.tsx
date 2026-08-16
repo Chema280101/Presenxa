@@ -73,6 +73,11 @@ export default function KioskAppPage() {
 
   const scannerRef = useRef<any>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const apiKeyRef = useRef<string>(apiKey);
+
+  useEffect(() => {
+    apiKeyRef.current = apiKey;
+  }, [apiKey]);
 
   // Synthesize sound effects using Web Audio API
   const playSound = (type: "SUCCESS" | "WARNING" | "ERROR") => {
@@ -226,7 +231,8 @@ export default function KioskAppPage() {
   // Handle scanned QR code
   const handleQrScanned = async (token: string) => {
     if (isProcessing) return;
-    if (!apiKey) {
+    const activeKey = apiKeyRef.current || (typeof window !== "undefined" ? localStorage.getItem("asistcontrol_kiosk_api_key") : "") || apiKey;
+    if (!activeKey) {
       playSound("ERROR");
       setScanError("Debes configurar la API Key del Kiosk (ícono de engranaje ⚙️)");
       setIsConfigOpen(true);
@@ -247,7 +253,7 @@ export default function KioskAppPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-kiosk-api-key": apiKey,
+          "x-kiosk-api-key": activeKey.trim(),
         },
         body: JSON.stringify({ qrToken: token.trim(), mode: "AUTO" }),
       });
@@ -257,7 +263,8 @@ export default function KioskAppPage() {
       if (!res.ok) {
         playSound("ERROR");
         setScanError(data.error || "No se pudo registrar la asistencia");
-        if (res.status === 401) {
+        // Solo abrir configuración si realmente la clave no existe o es inválida
+        if (res.status === 401 && (!activeKey || data.error?.includes("clave incorrecta") || data.error?.includes("Falta la clave"))) {
           setIsConfigOpen(true);
         }
         setTimeout(() => {
