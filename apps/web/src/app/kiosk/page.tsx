@@ -226,6 +226,12 @@ export default function KioskAppPage() {
   // Handle scanned QR code
   const handleQrScanned = async (token: string) => {
     if (isProcessing) return;
+    if (!apiKey) {
+      playSound("ERROR");
+      setScanError("Debes configurar la API Key del Kiosk (ícono de engranaje ⚙️)");
+      setIsConfigOpen(true);
+      return;
+    }
     setIsProcessing(true);
     setScanError(null);
 
@@ -251,6 +257,9 @@ export default function KioskAppPage() {
       if (!res.ok) {
         playSound("ERROR");
         setScanError(data.error || "No se pudo registrar la asistencia");
+        if (res.status === 401) {
+          setIsConfigOpen(true);
+        }
         setTimeout(() => {
           setScanError(null);
           setIsProcessing(false);
