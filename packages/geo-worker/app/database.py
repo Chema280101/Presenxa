@@ -18,10 +18,16 @@ class Database:
 
     async def connect(self):
         if self._pool is None:
+            raw_url = os.getenv("DATABASE_URL")
+            if not raw_url:
+                raise ValueError("La variable de entorno DATABASE_URL no está configurada en Render.")
+            
+            # Limpiar query parameters incompatibles con asyncpg
+            dsn = raw_url.split("?")[0].strip()
             self._pool = await asyncpg.create_pool(
-                dsn=os.getenv("DATABASE_URL"),
-                min_size=2,
-                max_size=10,
+                dsn=dsn,
+                min_size=1,
+                max_size=5,
             )
 
     async def disconnect(self):
