@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@asistencias/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { authConfig } from "./auth.config";
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -10,6 +11,7 @@ const LoginSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       name: "Credenciales",
@@ -52,43 +54,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-
-  callbacks: {
-    async jwt({ token, user }) {
-      // Primera vez que se crea el JWT (al hacer login)
-      if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-        token.organizationId = (user as any).organizationId;
-        token.organizationName = (user as any).organizationName;
-        token.locationId = (user as any).locationId;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      // Exponer datos del JWT en la sesión del cliente
-      if (token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        session.user.organizationId = token.organizationId as string;
-        session.user.organizationName = token.organizationName as string;
-        session.user.locationId = token.locationId as string | undefined;
-      }
-      return session;
-    },
-  },
-
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-
-  session: {
-    strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 horas — jornada laboral
-  },
-
-  secret: process.env.NEXTAUTH_SECRET,
 });
 
 // Extensión de tipos para TypeScript
