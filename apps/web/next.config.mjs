@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
+  output: process.env.STANDALONE ? "standalone" : undefined,
   transpilePackages: ["@asistencias/db"],
   images: {
     remotePatterns: [

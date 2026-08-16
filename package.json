@@ -14,6 +14,7 @@
     "typecheck": "turbo typecheck",
     "db:generate": "pnpm --filter @asistencias/db generate",
     "db:migrate": "pnpm --filter @asistencias/db migrate:dev",
+    "db:deploy": "pnpm --filter @asistencias/db migrate:deploy",
     "db:studio": "pnpm --filter @asistencias/db studio",
     "db:seed": "pnpm --filter @asistencias/db seed",
     "db:clear": "pnpm --filter @asistencias/db clear",

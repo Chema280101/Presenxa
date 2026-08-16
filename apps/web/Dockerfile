@@ -39,6 +39,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Compilar proyecto en modo standalone
+ENV STANDALONE=1
 RUN pnpm --filter @asistencias/web build
 
 # ── Stage 3: Production Runner ────────────────────────────────────────────
