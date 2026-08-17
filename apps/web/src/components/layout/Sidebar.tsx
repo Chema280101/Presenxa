@@ -77,26 +77,29 @@ export function Sidebar() {
     <aside
       className="w-60 flex-shrink-0 flex flex-col h-full"
       style={{
-        background: "rgba(5, 10, 6, 0.98)",
-        borderRight: "1px solid rgba(22, 163, 74, 0.1)",
+        background: "#0a1b2c",
+        borderRight: "1px solid rgba(163, 230, 53, 0.12)",
       }}
     >
       {/* Logo */}
       <div
         className="px-5 py-5"
-        style={{ borderBottom: "1px solid rgba(22, 163, 74, 0.08)" }}
+        style={{ borderBottom: "1px solid rgba(163, 230, 53, 0.1)" }}
       >
-        <div className="flex items-center gap-3">
-          <div className="gradient-brand w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shadow-green-900/40">
-            <ShieldCheck className="w-5 h-5 text-white" />
-          </div>
+        <Link href="/" className="flex items-center gap-3 group">
+          <img
+            src="/brand/isotipo-secundario.svg"
+            alt="Presenxa"
+            className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform"
+          />
           <div>
-            <p className="font-bold text-white text-sm tracking-tight">
-              AsistControl
+            <p className="font-extrabold text-white text-base tracking-tight flex items-center">
+              <span>Presen</span>
+              <span className="text-lime-400">xa</span>
             </p>
-            <p className="text-xs text-slate-500 font-medium">Panel Admin</p>
+            <p className="text-[11px] text-slate-400 font-medium">Panel Admin</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Navegación */}

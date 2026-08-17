@@ -45,64 +45,41 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/_next/") ||
     url.pathname.startsWith("/api/geo") ||
     url.pathname.startsWith("/api/auth") ||
-    url.pathname.startsWith("/api/notifications")
+    url.pathname.startsWith("/api/attendance/scan")
   ) {
     return;
   }
 
-  // Static images and icons — Cache First with Network Fallback
-  if (url.pathname.startsWith("/api/icon") || url.pathname.endsWith(".png") || url.pathname.endsWith(".svg")) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) return cachedResponse;
-        return fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const responseClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-            }
-            return networkResponse;
-          })
-          .catch(() => new Response("", { status: 404, statusText: "Not Found" }));
-      })
-    );
-    return;
-  }
-
-  // Navigation requests — Network First with Cache Fallback
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(event.request);
-          if (cachedResponse) return cachedResponse;
-          const appShell = await caches.match("/app");
-          return (
-            appShell ||
-            new Response("AsistControl Offline - Reconectando...", {
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-            })
-          );
-        })
-    );
-    return;
-  }
-
-  // General fallback for all other assets
+  // Network-first for dynamic routes, cache fallback
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).catch(async () => {
-        return new Response(null, { status: 503, statusText: "Service Unavailable" });
-      });
-    })
+    fetch(request)
+      .then((response) => {
+        if (response.status === 200) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
+          });
+        }
+        return response;
+      })
+      .catch(async () => {
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        // Return offline fallback for navigation requests
+        if (request.mode === "navigate") {
+          const appShell = await caches.match("/app");
+          if (appShell) return appShell;
+        }
+
+        return new Response("Presenxa Offline - Reconectando...", {
+          status: 503,
+          statusText: "Service Unavailable",
+          headers: new Headers({ "Content-Type": "text/plain; charset=utf-8" }),
+        });
+      })
   );
 });
 
@@ -112,11 +89,11 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   let data = {
-    title: "AsistControl",
+    title: "Presenxa",
     body: "Nueva actualización de control de asistencia",
-    icon: "/api/icon/192",
-    badge: "/icon",
-    tag: "asistcontrol-alert",
+    icon: "/brand/isotipo-secundario.svg",
+    badge: "/brand/isotipo-secundario.svg",
+    tag: "presenxa-alert",
     url: "/app",
   };
 
@@ -130,9 +107,9 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || "/api/icon/192",
-    badge: data.badge || "/icon",
-    tag: data.tag || "asistcontrol-alert",
+    icon: data.icon || "/brand/isotipo-secundario.svg",
+    badge: data.badge || "/brand/isotipo-secundario.svg",
+    tag: data.tag || "presenxa-alert",
     vibrate: [200, 100, 200],
     data: {
       url: data.url || "/app",

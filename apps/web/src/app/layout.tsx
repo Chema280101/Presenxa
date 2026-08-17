@@ -11,12 +11,16 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "AsistControl — Control de Asistencia Inteligente",
-    template: "%s | AsistControl",
+    default: "Presenxa — Control de Asistencia Inteligente",
+    template: "%s | Presenxa",
   },
   description:
-    "Sistema inteligente de control de asistencia con QR y geofencing para empresas y colegios.",
-  keywords: ["asistencia", "control", "geofencing", "qr", "empresa", "colegio"],
+    "Presenxa: Sistema inteligente de control de asistencia biométrico, QR dinámico y geocercas GPS en tiempo real.",
+  keywords: ["presenxa", "asistencia", "control", "geofencing", "qr", "empresa", "biometrico"],
+  icons: {
+    icon: "/brand/isotipo-secundario.svg",
+    apple: "/brand/isotipo-secundario.svg",
+  },
 };
 
 import { SessionProvider } from "@/components/providers/SessionProvider";

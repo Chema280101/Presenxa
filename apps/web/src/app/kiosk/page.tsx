@@ -351,19 +351,22 @@ export default function KioskAppPage() {
       <header
         className="p-6 md:px-10 flex items-center justify-between z-10"
         style={{
-          background: "rgba(5, 10, 6, 0.85)",
+          background: "rgba(10, 27, 44, 0.9)",
           backdropFilter: "blur(14px)",
-          borderBottom: "1px solid rgba(22, 163, 74, 0.1)",
+          borderBottom: "1px solid rgba(163, 230, 53, 0.12)",
         }}
       >
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl gradient-brand flex items-center justify-center shadow-lg shadow-emerald-950/60">
-            <QrCode className="w-6 h-6 text-white" />
-          </div>
+          <img
+            src="/brand/isotipo-secundario.svg"
+            alt="Presenxa"
+            className="w-12 h-12 rounded-2xl object-contain shadow-lg shadow-black/50 ring-1 ring-lime-400/30"
+          />
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              AsistControl
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
+            <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              <span>Presen</span>
+              <span className="text-lime-400">xa</span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30 font-semibold">
                 Tablet Kiosk
               </span>
             </h1>
@@ -625,7 +628,7 @@ export default function KioskAppPage() {
           borderTop: "1px solid rgba(22, 163, 74, 0.08)",
         }}
       >
-        <span>AsistControl &copy; {new Date().getFullYear()} — Alta Seguridad Híbrida</span>
+        <span className="text-slate-400">Presenxa &copy; {new Date().getFullYear()} — Control Biométrico & QR</span>
         <span className="font-mono text-[11px] text-slate-500">
           Kiosk Key: {apiKey ? `${apiKey.substring(0, 8)}...` : "No configurado"}
         </span>

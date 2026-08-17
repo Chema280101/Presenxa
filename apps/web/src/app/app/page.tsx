@@ -485,12 +485,12 @@ export default function EmployeeAppPage() {
         >
           <div className="max-w-md mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Instala AsistControl en tu pantalla de inicio</span>
+              <Sparkles className="w-4 h-4 text-lime-400 shrink-0" />
+              <span>Instala Presenxa en tu pantalla de inicio</span>
             </div>
             <button
               onClick={handleInstallPwa}
-              className="px-3 py-1 rounded-xl gradient-brand text-white font-bold text-[11px] shadow-lg shadow-emerald-950/40 flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3 py-1 rounded-xl gradient-brand text-slate-950 font-bold text-[11px] shadow-lg shadow-lime-950/40 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Instalar PWA</span>

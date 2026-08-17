@@ -77,7 +77,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
           <style>
             body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #fff; }
             .badge { border: 2px solid #0f172a; border-radius: 16px; padding: 24px; text-align: center; width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-            .org { font-size: 14px; font-weight: bold; color: #6366f1; text-transform: uppercase; margin-bottom: 4px; }
+            .org { font-size: 14px; font-weight: bold; color: #102a43; text-transform: uppercase; margin-bottom: 4px; }
             .name { font-size: 20px; font-weight: bold; color: #0f172a; margin: 8px 0 2px; }
             .role { font-size: 13px; color: #64748b; margin-bottom: 16px; font-weight: 500; }
             .qr-img { width: 220px; height: 220px; margin: 0 auto 12px; display: block; }
@@ -87,7 +87,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
         </head>
         <body>
           <div class="badge">
-            <div class="org">AsistControl ID</div>
+            <div class="org">Presenxa ID</div>
             <div class="name">${user.firstName} ${user.lastName}</div>
             <div class="role">${user.role} ${user.documentId ? `· Doc: ${user.documentId}` : ""}</div>
             <img class="qr-img" src="${dataUrl}" alt="QR" />
@@ -121,7 +121,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl gradient-brand text-white">
+            <div className="p-2 rounded-xl gradient-brand text-slate-950 font-bold">
               <QrCode className="w-5 h-5" />
             </div>
             <div>
@@ -140,9 +140,9 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
         {/* Badge Card preview */}
         <div ref={printRef} className="my-6 flex flex-col items-center">
           <div className="w-full bg-white rounded-2xl p-5 flex flex-col items-center shadow-lg text-slate-900 border border-slate-200">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 tracking-wider uppercase mb-1">
-              <Shield className="w-3.5 h-3.5" />
-              AsistControl · Pase Seguro
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 tracking-wider uppercase mb-1">
+              <Shield className="w-3.5 h-3.5 text-lime-600" />
+              Presenxa · Pase Seguro
             </div>
             <h4 className="text-lg font-bold text-slate-900 text-center leading-tight">
               {user.firstName} {user.lastName}

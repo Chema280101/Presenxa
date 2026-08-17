@@ -12,20 +12,21 @@ export async function GET(
     (
       <div
         style={{
-          fontSize: Math.round(size * 0.5),
-          background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%)",
+          fontSize: Math.round(size * 0.52),
+          background: "#102a43",
+          border: `${Math.max(2, Math.round(size * 0.04))}px solid #a3e635`,
           width: "100%",
           height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "white",
-          borderRadius: Math.round(size * 0.22),
+          color: "#ffffff",
+          borderRadius: Math.round(size * 0.24),
           fontWeight: 900,
-          boxShadow: "inset 0 2px 8px rgba(255,255,255,0.3)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
         }}
       >
-        A
+        <span>P</span>
       </div>
     ),
     {

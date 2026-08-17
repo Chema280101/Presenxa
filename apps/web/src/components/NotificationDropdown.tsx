@@ -310,8 +310,8 @@ export function NotificationDropdown() {
 
           {/* Footer */}
           <div className="p-2.5 border-t border-white/5 bg-black/40 text-center">
-            <span className="text-[11px] text-slate-500 font-medium">
-              AsistControl Notificaciones
+            <span className="text-[11px] text-slate-400 font-medium">
+              Presenxa Notificaciones
             </span>
           </div>
         </div>
