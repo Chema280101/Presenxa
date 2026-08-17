@@ -232,20 +232,26 @@ export default function KioskAppPage() {
     try {
       const res = await fetch("/api/kiosks/heartbeat", {
         method: "POST",
-        headers: { "x-kiosk-api-key": key },
+        headers: { "x-kiosk-api-key": key.trim() },
       });
       const data = await res.json();
       if (res.ok) {
         setIsOnline(true);
         setKioskInfo({
-          id: key,
+          id: key.trim(),
           name: data.kiosk?.name || "Kiosk de Asistencia",
           locationName: data.location?.name || "Sede",
         });
-        localStorage.setItem("asistcontrol_kiosk_api_key", key);
+        localStorage.setItem("asistcontrol_kiosk_api_key", key.trim());
         return true;
       } else {
         setIsOnline(false);
+        if (res.status === 401) {
+          localStorage.removeItem("asistcontrol_kiosk_api_key");
+          setApiKey("");
+          setKioskInfo(null);
+          setIsConfigOpen(true);
+        }
         return false;
       }
     } catch (err) {
@@ -266,12 +272,13 @@ export default function KioskAppPage() {
   // Initialize Html5QrcodeScanner
   useEffect(() => {
     let html5QrCode: any = null;
+    let isCancelled = false;
 
     const startScanner = async () => {
       try {
         const { Html5Qrcode } = await import("html5-qrcode");
         const element = document.getElementById("qr-reader");
-        if (!element) return;
+        if (!element || isCancelled) return;
 
         html5QrCode = new Html5Qrcode("qr-reader", {
           verbose: false,
@@ -291,36 +298,24 @@ export default function KioskAppPage() {
           aspectRatio: 1.0,
         };
 
-        const hdConstraints = {
-          facingMode: cameraFacing,
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-        };
+        // Html5Qrcode requires exactly 1 key if passed as object: { facingMode: "environment" | "user" }
+        await html5QrCode.start(
+          { facingMode: cameraFacing },
+          config,
+          (decodedText: string) => {
+            handleQrScanned(decodedText);
+          },
+          () => {}
+        );
 
-        try {
-          await html5QrCode.start(
-            hdConstraints,
-            config,
-            (decodedText: string) => {
-              handleQrScanned(decodedText);
-            },
-            () => {}
-          );
-        } catch (firstErr) {
-          console.warn(`Could not start camera with HD constraints & facingMode: ${cameraFacing}, attempting fallback...`, firstErr);
-          // Fallback to simple facingMode
-          const fallbackFacing = cameraFacing === "environment" ? "user" : "environment";
-          await html5QrCode.start(
-            { facingMode: fallbackFacing },
-            config,
-            (decodedText: string) => {
-              handleQrScanned(decodedText);
-            },
-            () => {}
-          );
+        if (isCancelled) {
+          if (html5QrCode.isScanning) {
+            html5QrCode.stop().catch(() => {});
+          }
+          return;
         }
 
-        // Extract active video track for autofocus and zoom capabilities
+        // Extract active video track for HD resolution, autofocus and zoom capabilities
         setTimeout(() => {
           try {
             const videoEl = document.querySelector("#qr-reader video") as HTMLVideoElement;
@@ -329,12 +324,17 @@ export default function KioskAppPage() {
               const track = stream.getVideoTracks()[0];
               if (track) {
                 videoTrackRef.current = track;
-                const caps: any = track.getCapabilities?.() || {};
 
-                // Attempt continuous autofocus
-                if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
-                  track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => {});
-                }
+                // Try applying HD resolution and continuous focus
+                track
+                  .applyConstraints({
+                    width: { ideal: 1920, min: 1280 },
+                    height: { ideal: 1080, min: 720 },
+                    advanced: [{ focusMode: "continuous" } as any],
+                  })
+                  .catch(() => {});
+
+                const caps: any = track.getCapabilities?.() || {};
 
                 // Detect zoom capabilities
                 if (caps.zoom) {
@@ -360,6 +360,7 @@ export default function KioskAppPage() {
     }
 
     return () => {
+      isCancelled = true;
       videoTrackRef.current = null;
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});

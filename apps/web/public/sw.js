@@ -52,32 +52,32 @@ self.addEventListener("fetch", (event) => {
 
   // Network-first for dynamic routes, cache fallback
   event.respondWith(
-    fetch(request)
+    fetch(event.request)
       .then((response) => {
         if (response.status === 200) {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone);
+            cache.put(event.request, responseClone);
           });
         }
         return response;
       })
       .catch(async () => {
-        const cachedResponse = await caches.match(request);
+        const cachedResponse = await caches.match(event.request);
         if (cachedResponse) {
           return cachedResponse;
         }
 
         // Return offline fallback for navigation requests
-        if (request.mode === "navigate") {
+        if (event.request.mode === "navigate") {
           const appShell = await caches.match("/app");
           if (appShell) return appShell;
         }
 
-        return new Response("Presenxa Offline - Reconectando...", {
+        return new Response("Sin conexión a internet", {
           status: 503,
           statusText: "Service Unavailable",
-          headers: new Headers({ "Content-Type": "text/plain; charset=utf-8" }),
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
         });
       })
   );
