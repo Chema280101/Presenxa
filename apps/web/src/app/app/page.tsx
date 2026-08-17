@@ -189,12 +189,17 @@ export default function EmployeeAppPage() {
   };
 
   const handleSubscribePush = async () => {
+    if (Capacitor.isNativePlatform()) {
+      setPushSubscribed(true);
+      return;
+    }
+
     if (
       typeof window === "undefined" ||
       !("Notification" in window) ||
       !("serviceWorker" in navigator)
     ) {
-      alert("Las notificaciones push no están soportadas en este navegador.");
+      alert("Las notificaciones web push no están soportadas en este navegador.");
       return;
     }
 
@@ -552,48 +557,52 @@ export default function EmployeeAppPage() {
             <div
               className="p-3.5 rounded-2xl border backdrop-blur-md flex items-center justify-between"
               style={{
-                background: "rgba(11, 20, 13, 0.75)",
-                borderColor: "rgba(34, 197, 94, 0.12)",
+                background: "rgba(16, 42, 67, 0.85)",
+                borderColor: "rgba(163, 230, 53, 0.15)",
               }}
             >
               <div className="flex items-center gap-2.5">
                 <div
                   className={`p-2 rounded-xl ${
-                    pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
-                      ? "bg-emerald-500/20 text-emerald-400"
-                      : "bg-emerald-500/15 text-emerald-400"
+                    geo.isNative || pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
+                      ? "bg-lime-400/20 text-lime-400 border border-lime-400/30"
+                      : "bg-white/10 text-slate-400"
                   }`}
                 >
-                  {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
-                    <BellRing className="w-4 h-4" />
+                  {geo.isNative || pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
+                    <BellRing className="w-4 h-4 text-lime-400" />
                   ) : (
-                    <Bell className="w-4 h-4" />
+                    <Bell className="w-4 h-4 text-slate-400" />
                   )}
                 </div>
                 <div>
                   <span className="text-xs font-bold text-white block">
-                    {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
+                    {geo.isNative
+                      ? "Alertas Nativas Activas"
+                      : pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
                       ? "Alertas Push Activas"
                       : "Notificaciones Push"}
                   </span>
-                  <span className="text-[10px] text-slate-400">
-                    {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
+                  <span className="text-[10px] text-slate-300">
+                    {geo.isNative
+                      ? "Servicio de geocerca integrado en Android"
+                      : pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
                       ? "Recibirás avisos de geocerca en tiempo real"
                       : "Activa alertas de geocerca y recordatorios"}
                   </span>
                 </div>
               </div>
 
-              {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
+              {geo.isNative || pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-lime-400/20 text-lime-300 border border-lime-400/30 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-lime-400" />
                   <span>Activo</span>
                 </span>
               ) : (
                 <button
                   onClick={handleSubscribePush}
                   disabled={isSubscribingPush}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl gradient-brand text-slate-950 font-bold text-xs shadow-lg shadow-lime-950/40 transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer"
                 >
                   <Bell className={`w-3.5 h-3.5 ${isSubscribingPush ? "animate-spin" : ""}`} />
                   <span>{isSubscribingPush ? "Activando..." : "Activar"}</span>
