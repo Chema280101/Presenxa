@@ -95,7 +95,8 @@ export function Sidebar() {
           <div>
             <p className="font-extrabold text-white text-base tracking-tight flex items-center">
               <span>Presen</span>
-              <span className="text-lime-400">xa</span>
+              <span className="text-lime-400">x</span>
+              <span>a</span>
             </p>
             <p className="text-[11px] text-slate-400 font-medium">Panel Admin</p>
           </div>

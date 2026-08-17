@@ -340,12 +340,12 @@ export default function KioskAppPage() {
     <div
       className="min-h-screen text-white flex flex-col justify-between select-none relative overflow-hidden font-sans"
       style={{
-        background: "radial-gradient(ellipse at 50% 0%, #0c1c12 0%, #060a07 60%, #030504 100%)",
+        background: "radial-gradient(ellipse at 50% 0%, #102a43 0%, #0a1b2c 60%, #060e17 100%)",
       }}
     >
       {/* Background ambient lighting */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-emerald-600/10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-teal-600/10 blur-3xl pointer-events-none" />
+      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-lime-400/10 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-sky-600/10 blur-3xl pointer-events-none" />
 
       {/* Topbar of Kiosk */}
       <header
@@ -365,7 +365,8 @@ export default function KioskAppPage() {
           <div>
             <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
               <span>Presen</span>
-              <span className="text-lime-400">xa</span>
+              <span className="text-lime-400">x</span>
+              <span>a</span>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30 font-semibold">
                 Tablet Kiosk
               </span>

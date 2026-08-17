@@ -67,7 +67,7 @@ function LoginForm() {
             className="w-16 h-16 rounded-2xl object-contain mb-3 shadow-lg shadow-black/50 ring-1 ring-lime-400/30"
           />
           <h1 className="text-2xl font-extrabold text-white tracking-tight mb-1">
-            Presen<span className="text-lime-400">xa</span>
+            <span>Presen</span><span className="text-lime-400">x</span><span>a</span>
           </h1>
           <p className="text-xs text-slate-300 font-medium">
             Control de Asistencia Biométrico & QR
