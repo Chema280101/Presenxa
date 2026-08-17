@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import {
   addOfflinePing,
   getOfflinePings,
@@ -30,6 +31,7 @@ interface GeofenceState {
   isOnline: boolean;
   pendingOfflinePings: number;
   isFlushingOfflineQueue: boolean;
+  isNative: boolean;
 }
 
 // Haversine formula to compute distance in meters
@@ -74,6 +76,7 @@ export function useGeofencing(
     isOnline: typeof navigator !== "undefined" ? navigator.onLine : true,
     pendingOfflinePings: 0,
     isFlushingOfflineQueue: false,
+    isNative: false,
   });
 
   const targetRef = useRef<GeofenceTarget | null>(target);
@@ -322,64 +325,129 @@ export function useGeofencing(
     };
   }, [flushOfflinePings, refreshPendingCount]);
 
-  // Start watching position
+  // Start watching position (Browser Geolocation + Native Background Geolocation)
   useEffect(() => {
-    if (!enabled || typeof window === "undefined" || !("geolocation" in navigator)) {
+    if (!enabled || typeof window === "undefined") {
       return;
     }
 
-    setState((s) => ({ ...s, isTracking: true, error: null }));
+    const isNative = Capacitor.isNativePlatform();
+    setState((s) => ({ ...s, isTracking: true, isNative, error: null }));
 
-    const handleSuccess = (position: GeolocationPosition) => {
-      const { latitude, longitude, accuracy } = position.coords;
-      lastCoordsRef.current = { lat: latitude, lng: longitude, acc: accuracy };
+    let nativeWatcherId: string | null = null;
 
-      const currentTarget = targetRef.current;
-      const distance =
-        currentTarget && currentTarget.lat && currentTarget.lng
-          ? calculateDistance(latitude, longitude, currentTarget.lat, currentTarget.lng)
-          : null;
+    if (isNative) {
+      // ── MODO NATIVO ANDROID: Servicio de Fondo Persistente ─────────
+      try {
+        const BackgroundGeolocation = registerPlugin<any>("BackgroundGeolocation");
 
-      setState((s) => ({
-        ...s,
-        latitude,
-        longitude,
-        accuracy,
-        distanceToVenue: distance,
-        isInside: distance !== null ? distance <= (currentTarget?.radius || 100) : s.isInside,
-      }));
-    };
+        BackgroundGeolocation.addWatcher(
+          {
+            backgroundMessage: "Monitoreo de geocerca laboral activo.",
+            backgroundTitle: "Presenxa — Servicio de Asistencia",
+            requestPermissions: true,
+            stale: false,
+            distanceFilter: 15,
+          },
+          (location: any, error: any) => {
+            if (error) {
+              if (error.code === "NOT_AUTHORIZED") {
+                setState((s) => ({
+                  ...s,
+                  error:
+                    "Para el funcionamiento correcto de Presenxa, selecciona 'Permitir todo el tiempo' en Ajustes de Ubicación.",
+                }));
+              }
+              return;
+            }
 
-    const handleError = (error: GeolocationPositionError) => {
-      let msg = "No se pudo obtener la ubicación.";
-      if (error.code === error.PERMISSION_DENIED) {
-        msg = "Permiso de ubicación denegado por el usuario.";
-      } else if (error.code === error.POSITION_UNAVAILABLE) {
-        msg = "Información de GPS no disponible.";
-      } else if (error.code === error.TIMEOUT) {
-        msg = "Tiempo de espera agotado al consultar GPS.";
+            if (location) {
+              const { latitude, longitude, accuracy } = location;
+              lastCoordsRef.current = { lat: latitude, lng: longitude, acc: accuracy };
+
+              const currentTarget = targetRef.current;
+              const distance =
+                currentTarget && currentTarget.lat && currentTarget.lng
+                  ? calculateDistance(latitude, longitude, currentTarget.lat, currentTarget.lng)
+                  : null;
+
+              setState((s) => ({
+                ...s,
+                latitude,
+                longitude,
+                accuracy,
+                distanceToVenue: distance,
+                isInside:
+                  distance !== null ? distance <= (currentTarget?.radius || 100) : s.isInside,
+              }));
+
+              sendPing(latitude, longitude, accuracy, "NATIVE_BACKGROUND");
+            }
+          }
+        ).then((watcherId: string) => {
+          nativeWatcherId = watcherId;
+        }).catch((err: any) => {
+          console.warn("[BackgroundGeolocation] Error iniciando watcher nativo:", err);
+        });
+      } catch (e) {
+        console.warn("No se pudo iniciar BackgroundGeolocation nativo:", e);
       }
-      setState((s) => ({ ...s, error: msg }));
-    };
+    }
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      handleSuccess,
-      handleError,
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 10000,
-      }
-    );
+    // ── MODO WEB / PWA WATCHER ───────────────────────────────────────
+    if ("geolocation" in navigator) {
+      const handleSuccess = (position: GeolocationPosition) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        lastCoordsRef.current = { lat: latitude, lng: longitude, acc: accuracy };
 
-    // Initial ping
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+        const currentTarget = targetRef.current;
+        const distance =
+          currentTarget && currentTarget.lat && currentTarget.lng
+            ? calculateDistance(latitude, longitude, currentTarget.lat, currentTarget.lng)
+            : null;
+
+        setState((s) => ({
+          ...s,
+          latitude,
+          longitude,
+          accuracy,
+          distanceToVenue: distance,
+          isInside:
+            distance !== null ? distance <= (currentTarget?.radius || 100) : s.isInside,
+        }));
+      };
+
+      const handleError = (error: GeolocationPositionError) => {
+        let msg = "No se pudo obtener la ubicación.";
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = "Permiso de ubicación denegado por el usuario.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = "Información de GPS no disponible.";
+        } else if (error.code === error.TIMEOUT) {
+          msg = "Tiempo de espera agotado al consultar GPS.";
+        }
+        setState((s) => ({ ...s, error: msg }));
+      };
+
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        handleSuccess,
+        handleError,
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 10000,
+        }
+      );
+
+      // Initial ping
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          sendPing(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
 
     // Periodic ping timer
     const intervalTimer = setInterval(() => {
@@ -387,14 +455,21 @@ export function useGeofencing(
         sendPing(
           lastCoordsRef.current.lat,
           lastCoordsRef.current.lng,
-          lastCoordsRef.current.acc
+          lastCoordsRef.current.acc,
+          isNative ? "NATIVE_INTERVAL" : "WEB_INTERVAL"
         );
       }
     }, pingIntervalMs);
 
     return () => {
-      if (watchIdRef.current !== null) {
+      if (watchIdRef.current !== null && "geolocation" in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (nativeWatcherId && isNative) {
+        try {
+          const BackgroundGeolocation = registerPlugin<any>("BackgroundGeolocation");
+          BackgroundGeolocation.removeWatcher({ id: nativeWatcherId }).catch(() => {});
+        } catch {}
       }
       clearInterval(intervalTimer);
     };
