@@ -28,6 +28,7 @@ export type RoleKey = "ADMIN" | "SUPERVISOR" | "EMPLEADO" | "ALUMNO";
 interface StatusBadgeProps {
   status: AttendanceStatusKey | string;
   lateMinutes?: number | null;
+  hasExit?: boolean;
   size?: "sm" | "md";
   className?: string;
 }
@@ -35,6 +36,7 @@ interface StatusBadgeProps {
 export function StatusBadge({
   status,
   lateMinutes,
+  hasExit,
   size = "md",
   className,
 }: StatusBadgeProps) {
@@ -47,6 +49,39 @@ export function StatusBadge({
 
   switch (normStatus) {
     case "PRESENTE":
+      if (hasExit) {
+        return (
+          <span
+            className={clsx(
+              "inline-flex items-center rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 font-medium",
+              sizeClasses,
+              className
+            )}
+            title="Jornada completada con éxito (Entrada y Salida registradas)"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            Completado
+          </span>
+        );
+      }
+      if (hasExit === false) {
+        return (
+          <span
+            className={clsx(
+              "inline-flex items-center rounded-xl bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40 font-medium",
+              sizeClasses,
+              className
+            )}
+            title="En jornada laboral activa"
+          >
+            <span className="relative flex h-2 w-2 mr-0.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+            En Turno
+          </span>
+        );
+      }
       return (
         <span
           className={clsx(
@@ -61,6 +96,39 @@ export function StatusBadge({
       );
 
     case "TARDE":
+      if (hasExit) {
+        return (
+          <span
+            className={clsx(
+              "inline-flex items-center rounded-xl bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30 font-medium",
+              sizeClasses,
+              className
+            )}
+            title="Jornada completada con tardanza registrada"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+            Completado {lateMinutes ? `(+${lateMinutes}m)` : "(Tarde)"}
+          </span>
+        );
+      }
+      if (hasExit === false) {
+        return (
+          <span
+            className={clsx(
+              "inline-flex items-center rounded-xl bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/40 font-medium",
+              sizeClasses,
+              className
+            )}
+            title="En jornada laboral activa con tardanza registrada"
+          >
+            <span className="relative flex h-2 w-2 mr-0.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+            </span>
+            En Turno {lateMinutes ? `(+${lateMinutes}m)` : "(Tarde)"}
+          </span>
+        );
+      }
       return (
         <span
           className={clsx(

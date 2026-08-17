@@ -150,6 +150,7 @@ export default async function DashboardPage() {
       time: timeStr,
       status: att.status as string,
       lateMinutes: att.lateMinutes,
+      hasExit: Boolean(att.exitTime),
     };
   });
 
@@ -370,7 +371,12 @@ export default async function DashboardPage() {
                     <span className="text-xs text-slate-400 font-mono bg-black/30 px-2.5 py-1 rounded-lg border border-white/5">
                       {item.time}
                     </span>
-                    <StatusBadge status={item.status} lateMinutes={item.lateMinutes} size="sm" />
+                    <StatusBadge
+                      status={item.status}
+                      lateMinutes={item.lateMinutes}
+                      hasExit={item.hasExit}
+                      size="sm"
+                    />
                   </div>
                 </div>
               ))}

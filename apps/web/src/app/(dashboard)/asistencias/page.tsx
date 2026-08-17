@@ -724,7 +724,12 @@ export default function AttendancePage() {
 
                       {/* Estado */}
                       <td className="py-3.5 px-4">
-                        <StatusBadge status={record.status} lateMinutes={record.lateMinutes} size="sm" />
+                        <StatusBadge
+                          status={record.status}
+                          lateMinutes={record.lateMinutes}
+                          hasExit={Boolean(record.exitTime)}
+                          size="sm"
+                        />
                       </td>
 
                       {/* Notas / Auditoría */}
