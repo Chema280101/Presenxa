@@ -31,25 +31,41 @@ export async function GET() {
   }
 
   try {
-    const org = await prisma.organization.findUnique({
-      where: { id: session.user.organizationId },
-      include: {
-        _count: {
-          select: {
-            users: { where: { isActive: true } },
-            locations: { where: { isActive: true } },
-            schedules: { where: { isActive: true } },
-            attendances: true,
+    const [org, attendancesCount] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: session.user.organizationId },
+        include: {
+          _count: {
+            select: {
+              users: { where: { isActive: true } },
+              locations: { where: { isActive: true } },
+              schedules: { where: { isActive: true } },
+            },
           },
         },
-      },
-    });
+      }),
+      prisma.attendance.count({
+        where: {
+          user: {
+            organizationId: session.user.organizationId,
+          },
+        },
+      }),
+    ]);
 
     if (!org) {
       return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
     }
 
-    return NextResponse.json({ organization: org });
+    const orgWithMetrics = {
+      ...org,
+      _count: {
+        ...org._count,
+        attendances: attendancesCount,
+      },
+    };
+
+    return NextResponse.json({ organization: orgWithMetrics });
   } catch (error: any) {
     console.error("[ORGANIZATION_GET_ERROR]", error);
     return NextResponse.json({ error: "Error al obtener la organización" }, { status: 500 });
