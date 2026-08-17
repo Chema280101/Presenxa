@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: "public",
   server: {
     // Apunta a la app de producción desplegada en Vercel para sincronización en tiempo real
-    url: process.env.CAPACITOR_SERVER_URL || "https://presenxa.vercel.app/app",
+    url: process.env.CAPACITOR_SERVER_URL || "https://presenxa-web.vercel.app/app",
     cleartext: true,
   },
   android: {
