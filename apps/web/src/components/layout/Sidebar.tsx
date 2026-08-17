@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   Smartphone,
   Tablet,
+  Settings,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -54,6 +56,11 @@ const NAV_ITEMS = [
     icon: BarChart3,
   },
   {
+    label: "Configuración",
+    href: "/configuracion",
+    icon: Settings,
+  },
+  {
     label: "Portal Empleado",
     href: "/app",
     icon: Smartphone,
@@ -67,6 +74,21 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [orgData, setOrgData] = useState<{ name: string; logoUrl?: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/organization")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.organization) {
+          setOrgData({
+            name: data.organization.name,
+            logoUrl: data.organization.logoUrl,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const isActive = (href: string, exact = false) => {
     if (exact) return pathname === href;
@@ -87,18 +109,32 @@ export function Sidebar() {
         style={{ borderBottom: "1px solid rgba(163, 230, 53, 0.1)" }}
       >
         <Link href="/" className="flex items-center gap-3 group">
-          <img
-            src="/brand/isotipo-secundario.svg"
-            alt="Presenxa"
-            className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform"
-          />
-          <div>
-            <p className="font-extrabold text-white text-base tracking-tight flex items-center">
-              <span>Presen</span>
-              <span className="text-lime-400">x</span>
-              <span>a</span>
-            </p>
-            <p className="text-[11px] text-slate-400 font-medium">Panel Admin</p>
+          {orgData?.logoUrl ? (
+            <img
+              src={orgData.logoUrl}
+              alt={orgData.name || "Logo"}
+              className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform bg-black/20"
+            />
+          ) : (
+            <img
+              src="/brand/isotipo-secundario.svg"
+              alt="Presenxa"
+              className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform"
+            />
+          )}
+          <div className="overflow-hidden">
+            {orgData?.name ? (
+              <p className="font-extrabold text-white text-sm tracking-tight truncate group-hover:text-lime-300 transition-colors">
+                {orgData.name}
+              </p>
+            ) : (
+              <p className="font-extrabold text-white text-base tracking-tight flex items-center">
+                <span>Presen</span>
+                <span className="text-lime-400">x</span>
+                <span>a</span>
+              </p>
+            )}
+            <p className="text-[11px] text-slate-400 font-medium truncate">Panel Admin</p>
           </div>
         </Link>
       </div>
