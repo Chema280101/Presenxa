@@ -25,6 +25,7 @@ from .jobs.scheduler import JobScheduler
 from .jobs.daily_starter import start_day
 from .jobs.daily_closer import close_day
 from .jobs.late_monitor import check_late_arrivals
+from .jobs.cleanup_pings import purge_old_geo_pings
 from .monitoring import init_monitoring
 
 # Inicializar observabilidad (Sentry) si está configurado
@@ -132,10 +133,16 @@ class GeoPingResponse(BaseModel):
 class JobTriggerPayload(BaseModel):
     date: Optional[str] = Field(None, description="Fecha objetivo YYYY-MM-DD (opcional)")
     threshold_minutes: Optional[int] = Field(30, description="Minutos de tolerancia extra para tardanza")
+    retention_days: Optional[int] = Field(45, description="Días de retención para historial de pings GPS")
 
 
-# ── Geo Ping Endpoints ────────────────────────────────────────
-@app.get("/health")
+# ── Health & Root Endpoints (Soporta GET y HEAD para UptimeRobot / Render) ──
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root():
+    return {"status": "ok", "service": "geo-worker"}
+
+
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health():
     return {
         "status": "ok",
@@ -249,3 +256,19 @@ async def trigger_late_check(
     )
     scheduler._record_history("MANUAL_LATE_MONITOR", result)
     return result
+
+
+@app.post("/api/jobs/cleanup-pings")
+async def trigger_cleanup_pings(
+    payload: Optional[JobTriggerPayload] = None,
+    _: None = Depends(verify_internal_secret),
+):
+    """Dispara manualmente la depuración de pings GPS antiguos (> 45 días)."""
+    days = 45
+    if payload and payload.retention_days is not None:
+        days = payload.retention_days
+
+    result = await purge_old_geo_pings(retention_days=days, external_db=db)
+    scheduler._record_history("MANUAL_CLEANUP_OLD_PINGS", result)
+    return result
+

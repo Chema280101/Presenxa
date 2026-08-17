@@ -20,9 +20,11 @@ from typing import Dict, Any, Optional
 from .daily_starter import start_day
 from .daily_closer import close_day
 from .late_monitor import check_late_arrivals
+from .cleanup_pings import purge_old_geo_pings
 
 # Zona horaria configurable — leer de env o usar Lima por defecto
 _TZ_NAME = os.getenv("GEO_WORKER_TIMEZONE", "America/Lima")
+_RETENTION_DAYS = int(os.getenv("GEO_PING_RETENTION_DAYS", "45"))
 try:
     LOCAL_TZ = ZoneInfo(_TZ_NAME)
 except Exception:
@@ -48,9 +50,12 @@ class JobScheduler:
             "lastSOD": None,
             "lastEOD": None,
             "lastLateCheck": None,
+            "lastCleanup": None,
             "sodCount": 0,
             "eodCount": 0,
             "lateCheckCount": 0,
+            "cleanupCount": 0,
+            "retentionDays": _RETENTION_DAYS,
             "history": [],
         }
 
@@ -81,7 +86,7 @@ class JobScheduler:
         self._status["isRunning"] = True
         self._status["startedAt"] = datetime.now(LOCAL_TZ).isoformat()
         self._task = asyncio.create_task(self._loop())
-        print(f"[SCHEDULER] ⏱️ In-process Job Scheduler iniciado exitosamente (tz={_TZ_NAME}, sunday={'on' if _INCLUDE_SUNDAY else 'off'})")
+        print(f"[SCHEDULER] ⏱️ In-process Job Scheduler iniciado exitosamente (tz={_TZ_NAME}, sunday={'on' if _INCLUDE_SUNDAY else 'off'}, retention={_RETENTION_DAYS}d)")
 
     async def stop(self):
         """Detiene el scheduler de forma segura."""
@@ -109,7 +114,15 @@ class JobScheduler:
                 if minute != last_checked_minute:
                     last_checked_minute = minute
 
-                    # 1. Apertura de Jornada (SOD) a las 06:00
+                    # 1. Depuración y Retención de GPS a las 03:00 AM diario (pings > 45 días)
+                    if hour == 3 and minute == 0:
+                        print(f"[SCHEDULER] 🧹 Disparando Depuración de GPS Pings (> {_RETENTION_DAYS} días)...")
+                        res = await purge_old_geo_pings(_RETENTION_DAYS, external_db=self.db)
+                        self._status["lastCleanup"] = datetime.now(LOCAL_TZ).isoformat()
+                        self._status["cleanupCount"] += 1
+                        self._record_history("CLEANUP_OLD_PINGS", res)
+
+                    # 2. Apertura de Jornada (SOD) a las 06:00
                     if hour == 6 and minute == 0:
                         print(f"[SCHEDULER] 🌅 Disparando Apertura de Jornada Automática (SOD)...")
                         res = await start_day(current_date, external_db=self.db)
@@ -117,7 +130,7 @@ class JobScheduler:
                         self._status["sodCount"] += 1
                         self._record_history("START_OF_DAY", res)
 
-                    # 2. Monitoreo de tardanzas: configurable (Lun-Sáb por defecto, Dom opcional)
+                    # 3. Monitoreo de tardanzas: configurable (Lun-Sáb por defecto, Dom opcional)
                     if (8 <= hour <= 11) and (minute in (0, 15, 30, 45)) and (now.weekday() < _MAX_WEEKDAY):
                         print(f"[SCHEDULER] 🔍 Disparando Monitor de Tardanzas Automático...")
                         res = await check_late_arrivals(
@@ -130,7 +143,7 @@ class JobScheduler:
                         self._status["lateCheckCount"] += 1
                         self._record_history("LATE_MONITOR", res)
 
-                    # 3. Cierre de Jornada (EOD) a las 23:59
+                    # 4. Cierre de Jornada (EOD) a las 23:59
                     if hour == 23 and minute == 59:
                         print(f"[SCHEDULER] 🌙 Disparando Cierre de Fin de Día Automático (EOD)...")
                         res = await close_day(current_date, external_db=self.db)

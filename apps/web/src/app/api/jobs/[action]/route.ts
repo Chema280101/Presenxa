@@ -71,7 +71,7 @@ export async function POST(
   }
 
   const { action } = await params;
-  const validActions = ["daily-start", "daily-close", "check-late"];
+  const validActions = ["daily-start", "daily-close", "check-late", "cleanup-pings"];
 
   if (!validActions.includes(action)) {
     return NextResponse.json({ error: "Acción de automatización no válida" }, { status: 400 });
