@@ -32,6 +32,7 @@ import {
   BellRing,
 } from "lucide-react";
 import { useGeofencing } from "@/hooks/useGeofencing";
+import { Capacitor } from "@capacitor/core";
 
 interface UserProfile {
   id: string;
