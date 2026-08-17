@@ -139,9 +139,14 @@ export default function EmployeeAppPage() {
     profile?.location?.geofenceRadius,
   ]);
 
+  // El rastreo solo se activa durante la jornada laboral activa (desde que marca entrada hasta que marca salida)
+  const isShiftActive = Boolean(
+    todayAttendance?.entryTime && !todayAttendance?.exitTime
+  );
+
   const geo = useGeofencing(geofenceTarget, {
-    enabled: !!profile?.location,
-    pingIntervalMs: 30000,
+    enabled: Boolean(profile?.location && isShiftActive),
+    pingIntervalMs: 45000,
   });
 
   // Register Service Worker & capture install prompt
