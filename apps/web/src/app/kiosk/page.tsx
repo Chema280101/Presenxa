@@ -23,6 +23,10 @@ import {
   ShieldAlert,
   Camera,
   SwitchCamera,
+  Focus,
+  ScanLine,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -63,6 +67,13 @@ export default function KioskAppPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<"environment" | "user">("environment");
 
+  // Focus & Zoom capabilities
+  const [isFocusing, setIsFocusing] = useState(false);
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomCapabilities, setZoomCapabilities] = useState<{ min: number; max: number; step: number } | null>(null);
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
+
   // Scan states
   const [isScanning, setIsScanning] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -99,6 +110,51 @@ export default function KioskAppPage() {
     }
     setCameraFacing(nextFacing);
     localStorage.setItem("asistcontrol_kiosk_camera_facing", nextFacing);
+  };
+
+  // Trigger camera focus / refocus on demand
+  const handleTriggerFocus = async (e?: React.MouseEvent<HTMLDivElement>) => {
+    setIsFocusing(true);
+    if (e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setFocusPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    } else {
+      setFocusPoint({ x: 144, y: 144 });
+    }
+
+    try {
+      const track = videoTrackRef.current;
+      if (track) {
+        const caps: any = track.getCapabilities?.() || {};
+        if (caps.focusMode) {
+          // Force camera to refocus
+          await track.applyConstraints({ advanced: [{ focusMode: "single-shot" } as any] }).catch(() => {});
+          setTimeout(() => {
+            track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => {});
+          }, 250);
+        }
+      }
+    } catch (err) {
+      console.warn("Manual focus error / not supported:", err);
+    }
+
+    setTimeout(() => {
+      setIsFocusing(false);
+      setFocusPoint(null);
+    }, 1200);
+  };
+
+  // Change digital zoom level
+  const handleSetZoom = async (newZoom: number) => {
+    try {
+      const track = videoTrackRef.current;
+      if (track) {
+        await track.applyConstraints({ advanced: [{ zoom: newZoom } as any] });
+        setZoomLevel(newZoom);
+      }
+    } catch (err) {
+      console.warn("Zoom constraint failed:", err);
+    }
   };
 
   // Synthesize sound effects using Web Audio API
@@ -217,18 +273,33 @@ export default function KioskAppPage() {
         const element = document.getElementById("qr-reader");
         if (!element) return;
 
-        html5QrCode = new Html5Qrcode("qr-reader");
+        html5QrCode = new Html5Qrcode("qr-reader", {
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
+        });
         scannerRef.current = html5QrCode;
 
         const config = {
-          fps: 15,
-          qrbox: { width: 280, height: 280 },
+          fps: 20,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minEdge * 0.85);
+            return { width: Math.max(260, size), height: Math.max(260, size) };
+          },
           aspectRatio: 1.0,
+        };
+
+        const hdConstraints = {
+          facingMode: cameraFacing,
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
         };
 
         try {
           await html5QrCode.start(
-            { facingMode: cameraFacing },
+            hdConstraints,
             config,
             (decodedText: string) => {
               handleQrScanned(decodedText);
@@ -236,8 +307,8 @@ export default function KioskAppPage() {
             () => {}
           );
         } catch (firstErr) {
-          console.warn(`Could not start camera with facingMode: ${cameraFacing}, attempting fallback...`, firstErr);
-          // Fallback to alternate camera or any available video input
+          console.warn(`Could not start camera with HD constraints & facingMode: ${cameraFacing}, attempting fallback...`, firstErr);
+          // Fallback to simple facingMode
           const fallbackFacing = cameraFacing === "environment" ? "user" : "environment";
           await html5QrCode.start(
             { facingMode: fallbackFacing },
@@ -248,6 +319,37 @@ export default function KioskAppPage() {
             () => {}
           );
         }
+
+        // Extract active video track for autofocus and zoom capabilities
+        setTimeout(() => {
+          try {
+            const videoEl = document.querySelector("#qr-reader video") as HTMLVideoElement;
+            if (videoEl && videoEl.srcObject) {
+              const stream = videoEl.srcObject as MediaStream;
+              const track = stream.getVideoTracks()[0];
+              if (track) {
+                videoTrackRef.current = track;
+                const caps: any = track.getCapabilities?.() || {};
+
+                // Attempt continuous autofocus
+                if (caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes("continuous")) {
+                  track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => {});
+                }
+
+                // Detect zoom capabilities
+                if (caps.zoom) {
+                  setZoomCapabilities({
+                    min: caps.zoom.min || 1,
+                    max: Math.min(caps.zoom.max || 3, 3),
+                    step: caps.zoom.step || 0.1,
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Could not inspect video track capabilities:", e);
+          }
+        }, 500);
       } catch (err) {
         console.warn("Camera start warning (using simulated mode if needed):", err);
       }
@@ -258,6 +360,7 @@ export default function KioskAppPage() {
     }
 
     return () => {
+      videoTrackRef.current = null;
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
@@ -647,7 +750,11 @@ export default function KioskAppPage() {
           ) : (
             /* Camera Viewfinder Box */
             <div className="w-full max-w-sm flex flex-col items-center">
-              <div className="relative w-72 h-72 rounded-3xl overflow-hidden glass border-2 border-emerald-500/40 shadow-2xl shadow-emerald-950/60 flex items-center justify-center bg-black/60">
+              <div
+                onClick={handleTriggerFocus}
+                className="relative w-72 h-72 rounded-3xl overflow-hidden glass border-2 border-emerald-500/40 shadow-2xl shadow-emerald-950/60 flex items-center justify-center bg-black/60 cursor-pointer group"
+                title="Toca el recuadro para enfocar la cámara"
+              >
                 {/* HTML5 QR Container */}
                 <div id="qr-reader" className="w-full h-full object-cover" />
 
@@ -660,17 +767,72 @@ export default function KioskAppPage() {
                 <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg pointer-events-none" />
                 <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-lg pointer-events-none" />
 
+                {/* Focus indicator animation when tapped */}
+                {isFocusing && (
+                  <div
+                    className="absolute pointer-events-none w-14 h-14 border-2 border-lime-400 rounded-2xl animate-ping flex items-center justify-center"
+                    style={{
+                      left: focusPoint ? `${focusPoint.x - 28}px` : "calc(50% - 28px)",
+                      top: focusPoint ? `${focusPoint.y - 28}px` : "calc(50% - 28px)",
+                    }}
+                  >
+                    <div className="w-2 h-2 bg-lime-400 rounded-full" />
+                  </div>
+                )}
+
                 {/* Badge inside viewfinder */}
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-emerald-300 pointer-events-none">
-                  {cameraFacing === "environment" ? "📷 Cámara Trasera" : "🤳 Cámara Frontal"}
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-emerald-300 pointer-events-none flex items-center gap-1">
+                  <span>{cameraFacing === "environment" ? "📷 Cámara Trasera" : "🤳 Cámara Frontal"}</span>
+                  {zoomLevel > 1 && <span className="text-lime-300 font-mono">({zoomLevel}x)</span>}
+                </div>
+
+                {/* Tap to focus hint on hover */}
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/60 text-[9px] text-slate-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  Toca para enfocar
                 </div>
               </div>
 
-              <div className="flex items-center justify-between w-full mt-4 px-2">
-                <p className="text-xs text-slate-400 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Escaneando QR</span>
-                </p>
+              {/* Viewfinder Controls Bar */}
+              <div className="flex items-center justify-between w-full mt-3 px-1 gap-2">
+                {/* Focus Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTriggerFocus();
+                  }}
+                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                    isFocusing
+                      ? "bg-lime-400/20 text-lime-300 border-lime-400/40 animate-pulse"
+                      : "bg-white/5 hover:bg-white/10 text-slate-200 border-white/10"
+                  }`}
+                  title="Re-enfocar la cámara"
+                >
+                  <Focus className={`w-3.5 h-3.5 ${isFocusing ? "text-lime-400 animate-spin" : "text-emerald-400"}`} />
+                  <span>{isFocusing ? "Enfocando..." : "Enfocar"}</span>
+                </button>
+
+                {/* Zoom controls if available */}
+                {zoomCapabilities && (
+                  <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
+                    {[1, 1.5, 2].map((lvl) => (
+                      <button
+                        key={lvl}
+                        type="button"
+                        onClick={() => handleSetZoom(lvl)}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                          zoomLevel === lvl
+                            ? "bg-emerald-500 text-slate-950 shadow-sm"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {lvl}x
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Switch Camera Button */}
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
@@ -678,7 +840,7 @@ export default function KioskAppPage() {
                   title="Alternar entre cámara trasera y frontal"
                 >
                   <SwitchCamera className="w-3.5 h-3.5" />
-                  <span>{cameraFacing === "environment" ? "Usar Frontal" : "Usar Trasera"}</span>
+                  <span className="hidden sm:inline">{cameraFacing === "environment" ? "Frontal" : "Trasera"}</span>
                 </button>
               </div>
             </div>

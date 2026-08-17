@@ -30,6 +30,9 @@ import {
   ArrowUpRight,
   Bell,
   BellRing,
+  ZoomIn,
+  Maximize2,
+  X,
 } from "lucide-react";
 import { useGeofencing } from "@/hooks/useGeofencing";
 import { Capacitor } from "@capacitor/core";
@@ -109,6 +112,7 @@ export default function EmployeeAppPage() {
   const [todayAttendance, setTodayAttendance] = useState<TodayAttendance | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [maxBrightness, setMaxBrightness] = useState(false);
+  const [isQrZoomOpen, setIsQrZoomOpen] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
   const [qrSuccessToast, setQrSuccessToast] = useState<string | null>(null);
@@ -295,8 +299,8 @@ export default function EmployeeAppPage() {
   const generateQrCode = async (token: string) => {
     try {
       const url = await QRCode.toDataURL(token, {
-        width: 380,
-        margin: 1,
+        width: 600,
+        margin: 2,
         color: {
           dark: "#090d16",
           light: "#ffffff",
@@ -654,14 +658,25 @@ export default function EmployeeAppPage() {
                 </div>
               </div>
 
-              {/* QR Image Box with Glow */}
-              <div className="relative p-4 rounded-3xl bg-white shadow-xl flex items-center justify-center my-2 ring-1 ring-emerald-500/20">
+              {/* QR Image Box with Zoom Trigger */}
+              <div
+                onClick={() => setIsQrZoomOpen(true)}
+                className="relative group p-4 rounded-3xl bg-white shadow-xl flex flex-col items-center justify-center my-2 ring-2 ring-emerald-500/20 hover:ring-emerald-400 cursor-pointer transition-all hover:scale-[1.02] active:scale-95"
+                title="Toca para ampliar el código QR a pantalla completa"
+              >
                 {qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt="Código QR de Asistencia"
-                    className="w-56 h-56 md:w-64 md:h-64 object-contain rounded-xl"
-                  />
+                  <>
+                    <img
+                      src={qrDataUrl}
+                      alt="Código QR de Asistencia"
+                      className="w-56 h-56 md:w-64 md:h-64 object-contain rounded-xl"
+                    />
+                    {/* Floating Zoom Badge */}
+                    <div className="mt-2.5 px-3 py-1 rounded-full bg-slate-900/90 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 shadow-md group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+                      <ZoomIn className="w-3.5 h-3.5" />
+                      <span>Toca para ampliar QR</span>
+                    </div>
+                  </>
                 ) : (
                   <div className="w-56 h-56 flex flex-col items-center justify-center text-slate-400">
                     <RefreshCw className="w-8 h-8 animate-spin mb-2 text-emerald-500" />
@@ -671,7 +686,7 @@ export default function EmployeeAppPage() {
               </div>
 
               {/* User details footer */}
-              <div className="w-full mt-4 space-y-2">
+              <div className="w-full mt-3 space-y-1.5">
                 <p className={`text-xs font-mono font-bold ${maxBrightness ? "text-slate-900" : "text-slate-200"}`}>
                   DNI: {profile?.documentId || "No registrado"}
                 </p>
@@ -681,7 +696,7 @@ export default function EmployeeAppPage() {
               </div>
 
               {/* Regenerate Action */}
-              <div className="mt-5 w-full pt-3 border-t border-white/10 flex justify-center">
+              <div className="mt-4 w-full pt-3 border-t border-white/10 flex justify-center">
                 <button
                   onClick={handleRegenerateQr}
                   disabled={isRegeneratingQr}
@@ -692,6 +707,82 @@ export default function EmployeeAppPage() {
                 </button>
               </div>
             </div>
+
+            {/* FULLSCREEN QR ZOOM MODAL */}
+            {isQrZoomOpen && (
+              <div
+                className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-black/95 backdrop-blur-xl animate-[fade-in_0.2s_ease-out]"
+                onClick={() => setIsQrZoomOpen(false)}
+              >
+                {/* Close Button Floating */}
+                <div className="absolute top-6 right-6 z-10 flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMaxBrightness(!maxBrightness);
+                    }}
+                    className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-colors cursor-pointer flex items-center gap-2 text-xs font-semibold"
+                  >
+                    <Sun className="w-4 h-4 text-amber-400" />
+                    <span className="hidden sm:inline">Modo Brillo</span>
+                  </button>
+                  <button
+                    onClick={() => setIsQrZoomOpen(false)}
+                    className="p-3 rounded-2xl bg-white/10 hover:bg-rose-500 text-white border border-white/15 hover:border-rose-500 transition-colors cursor-pointer"
+                    title="Cerrar vista ampliada"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {/* Main Zoom Card Container */}
+                <div
+                  className="w-full max-w-sm sm:max-w-md rounded-3xl p-6 sm:p-8 bg-white text-slate-950 shadow-2xl shadow-emerald-500/20 flex flex-col items-center text-center animate-[scale-up_0.2s_ease-out]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* User info banner */}
+                  <div className="w-full mb-3">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 block">
+                      Presenxa ID · Credencial Digital
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                      {profile?.firstName} {profile?.lastName}
+                    </h2>
+                    <p className="text-xs text-slate-600 font-semibold mt-0.5">
+                      {profile?.role} {profile?.documentId ? `· DNI: ${profile.documentId}` : ""}
+                    </p>
+                  </div>
+
+                  {/* Giant High-Contrast QR Code */}
+                  <div className="p-3 sm:p-4 rounded-2xl bg-white ring-4 ring-slate-900/10 shadow-inner my-2 w-full flex items-center justify-center">
+                    {qrDataUrl && (
+                      <img
+                        src={qrDataUrl}
+                        alt="Código QR Gigante"
+                        className="w-72 h-72 sm:w-80 sm:h-80 object-contain rounded-lg"
+                      />
+                    )}
+                  </div>
+
+                  {/* Instructions */}
+                  <div className="w-full mt-3 space-y-1">
+                    <p className="text-xs font-bold text-slate-900">
+                      Acerca este código a la cámara del Kiosk
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {profile?.location?.name ? `Sede: ${profile.location.name}` : "Presenxa Smart Attendance"}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setIsQrZoomOpen(false)}
+                    className="w-full mt-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all cursor-pointer shadow-lg shadow-black/30 flex items-center justify-center gap-2"
+                  >
+                    <span>Cerrar Pantalla Completa</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Schedule Callout */}
             {profile?.schedule && (
