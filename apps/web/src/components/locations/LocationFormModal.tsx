@@ -144,51 +144,44 @@ export function LocationFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/80 backdrop-blur-md overflow-hidden animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-5xl h-[90vh] flex flex-col rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden">
-        {/* Header - Fixed Top */}
-        <div className="flex items-center justify-between px-6 md:px-8 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-[fade-in_0.2s_ease-out]">
+      <div className="relative w-full max-w-5xl rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-white/[0.02]">
           <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl gradient-brand text-white shadow-lg shadow-indigo-900/40">
+            <div className="p-2.5 rounded-2xl gradient-brand text-white shadow-lg shadow-indigo-900/40">
               <MapPin className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              <h3 className="text-lg font-bold text-white tracking-tight">
                 {isEditing ? "Editar Sede y Geocerca" : "Nueva Sede y Geocerca"}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Configura la sede física y el radio GPS donde los empleados validarán su asistencia
+              <p className="text-xs text-slate-400">
+                Configura la sede física y el perímetro GPS donde se autoriza la marcación
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-            title="Cerrar ventana"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            title="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} id="location-form" className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
+        {/* Form Body - 2 Columns: Controls on left, Map on right */}
+        <form onSubmit={handleSubmit} id="location-form" className="p-6 sm:p-8 space-y-5">
           {error && (
-            <div className="px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2.5 animate-shake">
-              <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0 animate-ping" />
+            <div className="px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Section 1: Datos de la Sede */}
-          <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-              <Building className="w-4 h-4 text-indigo-400" />
-              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                1. Datos de Identificación y Dirección
-              </h4>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Columna Izquierda: Datos y Configuración (5 cols) */}
+            <div className="lg:col-span-5 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Nombre de la Sede <span className="text-rose-400">*</span>
@@ -200,9 +193,9 @@ export function LocationFormModal({
                     placeholder="Ej: Sede Central Miraflores"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
                   />
-                  <Building className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <Building className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                 </div>
               </div>
 
@@ -214,7 +207,7 @@ export function LocationFormModal({
                   <select
                     value={formData.timezone}
                     onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer appearance-none"
                   >
                     <option value="America/Lima">America/Lima (UTC-5)</option>
                     <option value="America/Bogota">America/Bogota (UTC-5)</option>
@@ -223,94 +216,83 @@ export function LocationFormModal({
                     <option value="America/Argentina/Buenos_Aires">America/Buenos_Aires (UTC-3)</option>
                     <option value="America/Madrid">Europe/Madrid (UTC+1)</option>
                   </select>
-                  <Globe className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
+                  <Globe className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
                 </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Dirección Física (Referencial)
-              </label>
-              <div className="relative">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Dirección Referencial
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Av. Principal 123, Distrito"
+                    value={formData.address || ""}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                  <MapPin className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                </div>
+              </div>
+
+              {/* Radio de geocerca */}
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-200">
+                    Radio GPS de Validación:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={10}
+                      max={2000}
+                      step={10}
+                      value={formData.geofenceRadius}
+                      onChange={(e) =>
+                        setFormData({ ...formData, geofenceRadius: Number(e.target.value) || 50 })
+                      }
+                      className="w-16 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono text-center outline-none"
+                    />
+                    <span className="text-xs text-slate-400">m</span>
+                  </div>
+                </div>
+
                 <input
-                  type="text"
-                  placeholder="Av. Larco 123, Miraflores, Lima"
-                  value={formData.address || ""}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                  type="range"
+                  min={20}
+                  max={1000}
+                  step={10}
+                  value={formData.geofenceRadius}
+                  onChange={(e) =>
+                    setFormData({ ...formData, geofenceRadius: Number(e.target.value) })
+                  }
+                  className="w-full accent-indigo-500 cursor-pointer"
                 />
-                <MapPin className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
               </div>
-            </div>
-          </div>
 
-          {/* Section 2: Geocerca y Mapa */}
-          <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-white/5">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-emerald-400" />
-                <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                  2. Geocerca y Perímetro GPS
-                </h4>
-              </div>
               <button
                 type="button"
                 onClick={handleGetCurrentLocation}
                 disabled={isLocating}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 transition-all active:scale-95 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 text-xs py-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition-all active:scale-[0.99] cursor-pointer"
               >
                 <Navigation className={`w-3.5 h-3.5 ${isLocating ? "animate-spin" : ""}`} />
-                <span>{isLocating ? "Obteniendo GPS..." : "Usar mi ubicación GPS"}</span>
+                <span>{isLocating ? "Obteniendo GPS actual..." : "Detectar mi ubicación GPS actual"}</span>
               </button>
             </div>
 
-            {/* Slider de radio */}
-            <div className="p-4 rounded-xl bg-black/20 border border-white/5 space-y-3">
+            {/* Columna Derecha: Mapa Interactivo (7 cols) */}
+            <div className="lg:col-span-7 space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-200">
-                  Radio de Cobertura Permitido:
+                <label className="block text-xs font-semibold text-slate-300">
+                  Ubicación en el Mapa (Clic o arrastra el marcador):
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={10}
-                    max={2000}
-                    step={10}
-                    value={formData.geofenceRadius}
-                    onChange={(e) =>
-                      setFormData({ ...formData, geofenceRadius: Number(e.target.value) || 50 })
-                    }
-                    className="w-20 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono text-center outline-none"
-                  />
-                  <span className="text-xs text-slate-400">metros</span>
-                </div>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {formData.geofenceLat.toFixed(4)}, {formData.geofenceLng.toFixed(4)}
+                </span>
               </div>
-
-              <input
-                type="range"
-                min={20}
-                max={1000}
-                step={10}
-                value={formData.geofenceRadius}
-                onChange={(e) =>
-                  setFormData({ ...formData, geofenceRadius: Number(e.target.value) })
-                }
-                className="w-full accent-indigo-500 cursor-pointer"
-              />
-              <div className="flex justify-between text-[11px] text-slate-400 font-mono">
-                <span>20m (Oficina cerrada)</span>
-                <span>200m (Edificio / Almacén)</span>
-                <span>1000m (Campus / Mina / Obra)</span>
-              </div>
-            </div>
-
-            {/* Mapa interactivo */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-300">
-                Punto central en el mapa (Haz clic o arrastra el marcador):
-              </label>
-              <div className="rounded-2xl overflow-hidden border border-white/10 shadow-inner min-h-[300px]">
+              <div className="rounded-2xl overflow-hidden border border-white/10 shadow-inner h-[280px]">
                 <GeofenceMap
                   lat={formData.geofenceLat}
                   lng={formData.geofenceLng}
@@ -319,64 +301,35 @@ export function LocationFormModal({
                 />
               </div>
             </div>
+          </div>
 
-            {/* Coordenadas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Latitud</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={formData.geofenceLat}
-                  onChange={(e) =>
-                    setFormData({ ...formData, geofenceLat: parseFloat(e.target.value) || 0 })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Longitud</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={formData.geofenceLng}
-                  onChange={(e) =>
-                    setFormData({ ...formData, geofenceLng: parseFloat(e.target.value) || 0 })
-                  }
-                  className="w-full px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-xs font-mono outline-none"
-                />
-              </div>
-            </div>
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl gradient-brand hover:opacity-95 active:scale-[0.98] text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Guardando sede...
+                </>
+              ) : isEditing ? (
+                "Actualizar Sede y Geocerca"
+              ) : (
+                "Crear Sede y Activar Geocerca"
+              )}
+            </button>
           </div>
         </form>
-
-        {/* Footer - Fixed Bottom */}
-        <div className="px-6 md:px-8 py-4 border-t border-white/10 bg-black/30 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            form="location-form"
-            disabled={isSubmitting}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl gradient-brand hover:opacity-95 active:scale-[0.98] text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all disabled:opacity-50 cursor-pointer"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Guardando sede...
-              </>
-            ) : isEditing ? (
-              "Actualizar Sede y Geocerca"
-            ) : (
-              "Crear Sede y Activar Geocerca"
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );
