@@ -61,107 +61,128 @@ export function JustifyModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-md rounded-3xl p-6 glass border border-white/10 shadow-2xl shadow-black/60">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/80 backdrop-blur-md overflow-hidden animate-[fade-in_0.2s_ease-out]">
+      <div className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden">
+        {/* Header - Fixed Top */}
+        <div className="flex items-center justify-between px-6 md:px-8 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-lg shadow-amber-900/20">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
-                Justificar Inasistencia / Incidencia
+              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+                Justificar Inasistencia / Permiso
               </h3>
-              <p className="text-xs text-slate-400">{attendance.userName}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Empleado: <strong className="text-slate-200">{attendance.userName}</strong> · Fecha: {attendance.date}
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+            title="Cerrar ventana"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} id="justify-form" className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+            <div className="px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2.5 animate-shake">
+              <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0 animate-ping" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Tipo de justificación */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Tipo de Resolución
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+          {/* Section 1: Tipo */}
+          <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
+              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                1. Tipo de Justificación o Permiso
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setStatus(AttendanceStatus.JUSTIFICADO)}
-                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                className={`py-3.5 px-4 rounded-2xl text-xs font-semibold border transition-all text-left flex flex-col gap-1 cursor-pointer ${
                   status === AttendanceStatus.JUSTIFICADO
-                    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                    : "bg-white/5 text-slate-400 border-white/5 hover:text-white"
+                    ? "bg-amber-500/20 text-amber-200 border-amber-500/40 ring-1 ring-amber-500/40"
+                    : "bg-white/5 text-slate-400 border-white/5 hover:text-white hover:bg-white/10"
                 }`}
               >
-                Falta Justificada (Salud/Cita)
+                <span className="font-bold text-sm">Falta Justificada</span>
+                <span className="text-[11px] text-slate-400">Descanso médico, cita médica o fuerza mayor</span>
               </button>
               <button
                 type="button"
                 onClick={() => setStatus(AttendanceStatus.PERMISO)}
-                className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                className={`py-3.5 px-4 rounded-2xl text-xs font-semibold border transition-all text-left flex flex-col gap-1 cursor-pointer ${
                   status === AttendanceStatus.PERMISO
-                    ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
-                    : "bg-white/5 text-slate-400 border-white/5 hover:text-white"
+                    ? "bg-sky-500/20 text-sky-200 border-sky-500/40 ring-1 ring-sky-500/40"
+                    : "bg-white/5 text-slate-400 border-white/5 hover:text-white hover:bg-white/10"
                 }`}
               >
-                Permiso Pre-Aprobado
+                <span className="font-bold text-sm">Permiso Pre-Aprobado</span>
+                <span className="text-[11px] text-slate-400">Comisión de servicios, capacitación o trámite</span>
               </button>
             </div>
           </div>
 
-          {/* Motivo o Sustento */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Motivo o Documento de Sustento <span className="text-rose-400">*</span>
-            </label>
-            <textarea
-              required
-              rows={3}
-              placeholder="Ej: Descanso médico emitido por EsSalud / Permiso por comisión de servicios..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all resize-none"
-            />
-          </div>
+          {/* Section 2: Sustento */}
+          <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
+              <FileText className="w-4 h-4 text-indigo-400" />
+              <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                2. Sustento o Documento de Respaldo
+              </h4>
+            </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10 mt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-lg shadow-amber-900/30 transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                "Aprobar Justificación"
-              )}
-            </button>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Motivo / Detalle del Sustento <span className="text-rose-400">*</span>
+              </label>
+              <textarea
+                required
+                rows={4}
+                placeholder="Ej: Certificado médico emitido por ESSALUD / CITT N° 123456 con fecha 16/08/2026..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all resize-none"
+              />
+            </div>
           </div>
         </form>
+
+        {/* Footer - Fixed Bottom */}
+        <div className="px-6 md:px-8 py-4 border-t border-white/10 bg-black/30 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="justify-form"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-900/30 transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              "Aprobar Justificación"
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
