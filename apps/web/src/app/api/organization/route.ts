@@ -79,8 +79,14 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Solo los administradores pueden modificar la configuración" }, { status: 403 });
+  const userRole = (session.user.role || "").toUpperCase();
+  const isAllowed = ["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole);
+
+  if (!isAllowed) {
+    return NextResponse.json(
+      { error: "Solo los administradores pueden modificar la configuración" },
+      { status: 403 }
+    );
   }
 
   try {

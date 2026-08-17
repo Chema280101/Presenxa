@@ -105,7 +105,7 @@ export default function ConfiguracionPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Manejador de subida de archivo de logo
+  // Manejador de subida de archivo de logo con redimensionamiento automático
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -115,16 +115,40 @@ export default function ConfiguracionPage() {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("La imagen no debe superar los 2 MB", "error");
-      return;
-    }
-
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setLogoUrl(result);
-      showToast("Logo cargado localmente. Haz clic en 'Guardar Cambios' para aplicar.", "success");
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_SIZE = 480;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const optimizedDataUrl = canvas.toDataURL("image/webp", 0.9);
+          setLogoUrl(optimizedDataUrl);
+          showToast("Logo optimizado y cargado. Haz clic en 'Guardar Cambios' para aplicar.", "success");
+        } else {
+          setLogoUrl(event.target?.result as string);
+        }
+      };
+      img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
