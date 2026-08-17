@@ -6,48 +6,40 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+async function safeDelete(name: string, deleteFn: () => Promise<{ count: number }>) {
+  try {
+    const res = await deleteFn();
+    console.log(`🗑️ ${name} eliminados: ${res.count}`);
+  } catch (err: any) {
+    if (err.code === "P2021") {
+      console.log(`ℹ️ ${name}: La tabla aún no existe en la base de datos (omitida).`);
+    } else {
+      console.warn(`⚠️ Error eliminando ${name}:`, err.message || err);
+    }
+  }
+}
+
 async function main() {
-  console.log("🧹 Iniciando purga total de datos de prueba y mockups...");
+  console.log("🧹 Iniciando purga total de datos en Supabase...");
 
-  const deletedGeoPings = await prisma.geoPing.deleteMany();
-  console.log(`🗑️ GeoPings eliminados: ${deletedGeoPings.count}`);
-
-  const deletedAuditLogs = await prisma.auditLog.deleteMany();
-  console.log(`🗑️ AuditLogs eliminados: ${deletedAuditLogs.count}`);
-
-  const deletedNotifications = await prisma.notification.deleteMany();
-  console.log(`🗑️ Notificaciones eliminadas: ${deletedNotifications.count}`);
-
-  const deletedPushSubs = await prisma.pushSubscription.deleteMany();
-  console.log(`🗑️ Suscripciones Push eliminadas: ${deletedPushSubs.count}`);
-
-  const deletedAttendances = await prisma.attendance.deleteMany();
-  console.log(`🗑️ Asistencias eliminadas: ${deletedAttendances.count}`);
-
-  const deletedUserSchedules = await prisma.userSchedule.deleteMany();
-  console.log(`🗑️ Asignaciones de Horarios eliminadas: ${deletedUserSchedules.count}`);
-
-  const deletedUsers = await prisma.user.deleteMany();
-  console.log(`🗑️ Usuarios eliminados: ${deletedUsers.count}`);
-
-  const deletedKiosks = await prisma.kiosk.deleteMany();
-  console.log(`🗑️ Kiosks eliminados: ${deletedKiosks.count}`);
-
-  const deletedSchedules = await prisma.schedule.deleteMany();
-  console.log(`🗑️ Horarios eliminados: ${deletedSchedules.count}`);
-
-  const deletedLocations = await prisma.location.deleteMany();
-  console.log(`🗑️ Sedes eliminadas: ${deletedLocations.count}`);
-
-  const deletedOrgs = await prisma.organization.deleteMany();
-  console.log(`🗑️ Organizaciones eliminadas: ${deletedOrgs.count}`);
+  await safeDelete("GeoPings", () => prisma.geoPing.deleteMany());
+  await safeDelete("AuditLogs", () => prisma.auditLog.deleteMany());
+  await safeDelete("Notificaciones", () => prisma.notification.deleteMany());
+  await safeDelete("Suscripciones Push", () => prisma.pushSubscription.deleteMany());
+  await safeDelete("Asistencias", () => prisma.attendance.deleteMany());
+  await safeDelete("Asignaciones de Horarios", () => prisma.userSchedule.deleteMany());
+  await safeDelete("Usuarios", () => prisma.user.deleteMany());
+  await safeDelete("Kiosks", () => prisma.kiosk.deleteMany());
+  await safeDelete("Horarios", () => prisma.schedule.deleteMany());
+  await safeDelete("Sedes", () => prisma.location.deleteMany());
+  await safeDelete("Organizaciones", () => prisma.organization.deleteMany());
 
   console.log("\n✨ Base de datos completamente limpia y lista para datos reales.");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Error durante la purga:", e);
+    console.error("❌ Error inesperado durante la purga:", e);
     process.exit(1);
   })
   .finally(async () => {

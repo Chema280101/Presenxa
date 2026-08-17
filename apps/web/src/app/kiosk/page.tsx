@@ -21,6 +21,8 @@ import {
   Hash,
   X,
   ShieldAlert,
+  Camera,
+  SwitchCamera,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -59,6 +61,7 @@ export default function KioskAppPage() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<"environment" | "user">("environment");
 
   // Scan states
   const [isScanning, setIsScanning] = useState(true);
@@ -78,6 +81,25 @@ export default function KioskAppPage() {
   useEffect(() => {
     apiKeyRef.current = apiKey;
   }, [apiKey]);
+
+  // Load saved camera preference (defaults to "environment" = rear camera)
+  useEffect(() => {
+    const savedFacing = localStorage.getItem("asistcontrol_kiosk_camera_facing");
+    if (savedFacing === "user" || savedFacing === "environment") {
+      setCameraFacing(savedFacing);
+    }
+  }, []);
+
+  const toggleCameraFacing = async () => {
+    const nextFacing = cameraFacing === "environment" ? "user" : "environment";
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try {
+        await scannerRef.current.stop();
+      } catch {}
+    }
+    setCameraFacing(nextFacing);
+    localStorage.setItem("asistcontrol_kiosk_camera_facing", nextFacing);
+  };
 
   // Synthesize sound effects using Web Audio API
   const playSound = (type: "SUCCESS" | "WARNING" | "ERROR") => {
@@ -204,14 +226,28 @@ export default function KioskAppPage() {
           aspectRatio: 1.0,
         };
 
-        await html5QrCode.start(
-          { facingMode: "user" },
-          config,
-          (decodedText: string) => {
-            handleQrScanned(decodedText);
-          },
-          () => {}
-        );
+        try {
+          await html5QrCode.start(
+            { facingMode: cameraFacing },
+            config,
+            (decodedText: string) => {
+              handleQrScanned(decodedText);
+            },
+            () => {}
+          );
+        } catch (firstErr) {
+          console.warn(`Could not start camera with facingMode: ${cameraFacing}, attempting fallback...`, firstErr);
+          // Fallback to alternate camera or any available video input
+          const fallbackFacing = cameraFacing === "environment" ? "user" : "environment";
+          await html5QrCode.start(
+            { facingMode: fallbackFacing },
+            config,
+            (decodedText: string) => {
+              handleQrScanned(decodedText);
+            },
+            () => {}
+          );
+        }
       } catch (err) {
         console.warn("Camera start warning (using simulated mode if needed):", err);
       }
@@ -226,7 +262,7 @@ export default function KioskAppPage() {
         html5QrCode.stop().catch(() => {});
       }
     };
-  }, [isScanning, lastScanResult, isProcessing]);
+  }, [isScanning, lastScanResult, isProcessing, cameraFacing]);
 
   // Handle scanned QR code
   const handleQrScanned = async (token: string) => {
@@ -402,6 +438,18 @@ export default function KioskAppPage() {
               </>
             )}
           </div>
+
+          {/* Camera facing switcher */}
+          <button
+            onClick={toggleCameraFacing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer"
+            title={`Cambiar a ${cameraFacing === "environment" ? "Cámara Frontal" : "Cámara Trasera"}`}
+          >
+            <SwitchCamera className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-semibold hidden md:inline">
+              {cameraFacing === "environment" ? "Cámara Trasera" : "Cámara Frontal"}
+            </span>
+          </button>
 
           {/* Sound toggle */}
           <button
@@ -611,12 +659,28 @@ export default function KioskAppPage() {
                 <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg pointer-events-none" />
                 <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg pointer-events-none" />
                 <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-lg pointer-events-none" />
+
+                {/* Badge inside viewfinder */}
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-emerald-300 pointer-events-none">
+                  {cameraFacing === "environment" ? "📷 Cámara Trasera" : "🤳 Cámara Frontal"}
+                </div>
               </div>
 
-              <p className="text-xs text-slate-400 mt-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Cámara activa — Escaneando en tiempo real</span>
-              </p>
+              <div className="flex items-center justify-between w-full mt-4 px-2">
+                <p className="text-xs text-slate-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Escaneando QR</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={toggleCameraFacing}
+                  className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                  title="Alternar entre cámara trasera y frontal"
+                >
+                  <SwitchCamera className="w-3.5 h-3.5" />
+                  <span>{cameraFacing === "environment" ? "Usar Frontal" : "Usar Trasera"}</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
