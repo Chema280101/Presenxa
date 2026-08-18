@@ -4,6 +4,16 @@ import Redis from "ioredis";
 let redisClient: Redis | null = null;
 const memoryStore = new Map<string, { count: number; expiresAt: number }>();
 
+// Limpiar expirados cada 5 minutos para evitar memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, mem] of memoryStore.entries()) {
+    if (now > mem.expiresAt) {
+      memoryStore.delete(key);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
 function getRedisClient(): Redis | null {
   if (redisClient) return redisClient;
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6380/0";

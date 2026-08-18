@@ -16,6 +16,14 @@ export async function GET() {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const userRole = (session.user as any).role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole)) {
+    return NextResponse.json(
+      { error: "No tienes permiso para ver los kioskos" },
+      { status: 403 }
+    );
+  }
+
   try {
     const kiosks = await prisma.kiosk.findMany({
       where: {

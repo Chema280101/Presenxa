@@ -88,6 +88,7 @@ export default function KioskAppPage() {
   const scannerRef = useRef<any>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const apiKeyRef = useRef<string>(apiKey);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     apiKeyRef.current = apiKey;
@@ -362,6 +363,7 @@ export default function KioskAppPage() {
     return () => {
       isCancelled = true;
       videoTrackRef.current = null;
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
@@ -371,6 +373,10 @@ export default function KioskAppPage() {
   // Handle scanned QR code
   const handleQrScanned = async (token: string) => {
     if (isProcessing) return;
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
     const activeKey = apiKeyRef.current || (typeof window !== "undefined" ? localStorage.getItem("asistcontrol_kiosk_api_key") : "") || apiKey;
     if (!activeKey) {
       playSound("ERROR");
@@ -432,10 +438,10 @@ export default function KioskAppPage() {
 
       // Countdown auto-dismiss
       setCountdown(data.requiresVerification ? 6 : 4);
-      const timer = setInterval(() => {
+      countdownTimerRef.current = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
-            clearInterval(timer);
+            if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
             setLastScanResult(null);
             setIsProcessing(false);
             try {

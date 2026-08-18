@@ -139,11 +139,19 @@ class GeofenceService:
             user_id, lat, lng, accuracy, str(attendance_row["id"]), is_inside, ping_source
         )
 
+        # Si se detectó spoofing, rechazar la ubicación de inmediato para no afectar el grace period o validarla
+        if is_spoofing_suspected:
+            return {
+                "status": "SPOOFING_REJECTED",
+                "is_inside": False,
+                "message": "Ubicación rechazada por salto anómalo (teletransportación) detectado.",
+            }
+
         # 5. Aplicar lógica de presencia
         if is_inside:
             await self._clear_grace_period(user_id)
             return {
-                "status": "INSIDE" if not is_spoofing_suspected else "INSIDE_SPOOF_SUSPECTED",
+                "status": "INSIDE",
                 "is_inside": True,
             }
         else:

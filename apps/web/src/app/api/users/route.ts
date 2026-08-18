@@ -29,6 +29,13 @@ export async function GET(req: Request) {
   const userRole = (session.user as any).role;
   const supervisorLocationId = (session.user as any).locationId;
 
+  if (userRole === "EMPLEADO") {
+    return NextResponse.json(
+      { error: "No tienes permiso para consultar el directorio de usuarios" },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") || "";
   const role = searchParams.get("role") as UserRole | null;
@@ -88,10 +95,13 @@ export async function GET(req: Request) {
       },
     });
 
-    const usersWithSignedQr = users.map((u) => ({
-      ...u,
-      signedQrPayload: generateSignedQrPayload(u.id, u.qrToken),
-    }));
+    const usersWithSignedQr = users.map((u) => {
+      const { passwordHash, ...safeUser } = u;
+      return {
+        ...safeUser,
+        signedQrPayload: generateSignedQrPayload(u.id, u.qrToken),
+      };
+    });
 
     return NextResponse.json({ users: usersWithSignedQr });
   } catch (error: any) {
