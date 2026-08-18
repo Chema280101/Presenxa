@@ -11,6 +11,12 @@ const UpdateScheduleSchema = z.object({
   exitHour: z.number().int().min(0).max(23).optional(),
   exitMinute: z.number().int().min(0).max(59).optional(),
   toleranceMinutes: z.number().int().min(0).max(120).optional(),
+  isSplit: z.boolean().optional(),
+  entryHour2: z.number().int().min(0).max(23).optional().nullable(),
+  entryMinute2: z.number().int().min(0).max(59).optional().nullable(),
+  exitHour2: z.number().int().min(0).max(23).optional().nullable(),
+  exitMinute2: z.number().int().min(0).max(59).optional().nullable(),
+  toleranceMinutes2: z.number().int().min(0).max(120).optional().nullable(),
   isActive: z.boolean().optional(),
 });
 

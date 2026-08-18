@@ -16,6 +16,11 @@ interface ScheduleOption {
   entryMinute: number;
   exitHour: number;
   exitMinute: number;
+  isSplit?: boolean;
+  entryHour2?: number | null;
+  entryMinute2?: number | null;
+  exitHour2?: number | null;
+  exitMinute2?: number | null;
 }
 
 export interface UserFormData {
@@ -307,11 +312,17 @@ export function UserFormModal({
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer"
                 >
                   <option value="">Sin horario asignado (Flexible)</option>
-                  {schedules.map((sch) => (
-                    <option key={sch.id} value={sch.id}>
-                      {sch.name} ({String(sch.entryHour).padStart(2, "0")}:{String(sch.entryMinute).padStart(2, "0")} - {String(sch.exitHour).padStart(2, "0")}:{String(sch.exitMinute).padStart(2, "0")})
-                    </option>
-                  ))}
+                  {schedules.map((sch) => {
+                    const shift1 = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")} - ${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
+                    const shift2 = sch.isSplit && sch.entryHour2 !== null && sch.exitHour2 !== null
+                      ? ` | ${String(sch.entryHour2).padStart(2, "0")}:${String(sch.entryMinute2 || 0).padStart(2, "0")} - ${String(sch.exitHour2).padStart(2, "0")}:${String(sch.exitMinute2 || 0).padStart(2, "0")}`
+                      : "";
+                    return (
+                      <option key={sch.id} value={sch.id}>
+                        {sch.name} ({shift1}{shift2})
+                      </option>
+                    );
+                  })}
                 </select>
                 <Clock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
               </div>

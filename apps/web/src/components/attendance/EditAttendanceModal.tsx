@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Clock, Edit3, ShieldAlert, Loader2 } from "lucide-react";
+import { X, Clock, Edit3, ShieldAlert, Loader2, Sun, Moon } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 import { format } from "date-fns";
 
@@ -15,8 +15,11 @@ interface EditAttendanceModalProps {
     status: AttendanceStatus;
     entryTime?: string | null;
     exitTime?: string | null;
+    entryTime2?: string | null;
+    exitTime2?: string | null;
     notes?: string | null;
     lateMinutes?: number | null;
+    lateMinutes2?: number | null;
   } | null;
   onSuccess: () => void;
 }
@@ -30,8 +33,11 @@ export function EditAttendanceModal({
   const [status, setStatus] = useState<AttendanceStatus>(AttendanceStatus.PRESENTE);
   const [entryTime, setEntryTime] = useState("");
   const [exitTime, setExitTime] = useState("");
+  const [entryTime2, setEntryTime2] = useState("");
+  const [exitTime2, setExitTime2] = useState("");
   const [notes, setNotes] = useState("");
   const [lateMinutes, setLateMinutes] = useState(0);
+  const [lateMinutes2, setLateMinutes2] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,8 +50,15 @@ export function EditAttendanceModal({
       setExitTime(
         attendance.exitTime ? format(new Date(attendance.exitTime), "HH:mm") : ""
       );
+      setEntryTime2(
+        attendance.entryTime2 ? format(new Date(attendance.entryTime2), "HH:mm") : ""
+      );
+      setExitTime2(
+        attendance.exitTime2 ? format(new Date(attendance.exitTime2), "HH:mm") : ""
+      );
       setNotes(attendance.notes || "");
       setLateMinutes(attendance.lateMinutes || 0);
+      setLateMinutes2(attendance.lateMinutes2 || 0);
     }
     setError("");
   }, [attendance, isOpen]);
@@ -58,9 +71,11 @@ export function EditAttendanceModal({
     setError("");
 
     try {
-      // Build date objects for entry/exit if specified
+      // Build ISO date objects for entry/exit if specified
       let entryDateStr = null;
       let exitDateStr = null;
+      let entry2DateStr = null;
+      let exit2DateStr = null;
 
       if (entryTime) {
         const [eH, eM] = entryTime.split(":").map(Number);
@@ -76,6 +91,20 @@ export function EditAttendanceModal({
         exitDateStr = d.toISOString();
       }
 
+      if (entryTime2) {
+        const [eH2, eM2] = entryTime2.split(":").map(Number);
+        const d = new Date(attendance.date);
+        d.setHours(eH2, eM2, 0, 0);
+        entry2DateStr = d.toISOString();
+      }
+
+      if (exitTime2) {
+        const [xH2, xM2] = exitTime2.split(":").map(Number);
+        const d = new Date(attendance.date);
+        d.setHours(xH2, xM2, 0, 0);
+        exit2DateStr = d.toISOString();
+      }
+
       const res = await fetch(`/api/attendance/${attendance.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -83,8 +112,11 @@ export function EditAttendanceModal({
           status,
           entryTime: entryDateStr,
           exitTime: exitDateStr,
+          entryTime2: entry2DateStr,
+          exitTime2: exit2DateStr,
           notes: notes.trim() || null,
           lateMinutes: Number(lateMinutes) || 0,
+          lateMinutes2: Number(lateMinutes2) || 0,
         }),
       });
 
@@ -120,7 +152,7 @@ export function EditAttendanceModal({
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             title="Cerrar ventana"
           >
             <X className="w-5 h-5" />
@@ -136,18 +168,18 @@ export function EditAttendanceModal({
             </div>
           )}
 
-          {/* Section 1: Estado */}
+          {/* Section 1: Estado General */}
           <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <Clock className="w-4 h-4 text-indigo-400" />
               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                1. Estado Oficial y Horas Marcadas
+                1. Estado Oficial de la Asistencia
               </h4>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Estado de la Asistencia
+                Estado Calculado / Manual
               </label>
               <select
                 value={status}
@@ -164,11 +196,23 @@ export function EditAttendanceModal({
                 <option value={AttendanceStatus.PERMISO}>Permiso</option>
               </select>
             </div>
+          </div>
+
+          {/* Section 2: Tramo 1 */}
+          <div className="rounded-2xl p-5 bg-amber-500/[0.03] border border-amber-500/20 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-amber-500/10">
+              <div className="flex items-center gap-2">
+                <Sun className="w-4 h-4 text-amber-400" />
+                <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                  2. Tramo 1 (Turno Mañana / Jornada Continua)
+                </h4>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Hora de Entrada
+                  Hora de Entrada (T1)
                 </label>
                 <input
                   type="time"
@@ -179,7 +223,7 @@ export function EditAttendanceModal({
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Hora de Salida
+                  Hora de Salida (T1 / Salida Continua)
                 </label>
                 <input
                   type="time"
@@ -192,7 +236,7 @@ export function EditAttendanceModal({
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Minutos de Retraso / Tardanza Calculados
+                Minutos de Tardanza en Tramo 1
               </label>
               <input
                 type="number"
@@ -204,12 +248,63 @@ export function EditAttendanceModal({
             </div>
           </div>
 
-          {/* Section 2: Auditoría */}
+          {/* Section 3: Tramo 2 (Horario Partido) */}
+          <div className="rounded-2xl p-5 bg-indigo-500/[0.03] border border-indigo-500/20 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-indigo-500/10">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-indigo-400" />
+                <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider">
+                  3. Tramo 2 (Turno Tarde / Retorno de Receso)
+                </h4>
+              </div>
+              <span className="text-[10px] text-slate-400 italic">Opcional (solo horario partido)</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Hora de Entrada (T2)
+                </label>
+                <input
+                  type="time"
+                  value={entryTime2}
+                  onChange={(e) => setEntryTime2(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Hora de Salida Final (T2)
+                </label>
+                <input
+                  type="time"
+                  value={exitTime2}
+                  onChange={(e) => setExitTime2(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono outline-none"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Minutos de Tardanza en Tramo 2
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={lateMinutes2}
+                onChange={(e) => setLateMinutes2(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-mono outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Section 4: Auditoría y Justificación */}
           <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ShieldAlert className="w-4 h-4 text-amber-400" />
               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-                2. Notas de Auditoría y Justificación
+                4. Notas de Auditoría y Justificación
               </h4>
             </div>
 

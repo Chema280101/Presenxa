@@ -9,6 +9,10 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  Sun,
+  Moon,
+  Layers,
+  Info,
 } from "lucide-react";
 
 export interface ScheduleFormData {
@@ -20,6 +24,12 @@ export interface ScheduleFormData {
   exitHour: number;
   exitMinute: number;
   toleranceMinutes: number;
+  isSplit?: boolean;
+  entryHour2?: number | null;
+  entryMinute2?: number | null;
+  exitHour2?: number | null;
+  exitMinute2?: number | null;
+  toleranceMinutes2?: number | null;
   isActive?: boolean;
 }
 
@@ -50,9 +60,18 @@ export function ScheduleFormModal({
 
   const [name, setName] = useState("");
   const [workdaysMask, setWorkdaysMask] = useState(31); // Default Lun-Vie (1+2+4+8+16)
+  const [isSplit, setIsSplit] = useState(false);
+
+  // Tramo 1 (Mañana / Jornada Continua)
   const [entryTime, setEntryTime] = useState("08:00");
   const [exitTime, setExitTime] = useState("17:00");
   const [toleranceMinutes, setToleranceMinutes] = useState(10);
+
+  // Tramo 2 (Tarde / Horario Partido)
+  const [entryTime2, setEntryTime2] = useState("15:00");
+  const [exitTime2, setExitTime2] = useState("19:00");
+  const [toleranceMinutes2, setToleranceMinutes2] = useState(10);
+
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -60,6 +79,8 @@ export function ScheduleFormModal({
     if (initialData) {
       setName(initialData.name || "");
       setWorkdaysMask(initialData.workdaysMask || 31);
+      setIsSplit(Boolean(initialData.isSplit));
+
       setEntryTime(
         `${String(initialData.entryHour).padStart(2, "0")}:${String(
           initialData.entryMinute
@@ -71,12 +92,38 @@ export function ScheduleFormModal({
         ).padStart(2, "0")}`
       );
       setToleranceMinutes(initialData.toleranceMinutes ?? 10);
+
+      if (initialData.entryHour2 !== undefined && initialData.entryHour2 !== null) {
+        setEntryTime2(
+          `${String(initialData.entryHour2).padStart(2, "0")}:${String(
+            initialData.entryMinute2 || 0
+          ).padStart(2, "0")}`
+        );
+      } else {
+        setEntryTime2("15:00");
+      }
+
+      if (initialData.exitHour2 !== undefined && initialData.exitHour2 !== null) {
+        setExitTime2(
+          `${String(initialData.exitHour2).padStart(2, "0")}:${String(
+            initialData.exitMinute2 || 0
+          ).padStart(2, "0")}`
+        );
+      } else {
+        setExitTime2("19:00");
+      }
+
+      setToleranceMinutes2(initialData.toleranceMinutes2 ?? 10);
     } else {
       setName("");
       setWorkdaysMask(31);
+      setIsSplit(false);
       setEntryTime("08:00");
       setExitTime("17:00");
       setToleranceMinutes(10);
+      setEntryTime2("15:00");
+      setExitTime2("19:00");
+      setToleranceMinutes2(10);
     }
     setError("");
   }, [initialData, isOpen]);
@@ -85,7 +132,6 @@ export function ScheduleFormModal({
 
   const toggleDay = (bit: number) => {
     if (workdaysMask & bit) {
-      // Don't uncheck if it's the only one left
       if (workdaysMask === bit) return;
       setWorkdaysMask(workdaysMask & ~bit);
     } else {
@@ -95,6 +141,15 @@ export function ScheduleFormModal({
 
   const applyPreset = (mask: number) => {
     setWorkdaysMask(mask);
+  };
+
+  const handleToggleSplit = (split: boolean) => {
+    setIsSplit(split);
+    if (split && exitTime === "17:00") {
+      setExitTime("13:00"); // Sugerencia de salida tramo 1 al activar partido
+    } else if (!split && exitTime === "13:00") {
+      setExitTime("17:00"); // Restaurar salida normal
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,8 +165,28 @@ export function ScheduleFormModal({
     const [xH, xM] = exitTime.split(":").map(Number);
 
     if (isNaN(eH) || isNaN(eM) || isNaN(xH) || isNaN(xM)) {
-      setError("Por favor ingresa horas válidas de entrada y salida.");
+      setError("Por favor ingresa horas válidas para el Tramo 1.");
       return;
+    }
+
+    let eH2: number | null = null;
+    let eM2: number | null = null;
+    let xH2: number | null = null;
+    let xM2: number | null = null;
+
+    if (isSplit) {
+      const [parsedEH2, parsedEM2] = entryTime2.split(":").map(Number);
+      const [parsedXH2, parsedXM2] = exitTime2.split(":").map(Number);
+
+      if (isNaN(parsedEH2) || isNaN(parsedEM2) || isNaN(parsedXH2) || isNaN(parsedXM2)) {
+        setError("Por favor ingresa horas válidas para el Tramo 2.");
+        return;
+      }
+
+      eH2 = parsedEH2;
+      eM2 = parsedEM2;
+      xH2 = parsedXH2;
+      xM2 = parsedXM2;
     }
 
     setIsSubmitting(true);
@@ -120,11 +195,17 @@ export function ScheduleFormModal({
         id: initialData?.id,
         name: name.trim(),
         workdaysMask,
+        isSplit,
         entryHour: eH,
         entryMinute: eM,
         exitHour: xH,
         exitMinute: xM,
         toleranceMinutes,
+        entryHour2: isSplit ? eH2 : null,
+        entryMinute2: isSplit ? eM2 : null,
+        exitHour2: isSplit ? xH2 : null,
+        exitMinute2: isSplit ? xM2 : null,
+        toleranceMinutes2: isSplit ? toleranceMinutes2 : null,
         isActive: initialData?.isActive !== undefined ? initialData.isActive : true,
       });
       if (success) {
@@ -139,9 +220,9 @@ export function ScheduleFormModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-3xl rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-3xl rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-white/[0.02]">
+        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="p-2.5 rounded-2xl gradient-brand text-white shadow-lg shadow-indigo-900/40">
               <Clock className="w-5 h-5" />
@@ -151,7 +232,7 @@ export function ScheduleFormModal({
                 {isEditing ? "Editar Turno / Horario" : "Nuevo Turno / Horario"}
               </h3>
               <p className="text-xs text-slate-400">
-                Define las horas de entrada, salida, días laborables y tolerancia
+                Define las horas de entrada, salida, modalidad continua o partida y tolerancias
               </p>
             </div>
           </div>
@@ -165,7 +246,7 @@ export function ScheduleFormModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} id="schedule-form" className="p-6 sm:p-8 space-y-5">
+        <form onSubmit={handleSubmit} id="schedule-form" className="p-6 sm:p-8 space-y-6 overflow-y-auto">
           {error && (
             <div className="px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0" />
@@ -186,6 +267,58 @@ export function ScheduleFormModal({
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
             />
+          </div>
+
+          {/* Selector de Modalidad: Continua vs Partida */}
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-slate-300">
+              Tipo de Jornada
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleToggleSplit(false)}
+                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  !isSplit
+                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50"
+                    : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <div
+                  className={`p-2 rounded-xl ${
+                    !isSplit ? "bg-indigo-500 text-white" : "bg-white/10 text-slate-400"
+                  }`}
+                >
+                  <Sun className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold">Jornada Continua</p>
+                  <p className="text-[11px] opacity-70">1 Entrada y 1 Salida por día</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleToggleSplit(true)}
+                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                  isSplit
+                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50"
+                    : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <div
+                  className={`p-2 rounded-xl ${
+                    isSplit ? "bg-indigo-500 text-white" : "bg-white/10 text-slate-400"
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold">Horario Partido / Doble Turno</p>
+                  <p className="text-[11px] opacity-70">2 Tramos (4 marcaciones con receso)</p>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Días Laborables */}
@@ -253,40 +386,54 @@ export function ScheduleFormModal({
             </div>
           </div>
 
-          {/* Horas Oficiales */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Hora de Entrada Oficial <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="time"
-                required
-                value={entryTime}
-                onChange={(e) => setEntryTime(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Hora de Salida Oficial <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="time"
-                required
-                value={exitTime}
-                onChange={(e) => setExitTime(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Tolerancia */}
-          <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-2.5">
+          {/* Configuración de Horas: Tramo 1 */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-200">
-                Tolerancia de Tardanza (Minutos de Gracia):
+              <div className="flex items-center gap-2">
+                <Sun className="w-4 h-4 text-amber-400" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  {isSplit ? "Tramo 1 (Turno Mañana / Primer Bloque)" : "Horario de la Jornada"}
+                </h4>
+              </div>
+              {isSplit && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30">
+                  Bloque 1
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Hora de Entrada <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={entryTime}
+                  onChange={(e) => setEntryTime(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  {isSplit ? "Hora de Salida (Inicio Receso)" : "Hora de Salida Oficial"}{" "}
+                  <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={exitTime}
+                  onChange={(e) => setExitTime(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <label className="text-xs text-slate-300">
+                Tolerancia de Tardanza Tramo 1:
               </label>
               <div className="flex items-center gap-1.5">
                 <input
@@ -299,30 +446,77 @@ export function ScheduleFormModal({
                   }
                   className="w-14 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono text-center outline-none"
                 />
-                <span className="text-xs text-slate-400">min</span>
+                <span className="text-xs text-slate-400">minutos</span>
               </div>
-            </div>
-
-            <div className="flex gap-2">
-              {[0, 5, 10, 15, 30].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setToleranceMinutes(t)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-medium border transition-colors cursor-pointer ${
-                    toleranceMinutes === t
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-bold"
-                      : "bg-white/5 text-slate-400 border-white/5 hover:text-white"
-                  }`}
-                >
-                  {t} min
-                </button>
-              ))}
             </div>
           </div>
 
+          {/* Configuración de Horas: Tramo 2 (Solo si isSplit) */}
+          {isSplit && (
+            <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 space-y-3.5 animate-[fade-in_0.2s_ease-out]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Moon className="w-4 h-4 text-indigo-400" />
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Tramo 2 (Turno Tarde / Segundo Bloque)
+                  </h4>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                  Bloque 2
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Hora de Retorno (Entrada Tarde) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    required={isSplit}
+                    value={entryTime2}
+                    onChange={(e) => setEntryTime2(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Hora de Salida Final (Fin de Jornada) <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    required={isSplit}
+                    value={exitTime2}
+                    onChange={(e) => setExitTime2(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <label className="text-xs text-slate-300">
+                  Tolerancia de Tardanza Tramo 2:
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={toleranceMinutes2}
+                    onChange={(e) =>
+                      setToleranceMinutes2(Math.max(0, parseInt(e.target.value) || 0))
+                    }
+                    className="w-14 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono text-center outline-none"
+                  />
+                  <span className="text-xs text-slate-400">minutos</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}

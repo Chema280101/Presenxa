@@ -144,6 +144,11 @@ async def close_day(target_date: Optional[date] = None, external_db: Optional[Da
                 "workedMinutes" = COALESCE(
                     a."workedMinutes",
                     GREATEST(0, ROUND(EXTRACT(EPOCH FROM (a."exitTime" - a."entryTime")) / 60)::int)
+                    + CASE
+                        WHEN a."entryTime2" IS NOT NULL AND a."exitTime2" IS NOT NULL
+                        THEN GREATEST(0, ROUND(EXTRACT(EPOCH FROM (a."exitTime2" - a."entryTime2")) / 60)::int)
+                        ELSE 0
+                    END
                 ),
                 "statusChangedAt" = NOW(),
                 "statusChangedBy" = 'CRON_EOD'
@@ -165,9 +170,12 @@ async def close_day(target_date: Optional[date] = None, external_db: Optional[Da
         res_general = await db_to_use.execute(
             """
             UPDATE attendances
-            SET "workedMinutes" = GREATEST(0,
-                    ROUND(EXTRACT(EPOCH FROM ("exitTime" - "entryTime")) / 60)::int
-                ),
+            SET "workedMinutes" = GREATEST(0, ROUND(EXTRACT(EPOCH FROM ("exitTime" - "entryTime")) / 60)::int)
+                + CASE
+                    WHEN "entryTime2" IS NOT NULL AND "exitTime2" IS NOT NULL
+                    THEN GREATEST(0, ROUND(EXTRACT(EPOCH FROM ("exitTime2" - "entryTime2")) / 60)::int)
+                    ELSE 0
+                END,
                 status = CASE
                     WHEN status = 'PENDIENTE'::"AttendanceStatus" THEN 'PRESENTE'::"AttendanceStatus"
                     ELSE status

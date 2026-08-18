@@ -124,7 +124,9 @@ export async function GET(req: Request) {
 
     // Map attendances to include GPS signal health status
     const formattedAttendances = attendances.map((att) => {
-      const isShiftActive = Boolean(att.entryTime && !att.exitTime);
+      const isShift1Active = Boolean(att.entryTime && !att.exitTime);
+      const isShift2Active = Boolean(att.entryTime2 && !att.exitTime2);
+      const isShiftActive = isShift1Active || isShift2Active;
       const lastPing = att.geoPings[0] || null;
       const lastPingAt = lastPing ? lastPing.timestamp : null;
 

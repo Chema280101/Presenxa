@@ -4,12 +4,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { logAuditEvent } from "@/lib/audit";
 
+import { differenceInMinutes } from "date-fns";
+
 const PatchAttendanceSchema = z.object({
   status: z.nativeEnum(AttendanceStatus).optional(),
   entryTime: z.string().datetime().optional().nullable(),
   exitTime: z.string().datetime().optional().nullable(),
+  entryTime2: z.string().datetime().optional().nullable(),
+  exitTime2: z.string().datetime().optional().nullable(),
   notes: z.string().optional().nullable(),
   lateMinutes: z.number().int().min(0).optional().nullable(),
+  lateMinutes2: z.number().int().min(0).optional().nullable(),
+  workedMinutes: z.number().int().min(0).optional().nullable(),
 });
 
 // PATCH /api/attendance/[id]
@@ -72,11 +78,44 @@ export async function PATCH(
     if (data.exitTime !== undefined) {
       updateData.exitTime = data.exitTime ? new Date(data.exitTime) : null;
     }
+    if (data.entryTime2 !== undefined) {
+      updateData.entryTime2 = data.entryTime2 ? new Date(data.entryTime2) : null;
+    }
+    if (data.exitTime2 !== undefined) {
+      updateData.exitTime2 = data.exitTime2 ? new Date(data.exitTime2) : null;
+    }
     if (data.notes !== undefined) {
       updateData.notes = data.notes;
     }
     if (data.lateMinutes !== undefined) {
       updateData.lateMinutes = data.lateMinutes;
+    }
+    if (data.lateMinutes2 !== undefined) {
+      updateData.lateMinutes2 = data.lateMinutes2;
+    }
+
+    // Auto-recalculate workedMinutes if entry/exit times were updated and workedMinutes was not explicitly provided
+    if (data.workedMinutes !== undefined) {
+      updateData.workedMinutes = data.workedMinutes;
+    } else if (
+      data.entryTime !== undefined ||
+      data.exitTime !== undefined ||
+      data.entryTime2 !== undefined ||
+      data.exitTime2 !== undefined
+    ) {
+      const finalEntry1 = data.entryTime !== undefined ? (data.entryTime ? new Date(data.entryTime) : null) : existing.entryTime;
+      const finalExit1 = data.exitTime !== undefined ? (data.exitTime ? new Date(data.exitTime) : null) : existing.exitTime;
+      const finalEntry2 = data.entryTime2 !== undefined ? (data.entryTime2 ? new Date(data.entryTime2) : null) : existing.entryTime2;
+      const finalExit2 = data.exitTime2 !== undefined ? (data.exitTime2 ? new Date(data.exitTime2) : null) : existing.exitTime2;
+
+      let calcMinutes = 0;
+      if (finalEntry1 && finalExit1) {
+        calcMinutes += Math.max(0, differenceInMinutes(finalExit1, finalEntry1));
+      }
+      if (finalEntry2 && finalExit2) {
+        calcMinutes += Math.max(0, differenceInMinutes(finalExit2, finalEntry2));
+      }
+      updateData.workedMinutes = calcMinutes > 0 ? calcMinutes : null;
     }
 
     const updated = await prisma.attendance.update({

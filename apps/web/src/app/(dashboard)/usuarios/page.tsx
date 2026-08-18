@@ -48,6 +48,11 @@ interface UserItem {
       entryMinute: number;
       exitHour: number;
       exitMinute: number;
+      isSplit?: boolean;
+      entryHour2?: number | null;
+      entryMinute2?: number | null;
+      exitHour2?: number | null;
+      exitMinute2?: number | null;
     };
   }>;
 }
@@ -455,11 +460,22 @@ export default function UsersPage() {
                       {/* Horario */}
                       <td className="py-3.5 px-4">
                         {schedule ? (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                            <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                            <span>
-                              {schedule.name} ({String(schedule.entryHour).padStart(2, "0")}:{String(schedule.entryMinute).padStart(2, "0")})
-                            </span>
+                          <div className="space-y-0.5 text-xs text-slate-300">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                              <span className="text-white">{schedule.name}</span>
+                              {schedule.isSplit && (
+                                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  Partido
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] font-mono text-slate-400 pl-5">
+                              {String(schedule.entryHour).padStart(2, "0")}:{String(schedule.entryMinute).padStart(2, "0")} - {String(schedule.exitHour).padStart(2, "0")}:{String(schedule.exitMinute).padStart(2, "0")}
+                              {schedule.isSplit && schedule.entryHour2 !== null && schedule.exitHour2 !== null ? (
+                                <> · {String(schedule.entryHour2).padStart(2, "0")}:{String(schedule.entryMinute2 || 0).padStart(2, "0")} - {String(schedule.exitHour2).padStart(2, "0")}:{String(schedule.exitMinute2 || 0).padStart(2, "0")}</>
+                              ) : null}
+                            </p>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-500">Sin horario</span>

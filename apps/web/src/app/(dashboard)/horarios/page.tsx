@@ -33,6 +33,12 @@ interface ScheduleItem {
   exitHour: number;
   exitMinute: number;
   toleranceMinutes: number;
+  isSplit?: boolean;
+  entryHour2?: number | null;
+  entryMinute2?: number | null;
+  exitHour2?: number | null;
+  exitMinute2?: number | null;
+  toleranceMinutes2?: number | null;
   isActive: boolean;
   _count?: {
     userSchedules: number;
@@ -177,12 +183,26 @@ export default function SchedulesPage() {
     eH: number,
     eM: number,
     xH: number,
-    xM: number
+    xM: number,
+    isSplit?: boolean,
+    eH2?: number | null,
+    eM2?: number | null,
+    xH2?: number | null,
+    xM2?: number | null
   ): string => {
-    let diffMinutes = xH * 60 + xM - (eH * 60 + eM);
-    if (diffMinutes < 0) diffMinutes += 24 * 60; // Crosses midnight
-    const hours = Math.floor(diffMinutes / 60);
-    const mins = diffMinutes % 60;
+    let diffMinutes1 = xH * 60 + xM - (eH * 60 + eM);
+    if (diffMinutes1 < 0) diffMinutes1 += 24 * 60; // Crosses midnight
+
+    let totalMinutes = diffMinutes1;
+
+    if (isSplit && eH2 !== null && eH2 !== undefined && xH2 !== null && xH2 !== undefined) {
+      let diffMinutes2 = xH2 * 60 + (xM2 || 0) - (eH2 * 60 + (eM2 || 0));
+      if (diffMinutes2 < 0) diffMinutes2 += 24 * 60;
+      totalMinutes += diffMinutes2;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
     return mins > 0 ? `${hours}h ${mins}m` : `${hours} horas`;
   };
 
@@ -196,19 +216,15 @@ export default function SchedulesPage() {
         </div>
       )}
 
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="gradient-brand w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-950/60 ring-1 ring-emerald-400/20">
-              <Clock className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Horarios y Turnos Laborales
-            </h1>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-400">
-            Configura las jornadas oficiales de trabajo o clases, tolerancias de tardanza y días laborables.
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-3">
+            <Clock className="w-7 h-7 text-emerald-400" />
+            <span>Gestión de Turnos y Horarios</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+            Administra jornadas laborales continuas y partidas, tolerancias y asignaciones
           </p>
         </div>
 
@@ -217,17 +233,17 @@ export default function SchedulesPage() {
             setEditingSchedule(null);
             setIsModalOpen(true);
           }}
-          className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all flex-shrink-0"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-brand hover:opacity-95 text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all active:scale-[0.98] cursor-pointer self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
-          Nuevo Horario
+          <span>Crear Horario</span>
         </button>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
+      {/* Metric Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Total Turnos"
+          label="Total de Horarios"
           value={stats.total}
           sub="Configurados en el sistema"
           icon={Clock}
@@ -262,31 +278,39 @@ export default function SchedulesPage() {
           <div className="relative">
             <input
               type="text"
-              placeholder="Buscar por nombre de horario..."
+              placeholder="Buscar horario por nombre..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-xs sm:text-sm focus:border-indigo-500 outline-none transition-colors"
             />
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>
 
-          <div className="relative">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2.5 input-standard text-xs cursor-pointer"
-            >
-              <option value="ALL">Todos los horarios</option>
-              <option value="ACTIVE">Solo Activos</option>
-              <option value="INACTIVE">Solo Inactivos</option>
-            </select>
+          <div className="flex gap-2">
+            {[
+              { id: "ALL", label: "Todos" },
+              { id: "ACTIVE", label: "Activos" },
+              { id: "INACTIVE", label: "Inactivos" },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setSelectedStatus(f.id)}
+                className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                  selectedStatus === f.id
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                    : "bg-white/5 text-slate-400 border-white/5 hover:text-white"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Schedules Cards Grid */}
+      {/* Schedule Cards Grid */}
       {isLoading ? (
-        <div className="py-16 text-center text-slate-400 card-surface">
+        <div className="p-12 text-center text-slate-500">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-400" />
           <p className="text-sm">Cargando turnos y horarios...</p>
         </div>
@@ -313,11 +337,28 @@ export default function SchedulesPage() {
             const exitStr = `${String(sch.exitHour).padStart(2, "0")}:${String(
               sch.exitMinute
             ).padStart(2, "0")}`;
+
+            const entryStr2 = sch.entryHour2 !== null && sch.entryHour2 !== undefined
+              ? `${String(sch.entryHour2).padStart(2, "0")}:${String(
+                  sch.entryMinute2 || 0
+                ).padStart(2, "0")}`
+              : null;
+            const exitStr2 = sch.exitHour2 !== null && sch.exitHour2 !== undefined
+              ? `${String(sch.exitHour2).padStart(2, "0")}:${String(
+                  sch.exitMinute2 || 0
+                ).padStart(2, "0")}`
+              : null;
+
             const duration = calculateHours(
               sch.entryHour,
               sch.entryMinute,
               sch.exitHour,
-              sch.exitMinute
+              sch.exitMinute,
+              sch.isSplit,
+              sch.entryHour2,
+              sch.entryMinute2,
+              sch.exitHour2,
+              sch.exitMinute2
             );
 
             return (
@@ -328,10 +369,15 @@ export default function SchedulesPage() {
                 {/* Card Header */}
                 <div className="p-6 pb-4 border-b border-white/5 flex items-start justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">
                         {sch.name}
                       </h3>
+                      {sch.isSplit && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                          Partido (2 Tramos)
+                        </span>
+                      )}
                       {sch.isActive ? (
                         <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                           Activo
@@ -343,7 +389,7 @@ export default function SchedulesPage() {
                       )}
                     </div>
                     <p className="text-xs text-slate-400">
-                      Jornada de <strong className="text-slate-200">{duration}</strong>
+                      Jornada neta de <strong className="text-slate-200">{duration}</strong>
                     </p>
                   </div>
 
@@ -359,12 +405,18 @@ export default function SchedulesPage() {
                           exitHour: sch.exitHour,
                           exitMinute: sch.exitMinute,
                           toleranceMinutes: sch.toleranceMinutes,
+                          isSplit: sch.isSplit,
+                          entryHour2: sch.entryHour2,
+                          entryMinute2: sch.entryMinute2,
+                          exitHour2: sch.exitHour2,
+                          exitMinute2: sch.exitMinute2,
+                          toleranceMinutes2: sch.toleranceMinutes2,
                           isActive: sch.isActive,
                         });
                         setIsModalOpen(true);
                       }}
                       title="Editar Horario"
-                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
+                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -372,7 +424,7 @@ export default function SchedulesPage() {
                     <button
                       onClick={() => handleToggleStatus(sch)}
                       title={sch.isActive ? "Desactivar horario" : "Reactivar horario"}
-                      className={`p-2 rounded-xl transition-all active:scale-95 border ${
+                      className={`p-2 rounded-xl transition-all active:scale-95 border cursor-pointer ${
                         sch.isActive
                           ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
                           : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
@@ -386,26 +438,64 @@ export default function SchedulesPage() {
                 {/* Card Body */}
                 <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
                   {/* Time Range block */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
-                        <Sun className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Entrada Oficial</span>
-                      </div>
-                      <p className="text-xl font-bold font-mono text-white">
-                        {entryStr}
-                      </p>
-                    </div>
+                  <div className="space-y-2">
+                    {sch.isSplit ? (
+                      <div className="space-y-2">
+                        {/* Tramo 1 */}
+                        <div className="p-3 rounded-2xl bg-black/40 border border-amber-500/20 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Sun className="w-4 h-4 text-amber-400" />
+                            <div>
+                              <span className="text-[10px] text-amber-300 font-bold uppercase block">Tramo 1 (Mañana)</span>
+                              <span className="font-mono font-bold text-white text-sm">
+                                {entryStr} – {exitStr}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            tol. +{sch.toleranceMinutes}m
+                          </span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
-                        <Moon className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Salida Oficial</span>
+                        {/* Tramo 2 */}
+                        <div className="p-3 rounded-2xl bg-black/40 border border-indigo-500/20 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Moon className="w-4 h-4 text-indigo-400" />
+                            <div>
+                              <span className="text-[10px] text-indigo-300 font-bold uppercase block">Tramo 2 (Tarde)</span>
+                              <span className="font-mono font-bold text-white text-sm">
+                                {entryStr2 || "--:--"} – {exitStr2 || "--:--"}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            tol. +{sch.toleranceMinutes2 ?? sch.toleranceMinutes}m
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-xl font-bold font-mono text-white">
-                        {exitStr}
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                            <Sun className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Entrada Oficial</span>
+                          </div>
+                          <p className="text-xl font-bold font-mono text-white">
+                            {entryStr}
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-black/40 border border-white/5">
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">
+                            <Moon className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Salida Oficial</span>
+                          </div>
+                          <p className="text-xl font-bold font-mono text-white">
+                            {exitStr}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Workdays & Tolerance */}
@@ -424,7 +514,7 @@ export default function SchedulesPage() {
                               key={d.bit}
                               className={`w-7 h-7 rounded-lg text-xs font-semibold flex items-center justify-center transition-colors ${
                                 active
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold"
                                   : "bg-white/5 text-slate-600 border border-white/5"
                               }`}
                             >
@@ -435,22 +525,14 @@ export default function SchedulesPage() {
                       </div>
                     </div>
 
-                    {/* Tolerancia y Asignados */}
-                    <div className="flex items-center justify-between pt-3 border-t border-white/5 text-xs">
-                      <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                        <Sliders className="w-3.5 h-3.5" />
-                        Tolerancia:{" "}
-                        <strong className="text-white font-mono">
-                          +{sch.toleranceMinutes} min
-                        </strong>
-                      </span>
-
+                    {/* Asignados */}
+                    <div className="pt-3 border-t border-white/5 text-xs flex justify-end">
                       <span className="flex items-center gap-1 text-slate-400 font-medium">
                         <Users className="w-3.5 h-3.5 text-emerald-400" />
                         <strong className="text-white font-mono">
                           {sch._count?.userSchedules || 0}
                         </strong>{" "}
-                        asignados
+                        empleados asignados
                       </span>
                     </div>
                   </div>

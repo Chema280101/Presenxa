@@ -47,9 +47,12 @@ interface AttendanceRecord {
   date: string;
   entryTime?: string | null;
   exitTime?: string | null;
+  entryTime2?: string | null;
+  exitTime2?: string | null;
   status: AttendanceStatus;
   workedMinutes?: number | null;
   lateMinutes?: number | null;
+  lateMinutes2?: number | null;
   notes?: string | null;
   statusChangedBy?: string | null;
   user: {
@@ -67,6 +70,11 @@ interface AttendanceRecord {
         entryMinute: number;
         exitHour: number;
         exitMinute: number;
+        isSplit?: boolean;
+        entryHour2?: number | null;
+        entryMinute2?: number | null;
+        exitHour2?: number | null;
+        exitMinute2?: number | null;
       };
     }>;
   };
@@ -649,11 +657,21 @@ export default function AttendancePage() {
                 </tr>
               ) : (
                 attendances.map((record) => {
+                  const hasShift2 = Boolean(record.entryTime2 || record.exitTime2);
+                  const isSplitSchedule = Boolean(record.user?.userSchedules?.[0]?.schedule?.isSplit);
+
                   const entryFormatted = record.entryTime
                     ? format(new Date(record.entryTime), "HH:mm:ss")
                     : "—";
                   const exitFormatted = record.exitTime
                     ? format(new Date(record.exitTime), "HH:mm:ss")
+                    : "—";
+
+                  const entry2Formatted = record.entryTime2
+                    ? format(new Date(record.entryTime2), "HH:mm:ss")
+                    : "—";
+                  const exit2Formatted = record.exitTime2
+                    ? format(new Date(record.exitTime2), "HH:mm:ss")
                     : "—";
 
                   const isPendingDni = record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
@@ -680,6 +698,11 @@ export default function AttendancePage() {
                               <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
                                 {record.user.firstName} {record.user.lastName}
                               </p>
+                              {isSplitSchedule && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                  Partido
+                                </span>
+                              )}
                               {isPendingDni && (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 animate-pulse">
                                   DNI por Validar
@@ -733,19 +756,56 @@ export default function AttendancePage() {
 
                       {/* Hora Entrada */}
                       <td className="py-3.5 px-4">
-                        <span className="font-mono text-xs text-white">
-                          {entryFormatted}
-                        </span>
-                        {record.lateMinutes && record.lateMinutes > 0 ? (
-                          <p className="text-[11px] text-amber-400 font-mono">
-                            +{record.lateMinutes} min tarde
-                          </p>
-                        ) : null}
+                        {isSplitSchedule || hasShift2 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">T1</span>
+                              <span className="font-mono text-xs text-white">{entryFormatted}</span>
+                            </div>
+                            {(record.entryTime2 || isSplitSchedule) && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">T2</span>
+                                <span className="font-mono text-xs text-slate-300">{entry2Formatted}</span>
+                              </div>
+                            )}
+                            {record.lateMinutes && record.lateMinutes > 0 ? (
+                              <p className="text-[10px] text-amber-400 font-mono">
+                                +{record.lateMinutes}m tarde
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-mono text-xs text-white">
+                              {entryFormatted}
+                            </span>
+                            {record.lateMinutes && record.lateMinutes > 0 ? (
+                              <p className="text-[11px] text-amber-400 font-mono">
+                                +{record.lateMinutes} min tarde
+                              </p>
+                            ) : null}
+                          </>
+                        )}
                       </td>
 
                       {/* Hora Salida */}
                       <td className="py-3.5 px-4 font-mono text-xs text-slate-300">
-                        {exitFormatted}
+                        {isSplitSchedule || hasShift2 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">S1</span>
+                              <span>{exitFormatted}</span>
+                            </div>
+                            {(record.exitTime2 || isSplitSchedule) && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">S2</span>
+                                <span>{exit2Formatted}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span>{exitFormatted}</span>
+                        )}
                       </td>
 
                       {/* Estado */}
@@ -753,7 +813,7 @@ export default function AttendancePage() {
                         <StatusBadge
                           status={record.status}
                           lateMinutes={record.lateMinutes}
-                          hasExit={Boolean(record.exitTime)}
+                          hasExit={Boolean(record.exitTime2 || record.exitTime)}
                           size="sm"
                         />
                       </td>
@@ -822,7 +882,7 @@ export default function AttendancePage() {
                               })
                             }
                             title="Justificar Inasistencia o Tardanza"
-                            className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-all active:scale-95"
+                            className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-all active:scale-95 cursor-pointer"
                           >
                             <ShieldCheck className="w-4 h-4" />
                           </button>
@@ -837,12 +897,15 @@ export default function AttendancePage() {
                                 status: record.status,
                                 entryTime: record.entryTime,
                                 exitTime: record.exitTime,
+                                entryTime2: record.entryTime2,
+                                exitTime2: record.exitTime2,
                                 notes: record.notes,
                                 lateMinutes: record.lateMinutes,
+                                lateMinutes2: record.lateMinutes2,
                               })
                             }
                             title="Ajustar Horas y Estado"
-                            className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
+                            className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>

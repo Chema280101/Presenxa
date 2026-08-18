@@ -68,7 +68,11 @@ interface UserProfile {
     name: string;
     entryTime: string;
     exitTime: string;
+    isSplit?: boolean;
+    entryTime2?: string | null;
+    exitTime2?: string | null;
     toleranceMinutes: number;
+    toleranceMinutes2?: number | null;
   } | null;
 }
 
@@ -77,8 +81,11 @@ interface TodayAttendance {
   date: string;
   entryTime: string | null;
   exitTime: string | null;
+  entryTime2?: string | null;
+  exitTime2?: string | null;
   status: string;
   lateMinutes: number | null;
+  lateMinutes2?: number | null;
   workedMinutes: number | null;
   notes?: string | null;
 }
@@ -88,8 +95,11 @@ interface HistoryItem {
   date: string;
   entryTime: string | null;
   exitTime: string | null;
+  entryTime2?: string | null;
+  exitTime2?: string | null;
   status: string;
   lateMinutes: number | null;
+  lateMinutes2?: number | null;
   workedMinutes: number | null;
   locationName: string;
 }
@@ -144,10 +154,10 @@ export default function EmployeeAppPage() {
     profile?.location?.geofenceRadius,
   ]);
 
-  // El rastreo solo se activa durante la jornada laboral activa (desde que marca entrada hasta que marca salida)
-  const isShiftActive = Boolean(
-    todayAttendance?.entryTime && !todayAttendance?.exitTime
-  );
+  // El rastreo solo se activa durante la jornada laboral activa (en Tramo 1 o Tramo 2, pausado en receso)
+  const isShift1Active = Boolean(todayAttendance?.entryTime && !todayAttendance?.exitTime);
+  const isShift2Active = Boolean(todayAttendance?.entryTime2 && !todayAttendance?.exitTime2);
+  const isShiftActive = isShift1Active || isShift2Active;
 
   const geo = useGeofencing(geofenceTarget, {
     enabled: Boolean(profile?.location && isShiftActive),
@@ -870,22 +880,39 @@ export default function EmployeeAppPage() {
 
             {/* Schedule Callout */}
             {profile?.schedule && (
-              <div
-                className="p-4 rounded-2xl border backdrop-blur-md flex items-center justify-between text-xs"
-                style={{
-                  background: "rgba(11, 20, 13, 0.75)",
-                  borderColor: "rgba(34, 197, 94, 0.12)",
-                }}
-              >
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Calendar className="w-4 h-4 text-emerald-400" />
-                  <span>
-                    Turno: <strong>{profile.schedule.name}</strong>
-                  </span>
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-white/5 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-300">
+                    <Calendar className="w-4 h-4 text-emerald-400" />
+                    <span>
+                      Turno: <strong>{profile.schedule.name}</strong>
+                    </span>
+                  </div>
+                  {profile.schedule.isSplit && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      Partido
+                    </span>
+                  )}
                 </div>
-                <span className="font-mono font-bold text-emerald-300">
-                  {profile.schedule.entryTime} - {profile.schedule.exitTime}
-                </span>
+                {profile.schedule.isSplit ? (
+                  <div className="flex flex-col gap-1 pt-1 font-mono text-[11px]">
+                    <div className="flex items-center justify-between text-amber-300">
+                      <span>☀️ Tramo 1 (Mañana):</span>
+                      <span className="font-bold">{profile.schedule.entryTime} - {profile.schedule.exitTime}</span>
+                    </div>
+                    {profile.schedule.entryTime2 && profile.schedule.exitTime2 && (
+                      <div className="flex items-center justify-between text-indigo-300">
+                        <span>🌙 Tramo 2 (Tarde):</span>
+                        <span className="font-bold">{profile.schedule.entryTime2} - {profile.schedule.exitTime2}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-0.5 font-mono text-emerald-300">
+                    <span>Horario oficial:</span>
+                    <span className="font-bold">{profile.schedule.entryTime} - {profile.schedule.exitTime}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1126,10 +1153,12 @@ export default function EmployeeAppPage() {
                     >
                       <div className="space-y-0.5">
                         <span className="font-bold text-white block">{item.date}</span>
-                        <span className="text-[11px] text-slate-400">
-                          {item.entryTime ? `Entrada: ${item.entryTime}` : "Sin entrada"}
-                          {item.exitTime ? ` • Salida: ${item.exitTime}` : ""}
-                        </span>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          {item.entryTime ? `T1: ${item.entryTime}` : "Sin entrada"}
+                          {item.exitTime ? ` → ${item.exitTime}` : ""}
+                          {item.entryTime2 ? ` | T2: ${item.entryTime2}` : ""}
+                          {item.exitTime2 ? ` → ${item.exitTime2}` : ""}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-2">

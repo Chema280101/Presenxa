@@ -144,13 +144,21 @@ model Schedule {
   // Días laborales (bitmask): Lu=1, Ma=2, Mi=4, Ju=8, Vi=16, Sa=32, Do=64
   workdaysMask Int @default(31) // Lun-Vie por defecto
 
-  // Horario esperado (se guarda como hora del día, ej: 08:00)
+  // Horario esperado Tramo 1 (se guarda como hora del día, ej: 08:00)
   entryHour   Int @default(8)
   entryMinute Int @default(0)
   exitHour    Int @default(17)
   exitMinute  Int @default(0)
 
-  toleranceMinutes Int @default(5) // Minutos de tolerancia para tarde
+  toleranceMinutes Int @default(5) // Minutos de tolerancia para tarde en tramo 1
+
+  // Soporte para Jornada Partida / Doble Turno (ej. Mañana 08:00-13:00 y Tarde 15:00-19:00)
+  isSplit           Boolean @default(false)
+  entryHour2        Int?
+  entryMinute2      Int?
+  exitHour2         Int?
+  exitMinute2       Int?
+  toleranceMinutes2 Int?    @default(5)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -212,16 +220,21 @@ model Attendance {
 
   date DateTime @db.Date // Fecha sin hora
 
-  // Marcaciones físicas (QR escaneado en kiosk)
-  entryTime DateTime? // Hora exacta de entrada
-  exitTime  DateTime? // Hora exacta de salida
+  // Marcaciones físicas Tramo 1 (QR escaneado en kiosk)
+  entryTime DateTime? // Hora exacta de entrada Tramo 1
+  exitTime  DateTime? // Hora exacta de salida Tramo 1 (o salida final en turno continuo)
+
+  // Marcaciones físicas Tramo 2 (para horario partido / doble turno)
+  entryTime2 DateTime? // Hora exacta de entrada Tramo 2 (retorno de receso/almuerzo)
+  exitTime2  DateTime? // Hora exacta de salida Tramo 2 (fin de jornada)
 
   // Estado calculado
   status AttendanceStatus @default(PENDIENTE)
 
   // Métricas calculadas al cierre del día
   workedMinutes Int?
-  lateMinutes   Int? // Minutos de retraso respecto al horario
+  lateMinutes   Int? // Minutos de retraso respecto al horario Tramo 1
+  lateMinutes2  Int? // Minutos de retraso respecto al horario Tramo 2
 
   // Auditoría de cambios de estado
   notes           String?

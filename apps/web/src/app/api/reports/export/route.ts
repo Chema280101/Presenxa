@@ -127,8 +127,10 @@ export async function GET(req: Request) {
       "Rol",
       "Sede / Ubicación",
       "Kiosk de Registro",
-      "Hora Entrada",
-      "Hora Salida",
+      "Entrada T1",
+      "Salida T1 (Receso)",
+      "Entrada T2 (Retorno)",
+      "Salida T2 (Final)",
       "Horas Trabajadas",
       "Estado",
       "Minutos Tardanza",
@@ -140,6 +142,8 @@ export async function GET(req: Request) {
       const dateStr = format(new Date(a.date), "dd/MM/yyyy");
       const entryStr = a.entryTime ? format(new Date(a.entryTime), "HH:mm:ss") : "--:--:--";
       const exitStr = a.exitTime ? format(new Date(a.exitTime), "HH:mm:ss") : "--:--:--";
+      const entry2Str = a.entryTime2 ? format(new Date(a.entryTime2), "HH:mm:ss") : "--:--:--";
+      const exit2Str = a.exitTime2 ? format(new Date(a.exitTime2), "HH:mm:ss") : "--:--:--";
       const fullName = `"${a.user.lastName}, ${a.user.firstName}"`;
       const notes = a.notes ? `"${a.notes.replace(/"/g, '""')}"` : "";
       const workedHours = a.workedMinutes ? (a.workedMinutes / 60).toFixed(2) + " hrs" : "0.00 hrs";
@@ -154,6 +158,8 @@ export async function GET(req: Request) {
         `"${a.kiosk?.name || "Virtual"}"`,
         entryStr,
         exitStr,
+        entry2Str,
+        exit2Str,
         workedHours,
         a.status,
         a.lateMinutes || 0,

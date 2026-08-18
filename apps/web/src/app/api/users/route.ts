@@ -87,7 +87,19 @@ export async function GET(req: Request) {
           },
           include: {
             schedule: {
-              select: { id: true, name: true, entryHour: true, entryMinute: true, exitHour: true, exitMinute: true },
+              select: {
+                id: true,
+                name: true,
+                entryHour: true,
+                entryMinute: true,
+                exitHour: true,
+                exitMinute: true,
+                isSplit: true,
+                entryHour2: true,
+                entryMinute2: true,
+                exitHour2: true,
+                exitMinute2: true,
+              },
             },
           },
           take: 1,

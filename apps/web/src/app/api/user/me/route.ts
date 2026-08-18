@@ -84,13 +84,25 @@ export async function GET() {
           ? {
               id: activeSchedule.id,
               name: activeSchedule.name,
+              isSplit: Boolean(activeSchedule.isSplit),
               entryTime: `${String(activeSchedule.entryHour).padStart(2, "0")}:${String(
                 activeSchedule.entryMinute
               ).padStart(2, "0")}`,
               exitTime: `${String(activeSchedule.exitHour).padStart(2, "0")}:${String(
                 activeSchedule.exitMinute
               ).padStart(2, "0")}`,
+              entryTime2: activeSchedule.isSplit && activeSchedule.entryHour2 !== null
+                ? `${String(activeSchedule.entryHour2).padStart(2, "0")}:${String(
+                    activeSchedule.entryMinute2 || 0
+                  ).padStart(2, "0")}`
+                : null,
+              exitTime2: activeSchedule.isSplit && activeSchedule.exitHour2 !== null
+                ? `${String(activeSchedule.exitHour2).padStart(2, "0")}:${String(
+                    activeSchedule.exitMinute2 || 0
+                  ).padStart(2, "0")}`
+                : null,
               toleranceMinutes: activeSchedule.toleranceMinutes,
+              toleranceMinutes2: activeSchedule.toleranceMinutes2,
               workdaysMask: activeSchedule.workdaysMask,
             }
           : null,
@@ -105,8 +117,15 @@ export async function GET() {
             exitTime: todayAttendance.exitTime
               ? format(todayAttendance.exitTime, "HH:mm:ss")
               : null,
+            entryTime2: todayAttendance.entryTime2
+              ? format(todayAttendance.entryTime2, "HH:mm:ss")
+              : null,
+            exitTime2: todayAttendance.exitTime2
+              ? format(todayAttendance.exitTime2, "HH:mm:ss")
+              : null,
             status: todayAttendance.status,
             lateMinutes: todayAttendance.lateMinutes,
+            lateMinutes2: todayAttendance.lateMinutes2,
             workedMinutes: todayAttendance.workedMinutes,
             notes: todayAttendance.notes,
           }

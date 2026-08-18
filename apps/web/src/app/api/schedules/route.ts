@@ -11,6 +11,12 @@ const ScheduleSchema = z.object({
   exitHour: z.number().int().min(0).max(23),
   exitMinute: z.number().int().min(0).max(59),
   toleranceMinutes: z.number().int().min(0).max(120).default(5),
+  isSplit: z.boolean().default(false),
+  entryHour2: z.number().int().min(0).max(23).optional().nullable(),
+  entryMinute2: z.number().int().min(0).max(59).optional().nullable(),
+  exitHour2: z.number().int().min(0).max(23).optional().nullable(),
+  exitMinute2: z.number().int().min(0).max(59).optional().nullable(),
+  toleranceMinutes2: z.number().int().min(0).max(120).optional().nullable(),
 });
 
 // GET /api/schedules
@@ -76,6 +82,12 @@ export async function POST(req: Request) {
         exitHour: data.exitHour,
         exitMinute: data.exitMinute,
         toleranceMinutes: data.toleranceMinutes,
+        isSplit: data.isSplit,
+        entryHour2: data.isSplit ? data.entryHour2 : null,
+        entryMinute2: data.isSplit ? data.entryMinute2 : null,
+        exitHour2: data.isSplit ? data.exitHour2 : null,
+        exitMinute2: data.isSplit ? data.exitMinute2 : null,
+        toleranceMinutes2: data.isSplit ? (data.toleranceMinutes2 ?? data.toleranceMinutes) : null,
         isActive: true,
       },
     });
