@@ -7,6 +7,18 @@ from ..database import Database
 from ..redis_client import RedisClient
 
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore
+
+_TZ_NAME = os.getenv("GEO_WORKER_TIMEZONE", "America/Lima")
+try:
+    LOCAL_TZ = ZoneInfo(_TZ_NAME)
+except Exception:
+    LOCAL_TZ = ZoneInfo("America/Lima")
+
+
 class GeofenceService:
     def __init__(self, db: Database, redis: RedisClient):
         self.db = db
@@ -58,8 +70,8 @@ class GeofenceService:
         if not user_row["locationId"]:
             return {"status": "NO_LOCATION_CONFIGURED"}
 
-        # 2. ¿Tiene asistencia abierta hoy (entrada sin salida)?
-        today = date.today()
+        # 2. ¿Tiene asistencia abierta hoy (entrada sin salida)? (Calculado con timezone local)
+        today = datetime.now(LOCAL_TZ).date()
         attendance_row = await self.db.fetchrow(
             """
             SELECT id, "entryTime", "exitTime", status

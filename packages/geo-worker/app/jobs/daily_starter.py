@@ -47,6 +47,18 @@ def _parse_row_count(result_str: str) -> int:
     return int(match.group(0)) if match else 0
 
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore
+
+_TZ_NAME = os.getenv("GEO_WORKER_TIMEZONE", "America/Lima")
+try:
+    LOCAL_TZ = ZoneInfo(_TZ_NAME)
+except Exception:
+    LOCAL_TZ = ZoneInfo("America/Lima")
+
+
 async def start_day(target_date: Optional[date] = None, external_db: Optional[Database] = None) -> Dict[str, Any]:
     """
     Genera registros de asistencia PENDIENTE para todos los usuarios activos
@@ -59,7 +71,7 @@ async def start_day(target_date: Optional[date] = None, external_db: Optional[Da
         await db_to_use.connect()
         is_internal_connection = True
 
-    today = target_date or date.today()
+    today = target_date or datetime.now(LOCAL_TZ).date()
     # En Python: Monday=0, Tuesday=1, ... Sunday=6
     # Bitmask: Lun=1, Mar=2, Mié=4, Jue=8, Vie=16, Sáb=32, Dom=64
     day_bit = 1 << today.weekday()

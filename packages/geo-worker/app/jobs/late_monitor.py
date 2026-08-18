@@ -41,6 +41,18 @@ except ImportError:
     from redis_client import RedisClient, redis_client as default_redis
 
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore
+
+_TZ_NAME = os.getenv("GEO_WORKER_TIMEZONE", "America/Lima")
+try:
+    LOCAL_TZ = ZoneInfo(_TZ_NAME)
+except Exception:
+    LOCAL_TZ = ZoneInfo("America/Lima")
+
+
 async def check_late_arrivals(
     target_date: Optional[date] = None,
     threshold_minutes: int = 30,
@@ -65,8 +77,8 @@ async def check_late_arrivals(
         await redis_to_use.connect()
         is_internal_redis = True
 
-    today = target_date or date.today()
-    now = datetime.now()
+    now = datetime.now(LOCAL_TZ)
+    today = target_date or now.date()
     current_time_str = now.strftime("%H:%M:%S")
 
     print(f"[CRON LATE-MONITOR] Escaneando tardanzas criticas para {today} a las {current_time_str}")

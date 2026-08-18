@@ -3,6 +3,7 @@ import { prisma } from "@asistencias/db";
 import { AttendanceStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { startOfDay, endOfDay, parseISO } from "date-fns";
+import { getLocalTodayDate } from "@/lib/dateUtils";
 
 // GET /api/attendance
 export async function GET(req: Request) {
@@ -37,8 +38,8 @@ export async function GET(req: Request) {
       lte: endOfDay(parseISO(dateParam)),
     };
   } else {
-    // Default to today
-    const today = new Date();
+    // Default to today in local timezone
+    const today = getLocalTodayDate(new Date());
     where.date = {
       gte: startOfDay(today),
       lte: endOfDay(today),

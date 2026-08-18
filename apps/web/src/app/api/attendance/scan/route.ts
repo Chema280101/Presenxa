@@ -1,10 +1,11 @@
 import { prisma, AttendanceStatus, AuditAction } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { startOfDay, format, differenceInMinutes } from "date-fns";
+import { differenceInMinutes } from "date-fns";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { isSignedQrPayload, verifySignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
+import { getLocalDateString, getLocalTodayDate, getLocalTimeParts, formatLocalTime } from "@/lib/dateUtils";
 
 const ScanSchema = z.object({
   qrToken: z.string().min(1, "El token QR o documento es requerido"),
@@ -167,8 +168,9 @@ export async function POST(req: Request) {
     const isQrTokenMatch = isUuid && user.qrToken && searchQrToken.toLowerCase() === user.qrToken.toLowerCase();
     const isDniScan = !isSigned && !isQrTokenMatch;
 
+    const timezone = kiosk.location.timezone || "America/Lima";
     const now = new Date();
-    const today = startOfDay(now);
+    const today = getLocalTodayDate(now, timezone);
     const schedule = user.userSchedules?.[0]?.schedule;
 
     // ── 7. Buscar o crear asistencia del día ────────────────────────────────
@@ -195,6 +197,8 @@ export async function POST(req: Request) {
       // ── CASO A: REGISTRO DE ENTRADA ──────────────────────────────────
       scanType = "ENTRY";
 
+      const localTimeFormatted = formatLocalTime(now, "HH:mm", timezone);
+
       // Calcular si llega a tiempo o con tardanza según el horario
       if (schedule) {
         const scheduledEntryHour = schedule.entryHour;
@@ -202,7 +206,8 @@ export async function POST(req: Request) {
         const tolerance = schedule.toleranceMinutes || 0;
 
         const scheduledTotalMinutes = scheduledEntryHour * 60 + scheduledEntryMin;
-        const actualTotalMinutes = now.getHours() * 60 + now.getMinutes();
+        const { hour: localHour, minute: localMinute } = getLocalTimeParts(now, timezone);
+        const actualTotalMinutes = localHour * 60 + localMinute;
 
         const diff = actualTotalMinutes - (scheduledTotalMinutes + tolerance);
 
@@ -210,23 +215,23 @@ export async function POST(req: Request) {
           status = AttendanceStatus.TARDE;
           lateMinutes = actualTotalMinutes - scheduledTotalMinutes;
           message = isDniScan
-            ? `¡Hola, ${user.firstName}! Entrada por DNI registrada (${format(now, "HH:mm")}, +${lateMinutes} min tarde). Pendiente de confirmación del supervisor.`
+            ? `¡Hola, ${user.firstName}! Entrada por DNI registrada (${localTimeFormatted}, +${lateMinutes} min tarde). Pendiente de confirmación del supervisor.`
             : `¡Hola, ${user.firstName}! Entrada registrada con tardanza (+${lateMinutes} min).`;
         } else {
           status = AttendanceStatus.PRESENTE;
           message = isDniScan
-            ? `¡Hola, ${user.firstName}! Entrada por DNI registrada a las ${format(now, "HH:mm")}. Pendiente de confirmación del supervisor.`
+            ? `¡Hola, ${user.firstName}! Entrada por DNI registrada a las ${localTimeFormatted}. Pendiente de confirmación del supervisor.`
             : `¡Bienvenido(a), ${user.firstName}! Entrada registrada puntualmente.`;
         }
       } else {
         status = AttendanceStatus.PRESENTE;
         message = isDniScan
-          ? `¡Hola, ${user.firstName}! Entrada por DNI registrada a las ${format(now, "HH:mm")}. Pendiente de confirmación del supervisor.`
+          ? `¡Hola, ${user.firstName}! Entrada por DNI registrada a las ${localTimeFormatted}. Pendiente de confirmación del supervisor.`
           : `¡Bienvenido(a), ${user.firstName}! Entrada registrada con éxito.`;
       }
 
       const initialNotes = isDniScan
-        ? `[PENDIENTE_VALIDACION_DNI] Entrada manual por DNI (${user.documentId || searchQrToken}) en ${kiosk.name} a las ${format(now, "HH:mm:ss")}.`
+        ? `[PENDIENTE_VALIDACION_DNI] Entrada manual por DNI (${user.documentId || searchQrToken}) en ${kiosk.name} a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
         : null;
 
       attendance = await prisma.attendance.upsert({
@@ -272,7 +277,7 @@ export async function POST(req: Request) {
           : AttendanceStatus.PRESENTE;
 
       const exitNotes = isDniScan
-        ? `${attendance.notes ? attendance.notes + " | " : ""}[PENDIENTE_VALIDACION_DNI] Salida manual por DNI a las ${format(now, "HH:mm:ss")}.`
+        ? `${attendance.notes ? attendance.notes + " | " : ""}[PENDIENTE_VALIDACION_DNI] Salida manual por DNI a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
         : attendance.notes;
 
       attendance = await prisma.attendance.update({
@@ -299,9 +304,10 @@ export async function POST(req: Request) {
       const diffSinceExit = differenceInMinutes(now, new Date(attendance.exitTime));
       if (diffSinceExit < 2 && !isExplicitExit) {
         scanType = "ALREADY_REGISTERED";
-        message = `Tu salida ya fue registrada a las ${format(
+        message = `Tu salida ya fue registrada a las ${formatLocalTime(
           new Date(attendance.exitTime),
-          "HH:mm"
+          "HH:mm",
+          timezone
         )}. ¡Que tengas buen descanso!`;
       } else {
         scanType = "EXIT";
@@ -318,7 +324,7 @@ export async function POST(req: Request) {
           },
         });
 
-        message = `Salida actualizada a las ${format(now, "HH:mm")}. ¡Buen descanso!`;
+        message = `Salida actualizada a las ${formatLocalTime(now, "HH:mm", timezone)}. ¡Buen descanso!`;
       }
     }
 
@@ -339,7 +345,7 @@ export async function POST(req: Request) {
         });
 
         const notifTitle = `⚠️ Solicitud de Marcación por DNI — ${user.firstName} ${user.lastName}`;
-        const notifBody = `${user.firstName} ${user.lastName} (DNI: ${user.documentId || searchQrToken}) marcó ${scanType === "ENTRY" ? "ENTRADA" : "SALIDA"} manualmente en ${kiosk.name} a las ${format(now, "HH:mm")}. Requiere confirmación de identidad.`;
+        const notifBody = `${user.firstName} ${user.lastName} (DNI: ${user.documentId || searchQrToken}) marcó ${scanType === "ENTRY" ? "ENTRADA" : "SALIDA"} manualmente en ${kiosk.name} a las ${formatLocalTime(now, "HH:mm", timezone)}. Requiere confirmación de identidad.`;
 
         const notificationData = {
           isDniApproval: true,
@@ -349,7 +355,7 @@ export async function POST(req: Request) {
           userPhoto: user.photoUrl,
           documentId: user.documentId || searchQrToken,
           scanType,
-          time: format(now, "HH:mm:ss"),
+          time: formatLocalTime(now, "HH:mm:ss", timezone),
           locationId: kiosk.locationId,
           locationName: kiosk.location.name,
           kioskName: kiosk.name,
@@ -398,8 +404,8 @@ export async function POST(req: Request) {
       scanType,
       message,
       requiresVerification: isDniScan,
-      time: format(now, "HH:mm:ss"),
-      date: format(today, "yyyy-MM-dd"),
+      time: formatLocalTime(now, "HH:mm:ss", timezone),
+      date: getLocalDateString(now, timezone),
       status: attendance.status,
       lateMinutes: attendance.lateMinutes,
       workedMinutes: attendance.workedMinutes,
