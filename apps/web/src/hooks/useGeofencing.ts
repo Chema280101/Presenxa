@@ -32,6 +32,8 @@ interface GeofenceState {
   pendingOfflinePings: number;
   isFlushingOfflineQueue: boolean;
   isNative: boolean;
+  isGpsRevoked: boolean;
+  isGpsDisabled: boolean;
 }
 
 // Haversine formula to compute distance in meters
@@ -77,6 +79,8 @@ export function useGeofencing(
     pendingOfflinePings: 0,
     isFlushingOfflineQueue: false,
     isNative: false,
+    isGpsRevoked: false,
+    isGpsDisabled: false,
   });
 
   const targetRef = useRef<GeofenceTarget | null>(target);
@@ -87,6 +91,34 @@ export function useGeofencing(
   const watchIdRef = useRef<number | null>(null);
   const lastCoordsRef = useRef<{ lat: number; lng: number; acc: number | null } | null>(null);
   const isSendingRef = useRef(false);
+  const lastIncidentReportedRef = useRef<{ type: string; time: number } | null>(null);
+
+  // Helper para reportar incidentes de seguridad al servidor sin saturar
+  const reportIncident = useCallback(async (type: "GPS_PERMISSION_REVOKED" | "GPS_DISABLED", reason: string) => {
+    const now = Date.now();
+    const last = lastIncidentReportedRef.current;
+    if (last && last.type === type && now - last.time < 60000) {
+      return; // Máximo 1 reporte por minuto por tipo de incidente
+    }
+    lastIncidentReportedRef.current = { type, time: now };
+
+    try {
+      await fetch("/api/geo/incident", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          reason,
+          metadata: {
+            isNative: Capacitor.isNativePlatform(),
+            userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "Unknown",
+          },
+        }),
+      });
+    } catch (err) {
+      console.warn("[Geofencing] No se pudo despachar reporte de incidencia GPS:", err);
+    }
+  }, []);
 
   // Refresh pending count
   const refreshPendingCount = useCallback(async () => {
@@ -351,12 +383,14 @@ export function useGeofencing(
           },
           (location: any, error: any) => {
             if (error) {
-              if (error.code === "NOT_AUTHORIZED") {
+              if (error.code === "NOT_AUTHORIZED" || error.code === "PERMISSION_DENIED") {
                 setState((s) => ({
                   ...s,
+                  isGpsRevoked: true,
                   error:
                     "Para el funcionamiento correcto de Presenxa, selecciona 'Permitir todo el tiempo' en Ajustes de Ubicación.",
                 }));
+                reportIncident("GPS_PERMISSION_REVOKED", "Permiso de ubicación denegado en Android (NOT_AUTHORIZED)");
               }
               return;
             }
@@ -379,6 +413,9 @@ export function useGeofencing(
                 distanceToVenue: distance,
                 isInside:
                   distance !== null ? distance <= (currentTarget?.radius || 100) : s.isInside,
+                isGpsRevoked: false,
+                isGpsDisabled: false,
+                error: null,
               }));
 
               sendPing(latitude, longitude, accuracy, "NATIVE_BACKGROUND");
@@ -414,19 +451,35 @@ export function useGeofencing(
           distanceToVenue: distance,
           isInside:
             distance !== null ? distance <= (currentTarget?.radius || 100) : s.isInside,
+          isGpsRevoked: false,
+          isGpsDisabled: false,
+          error: null,
         }));
       };
 
       const handleError = (error: GeolocationPositionError) => {
         let msg = "No se pudo obtener la ubicación.";
+        let revoked = false;
+        let disabled = false;
+
         if (error.code === error.PERMISSION_DENIED) {
           msg = "Permiso de ubicación denegado por el usuario.";
+          revoked = true;
+          reportIncident("GPS_PERMISSION_REVOKED", "Permiso de ubicación denegado en navegador Web/PWA");
         } else if (error.code === error.POSITION_UNAVAILABLE) {
-          msg = "Información de GPS no disponible.";
+          msg = "Información de GPS no disponible (sensor apagado o sin señal).";
+          disabled = true;
+          reportIncident("GPS_DISABLED", "Sensor GPS apagado o información de posición no disponible");
         } else if (error.code === error.TIMEOUT) {
           msg = "Tiempo de espera agotado al consultar GPS.";
         }
-        setState((s) => ({ ...s, error: msg }));
+
+        setState((s) => ({
+          ...s,
+          error: msg,
+          isGpsRevoked: revoked,
+          isGpsDisabled: disabled,
+        }));
       };
 
       watchIdRef.current = navigator.geolocation.watchPosition(

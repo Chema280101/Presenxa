@@ -193,6 +193,33 @@ export default function EmployeeAppPage() {
     return outputArray;
   };
 
+  // Dynamic QR auto-rotation state (30s timer)
+  const [qrSecondsLeft, setQrSecondsLeft] = useState(30);
+
+  // Dynamic QR auto-rotation effect every 30 seconds
+  useEffect(() => {
+    if (!profile?.qrToken) return;
+
+    const timer = setInterval(() => {
+      setQrSecondsLeft((prev) => {
+        if (prev <= 1) {
+          fetch("/api/user/qr-payload")
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.payload) {
+                generateQrCode(data.payload);
+              }
+            })
+            .catch(() => {});
+          return 30;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [profile?.qrToken]);
+
   const handleSubscribePush = async () => {
     if (Capacitor.isNativePlatform()) {
       setPushSubscribed(true);
@@ -615,6 +642,30 @@ export default function EmployeeAppPage() {
               )}
             </div>
 
+            {/* GPS Security Alert Banner */}
+            {isShiftActive && (geo.isGpsRevoked || geo.isGpsDisabled) && (
+              <div className="p-4 rounded-2xl border border-rose-500/40 bg-rose-950/40 text-rose-200 backdrop-blur-md animate-pulse">
+                <div className="flex items-start gap-3">
+                  <AlertOctagon className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                      {geo.isGpsRevoked ? "⚠️ Permiso de Ubicación Desactivado" : "⚠️ Sensor GPS No Disponible"}
+                    </h4>
+                    <p className="text-[11px] text-rose-300 mt-1 leading-relaxed">
+                      Tu turno laboral está activo y requiere supervisión de geocerca continua. Se ha emitido un reporte de seguridad a tus supervisores. Reactiva la ubicación para mantener tu asistencia al día.
+                    </p>
+                    <button
+                      onClick={() => geo.sendManualPing()}
+                      className="mt-2.5 px-3 py-1 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Reintentar Conexión GPS</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* QR Card */}
             <div
               className={`p-6 rounded-3xl border shadow-2xl flex flex-col items-center text-center relative overflow-hidden transition-all duration-300 ${
@@ -683,6 +734,36 @@ export default function EmployeeAppPage() {
                     <span className="text-xs">Generando QR...</span>
                   </div>
                 )}
+              </div>
+
+              {/* Dynamic QR Security Indicator with Countdown */}
+              <div
+                className={`w-full mt-3 p-3 rounded-2xl border transition-all flex flex-col gap-2 ${
+                  maxBrightness
+                    ? "bg-slate-100 border-slate-200"
+                    : "bg-emerald-500/10 border-emerald-500/25"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className={`w-4 h-4 ${maxBrightness ? "text-emerald-600" : "text-emerald-400"}`} />
+                    <span className={`text-[11px] font-bold ${maxBrightness ? "text-slate-800" : "text-emerald-300"}`}>
+                      QR Dinámico Anti-Capturas
+                    </span>
+                  </div>
+                  <div className={`flex items-center gap-1 font-mono text-[11px] font-bold ${maxBrightness ? "text-slate-700" : "text-emerald-400"}`}>
+                    <Clock className="w-3 h-3" />
+                    <span>{qrSecondsLeft}s</span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className={`w-full h-1.5 rounded-full overflow-hidden ${maxBrightness ? "bg-slate-300" : "bg-white/10"}`}>
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-1000 ease-linear rounded-full"
+                    style={{ width: `${(qrSecondsLeft / 30) * 100}%` }}
+                  />
+                </div>
               </div>
 
               {/* User details footer */}

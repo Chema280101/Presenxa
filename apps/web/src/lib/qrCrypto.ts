@@ -40,7 +40,7 @@ export function isSignedQrPayload(rawPayload: string): boolean {
  */
 export function verifySignedQrPayload(
   rawPayload: string,
-  maxAgeDays: number = DEFAULT_EXPIRATION_DAYS,
+  maxAgeSeconds: number = 90, // Por defecto: 90 segundos de vigencia para el QR dinámico en pantalla
   secret: string = DEFAULT_SECRET
 ): VerifiedQrPayload {
   if (!rawPayload || typeof rawPayload !== "string") {
@@ -72,19 +72,27 @@ export function verifySignedQrPayload(
     return { isValid: false, error: "Firma criptográfica inválida o QR adulterado" };
   }
 
-  // 2. Verificar caducidad por tiempo
+  // 2. Verificar caducidad por tiempo (Anti-Capturas de pantalla)
   const nowSeconds = Math.floor(Date.now() / 1000);
   const ageSeconds = nowSeconds - timestamp;
-  const maxAgeSeconds = maxAgeDays * 24 * 60 * 60;
+
+  // Permitir pequeño margen de tolerancia hacia el futuro por desincronización de relojes (hasta 15s)
+  if (ageSeconds < -15) {
+    return {
+      isValid: false,
+      error: "El reloj del dispositivo emisor del QR está desincronizado con el servidor.",
+    };
+  }
 
   if (ageSeconds > maxAgeSeconds) {
+    const mins = Math.floor(ageSeconds / 60);
     return {
       isValid: false,
       isExpired: true,
       userId,
       qrToken,
       issuedAt: new Date(timestamp * 1000),
-      error: `El código QR ha expirado (emitido hace más de ${maxAgeDays} días). Por favor solicita una renovación.`,
+      error: `El código QR ha expirado (${mins > 0 ? `hace ${mins} min` : `hace ${ageSeconds}s`}). Por favor abre tu app para generar un QR en vivo.`,
     };
   }
 

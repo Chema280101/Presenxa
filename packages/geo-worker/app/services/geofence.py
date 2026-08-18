@@ -1,5 +1,6 @@
 import json
 import os
+import math
 import asyncio
 from datetime import datetime, date, timezone
 from typing import Optional, Any
@@ -81,6 +82,45 @@ class GeofenceService:
             user_id, today,
         )
 
+        # 2.5 Detección de Teletransportación / GPS Spoofing Anómalo
+        is_spoofing_suspected = False
+        if attendance_row and attendance_row["entryTime"] and not attendance_row["exitTime"]:
+            prev_ping = await self.db.fetchrow(
+                """
+                SELECT latitude, longitude, timestamp
+                FROM geo_pings
+                WHERE "userId" = $1::uuid
+                ORDER BY timestamp DESC
+                LIMIT 1
+                """,
+                user_id,
+            )
+
+            if prev_ping:
+                prev_lat = float(prev_ping["latitude"])
+                prev_lng = float(prev_ping["longitude"])
+                prev_time = prev_ping["timestamp"]
+
+                now_utc = datetime.now(timezone.utc)
+                prev_utc = prev_time.replace(tzinfo=timezone.utc) if prev_time.tzinfo is None else prev_time
+                delta_sec = max(1.0, (now_utc - prev_utc).total_seconds())
+
+                if delta_sec <= 180:  # Si el ping anterior fue hace menos de 3 minutos
+                    dist_meters = self._calculate_distance_meters(prev_lat, prev_lng, lat, lng)
+                    speed_kmh = (dist_meters / 1000.0) / (delta_sec / 3600.0)
+
+                    if speed_kmh > 150.0 and dist_meters > 800.0:
+                        is_spoofing_suspected = True
+                        print(f"[SECURITY] 🚨 GPS Spoofing sospechoso ({user_id}): Salto de {round(dist_meters)}m en {round(delta_sec)}s ({round(speed_kmh)} km/h)")
+                        await self._send_alert(
+                            user_id=user_id,
+                            notification_type="SALIDA_PERIMETRO",
+                            title="⚠️ Alerta de Teletransportación GPS",
+                            body=f"Se detectó un desplazamiento anómalo para {user_row['firstName']} {user_row['lastName']}: {round(dist_meters)}m en {round(delta_sec)}s ({round(speed_kmh)} km/h). Posible GPS falso.",
+                            data={"attendanceId": str(attendance_row["id"]), "speedKmh": round(speed_kmh), "distMeters": round(dist_meters)},
+                            notify_supervisors=True,
+                        )
+
         # 3. Validar geocerca con PostGIS
         is_inside = await self._check_geofence(user_row, lat, lng)
 
@@ -94,14 +134,18 @@ class GeofenceService:
             }
 
         # 4. Guardar ping
+        ping_source = "SPOOF_SUSPECTED" if is_spoofing_suspected else source
         await self._save_ping(
-            user_id, lat, lng, accuracy, str(attendance_row["id"]), is_inside, source
+            user_id, lat, lng, accuracy, str(attendance_row["id"]), is_inside, ping_source
         )
 
         # 5. Aplicar lógica de presencia
         if is_inside:
             await self._clear_grace_period(user_id)
-            return {"status": "INSIDE", "is_inside": True}
+            return {
+                "status": "INSIDE" if not is_spoofing_suspected else "INSIDE_SPOOF_SUSPECTED",
+                "is_inside": True,
+            }
         else:
             grace_minutes = int(user_row["grace_minutes"] or 10)
             return await self._handle_outside(
@@ -110,6 +154,18 @@ class GeofenceService:
                 user_name=f"{user_row['firstName']} {user_row['lastName']}",
                 grace_minutes=grace_minutes,
             )
+
+    def _calculate_distance_meters(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        """Calcula la distancia Haversine en metros entre dos coordenadas geográficas."""
+        R = 6371000.0  # Radio de la Tierra en metros
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(delta_phi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * (math.sin(delta_lambda / 2.0) ** 2)
+        c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+        return R * c
 
     async def _check_geofence(self, user_row: Any, lat: float, lng: float) -> bool:
         """

@@ -79,6 +79,8 @@ interface AttendanceRecord {
     id: string;
     name: string;
   };
+  lastPingAt?: string | null;
+  gpsSignalStatus?: "ONLINE" | "WARNING" | "LOST_SIGNAL" | "NO_SIGNAL" | "NOT_ACTIVE" | "TAMPERED";
 }
 
 export default function AttendancePage() {
@@ -674,13 +676,37 @@ export default function AttendancePage() {
                             className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
                           />
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
                                 {record.user.firstName} {record.user.lastName}
                               </p>
                               {isPendingDni && (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 animate-pulse">
                                   DNI por Validar
+                                </span>
+                              )}
+                              {record.gpsSignalStatus === "ONLINE" && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  GPS En línea
+                                </span>
+                              )}
+                              {record.gpsSignalStatus === "WARNING" && (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  GPS Intermitente
+                                </span>
+                              )}
+                              {record.gpsSignalStatus === "LOST_SIGNAL" && (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 text-[10px] font-bold border border-rose-500/30 flex items-center gap-1 animate-pulse">
+                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                  Sin Señal GPS
+                                </span>
+                              )}
+                              {record.gpsSignalStatus === "TAMPERED" && (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-950/80 text-rose-200 text-[10px] font-bold border border-rose-500 flex items-center gap-1 animate-pulse">
+                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                  Alerta GPS
                                 </span>
                               )}
                             </div>

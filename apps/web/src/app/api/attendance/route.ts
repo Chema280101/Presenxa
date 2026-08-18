@@ -107,7 +107,52 @@ export async function GET(req: Request) {
             name: true,
           },
         },
+        geoPings: {
+          take: 1,
+          orderBy: { timestamp: "desc" },
+          select: {
+            timestamp: true,
+            latitude: true,
+            longitude: true,
+            isInsideZone: true,
+          },
+        },
       },
+    });
+
+    const now = new Date();
+
+    // Map attendances to include GPS signal health status
+    const formattedAttendances = attendances.map((att) => {
+      const isShiftActive = Boolean(att.entryTime && !att.exitTime);
+      const lastPing = att.geoPings[0] || null;
+      const lastPingAt = lastPing ? lastPing.timestamp : null;
+
+      let gpsSignalStatus: "ONLINE" | "WARNING" | "LOST_SIGNAL" | "NO_SIGNAL" | "NOT_ACTIVE" | "TAMPERED" = "NOT_ACTIVE";
+
+      if (att.notes?.includes("ALERTA_SEGURIDAD_GPS")) {
+        gpsSignalStatus = "TAMPERED";
+      } else if (isShiftActive) {
+        if (!lastPingAt) {
+          gpsSignalStatus = "NO_SIGNAL";
+        } else {
+          const diffMinutes = Math.floor((now.getTime() - new Date(lastPingAt).getTime()) / (1000 * 60));
+          if (diffMinutes <= 5) {
+            gpsSignalStatus = "ONLINE";
+          } else if (diffMinutes <= 15) {
+            gpsSignalStatus = "WARNING";
+          } else {
+            gpsSignalStatus = "LOST_SIGNAL";
+          }
+        }
+      }
+
+      return {
+        ...att,
+        lastPingAt,
+        isInsideZone: lastPing ? lastPing.isInsideZone : null,
+        gpsSignalStatus,
+      };
     });
 
     // Summary statistics for the filtered date
@@ -132,7 +177,7 @@ export async function GET(req: Request) {
       ).length,
     };
 
-    return NextResponse.json({ attendances, summary });
+    return NextResponse.json({ attendances: formattedAttendances, summary });
   } catch (error: any) {
     console.error("Error al obtener asistencias:", error);
     return NextResponse.json(
