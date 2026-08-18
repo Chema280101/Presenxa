@@ -712,7 +712,8 @@ export default function EmployeeAppPage() {
               {/* QR Image Box with Zoom Trigger */}
               <div
                 onClick={() => setIsQrZoomOpen(true)}
-                className="relative group p-4 rounded-3xl bg-white shadow-xl flex flex-col items-center justify-center my-2 ring-2 ring-emerald-500/20 hover:ring-emerald-400 cursor-pointer transition-all hover:scale-[1.02] active:scale-95"
+                onContextMenu={(e) => e.preventDefault()}
+                className="relative group p-4 rounded-3xl bg-white shadow-xl flex flex-col items-center justify-center my-2 ring-2 ring-emerald-500/20 hover:ring-emerald-400 cursor-pointer transition-all hover:scale-[1.02] active:scale-95 select-none"
                 title="Toca para ampliar el código QR a pantalla completa"
               >
                 {qrDataUrl ? (
@@ -720,16 +721,18 @@ export default function EmployeeAppPage() {
                     <img
                       src={qrDataUrl}
                       alt="Código QR de Asistencia"
-                      className="w-56 h-56 md:w-64 md:h-64 object-contain rounded-xl"
+                      onContextMenu={(e) => e.preventDefault()}
+                      draggable={false}
+                      className="w-56 h-56 md:w-64 md:h-64 object-contain rounded-xl select-none pointer-events-none"
                     />
                     {/* Floating Zoom Badge */}
-                    <div className="mt-2.5 px-3 py-1 rounded-full bg-slate-900/90 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 shadow-md group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+                    <div className="mt-2.5 px-3 py-1 rounded-full bg-slate-900/90 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 shadow-md group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors select-none">
                       <ZoomIn className="w-3.5 h-3.5" />
                       <span>Toca para ampliar QR</span>
                     </div>
                   </>
                 ) : (
-                  <div className="w-56 h-56 flex flex-col items-center justify-center text-slate-400">
+                  <div className="w-56 h-56 flex flex-col items-center justify-center text-slate-400 select-none">
                     <RefreshCw className="w-8 h-8 animate-spin mb-2 text-emerald-500" />
                     <span className="text-xs">Generando QR...</span>
                   </div>
