@@ -29,7 +29,8 @@ interface StatusBadgeProps {
   status: AttendanceStatusKey | string;
   lateMinutes?: number | null;
   hasExit?: boolean;
-  size?: "sm" | "md";
+  gpsSignalStatus?: "ONLINE" | "WARNING" | "LOST_SIGNAL" | "NO_SIGNAL" | "NOT_ACTIVE" | "TAMPERED";
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -37,6 +38,7 @@ export function StatusBadge({
   status,
   lateMinutes,
   hasExit,
+  gpsSignalStatus,
   size = "md",
   className,
 }: StatusBadgeProps) {
@@ -65,6 +67,24 @@ export function StatusBadge({
         );
       }
       if (hasExit === false) {
+        if (gpsSignalStatus === "LOST_SIGNAL" || gpsSignalStatus === "NO_SIGNAL") {
+          return (
+            <span
+              className={clsx(
+                "inline-flex items-center rounded-xl bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/40 font-medium",
+                sizeClasses,
+                className
+              )}
+              title="Sin señal de ubicación por más de 25 min"
+            >
+              <span className="relative flex h-2 w-2 mr-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-400"></span>
+              </span>
+              Sin Señal GPS
+            </span>
+          );
+        }
         return (
           <span
             className={clsx(
@@ -74,7 +94,7 @@ export function StatusBadge({
             )}
             title="En jornada laboral activa"
           >
-            <span className="relative flex h-2 w-2 mr-0.5">
+            <span className="relative flex h-2 w-2 mr-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
             </span>
@@ -112,6 +132,24 @@ export function StatusBadge({
         );
       }
       if (hasExit === false) {
+        if (gpsSignalStatus === "LOST_SIGNAL" || gpsSignalStatus === "NO_SIGNAL") {
+          return (
+            <span
+              className={clsx(
+                "inline-flex items-center rounded-xl bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/40 font-medium",
+                sizeClasses,
+                className
+              )}
+              title="Sin señal de ubicación por más de 25 min (Llegó Tarde)"
+            >
+              <span className="relative flex h-2 w-2 mr-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-400"></span>
+              </span>
+              Sin Señal {lateMinutes ? `(+${lateMinutes}m)` : "(Tarde)"}
+            </span>
+          );
+        }
         return (
           <span
             className={clsx(
@@ -121,7 +159,7 @@ export function StatusBadge({
             )}
             title="En jornada laboral activa con tardanza registrada"
           >
-            <span className="relative flex h-2 w-2 mr-0.5">
+            <span className="relative flex h-2 w-2 mr-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
             </span>

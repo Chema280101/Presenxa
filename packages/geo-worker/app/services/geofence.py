@@ -146,6 +146,20 @@ class GeofenceService:
             user_id, lat, lng, accuracy, str(attendance_row["id"]), is_inside, ping_source, ping_time
         )
 
+        # 4.5 Verificar si la señal se acaba de recuperar
+        alert_key = f"signal_lost_alert:{user_id}"
+        if await self.redis.get(alert_key):
+            await self.redis.delete(alert_key)
+            print(f"[SECURITY] ✅ Señal GPS Recuperada para {user_id}")
+            await self._send_alert(
+                user_id=user_id,
+                notification_type="INGRESO_PERIMETRO",
+                title="✅ Señal GPS Recuperada",
+                body=f"El celular de {user_row['firstName']} {user_row['lastName']} ha vuelto a transmitir su ubicación.",
+                data={"attendanceId": str(attendance_row["id"])},
+                notify_supervisors=True,
+            )
+
         # Si se detectó spoofing, rechazar la ubicación de inmediato
         if is_spoofing_suspected:
             return {

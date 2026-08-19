@@ -814,6 +814,7 @@ export default function AttendancePage() {
                           status={record.status}
                           lateMinutes={record.lateMinutes}
                           hasExit={Boolean(record.exitTime2 || record.exitTime)}
+                          gpsSignalStatus={record.gpsSignalStatus}
                           size="sm"
                         />
                       </td>
