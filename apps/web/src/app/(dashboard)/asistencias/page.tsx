@@ -720,7 +720,7 @@ export default function AttendancePage() {
                                   GPS Intermitente
                                 </span>
                               )}
-                              {record.gpsSignalStatus === "LOST_SIGNAL" && (
+                              {(record.gpsSignalStatus === "LOST_SIGNAL" || record.gpsSignalStatus === "NO_SIGNAL") && (
                                 <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 text-[10px] font-bold border border-rose-500/30 flex items-center gap-1 animate-pulse">
                                   <AlertTriangle className="w-3 h-3 text-rose-400" />
                                   Sin Señal GPS
