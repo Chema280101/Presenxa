@@ -378,6 +378,44 @@ export default function KioskAppPage() {
       clearInterval(countdownTimerRef.current);
       countdownTimerRef.current = null;
     }
+
+    // Check if scanned QR is a kiosk pairing payload
+    try {
+      const parsed = JSON.parse(token.trim());
+      if (parsed.apiKey) {
+        setIsProcessing(true);
+        const valid = await validateApiKey(parsed.apiKey);
+        if (valid) {
+          playSound("SUCCESS");
+          setLastScanResult({
+            scanType: "ENTRY",
+            message: `Dispositivo Kiosk vinculado correctamente: ${parsed.kioskName || "Conectado"}`,
+            time: new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            date: new Date().toLocaleDateString("es-PE", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+            status: "OK",
+            user: {
+              firstName: parsed.kioskName || "Kiosk",
+              lastName: "Vinculado",
+              email: "Dispositivo Activo",
+              role: "KIOSK",
+            },
+          });
+          setCountdown(4);
+          countdownTimerRef.current = setInterval(() => {
+            setCountdown((prev) => {
+              if (prev <= 1) {
+                if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+                setLastScanResult(null);
+                setIsProcessing(false);
+              }
+              return prev - 1;
+            });
+          }, 1000);
+          return;
+        }
+      }
+    } catch {}
+
     const activeKey = apiKeyRef.current || (typeof window !== "undefined" ? localStorage.getItem("asistcontrol_kiosk_api_key") : "") || apiKey;
     if (!activeKey) {
       playSound("ERROR");
