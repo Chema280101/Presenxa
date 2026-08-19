@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { prisma } from "@asistencias/db";
 
 const pingItemSchema = z.object({
   latitude: z.number().min(-90).max(90),
@@ -14,6 +15,19 @@ const pingItemSchema = z.object({
 const batchSchema = z.object({
   pings: z.array(pingItemSchema).min(1).max(100),
 });
+
+function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(deltaPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -72,38 +86,104 @@ export async function POST(req: Request) {
       });
     }
 
-    const geoWorkerUrl = process.env.GEO_WORKER_URL || "http://localhost:8000";
+    const geoWorkerUrl = process.env.GEO_WORKER_URL;
     const geoWorkerSecret = process.env.GEO_WORKER_SECRET || "dev-worker-secret";
 
-    const workerPayload = {
-      user_id: userId,
-      pings: validPings,
-    };
+    if (geoWorkerUrl) {
+      try {
+        const workerPayload = {
+          user_id: userId,
+          pings: validPings,
+        };
 
-    const response = await fetch(`${geoWorkerUrl}/api/geo/ping/batch`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-worker-secret": geoWorkerSecret,
-      },
-      body: JSON.stringify(workerPayload),
-    });
+        const response = await fetch(`${geoWorkerUrl}/api/geo/ping/batch`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-worker-secret": geoWorkerSecret,
+          },
+          body: JSON.stringify(workerPayload),
+        });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json(
-        { error: "Error en el servicio Geo-Worker al procesar lote", details: errorText },
-        { status: response.status }
-      );
+        if (response.ok) {
+          const data = await response.json();
+          return NextResponse.json(data);
+        }
+      } catch (workerErr) {
+        console.warn("[GeoPingBatch] Worker inaccesible, ejecutando fallback directo a base de datos:", workerErr);
+      }
     }
 
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Error al reenviar lote al Geo Worker:", error);
+    // ── FALLBACK DIRECTO A BASE DE DATOS VIA PRISMA ─────────────────────────
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        location: {
+          select: {
+            geofenceLat: true,
+            geofenceLng: true,
+            geofenceRadius: true,
+          },
+        },
+      },
+    });
+
+    const now = new Date();
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const attendance = await prisma.attendance.findFirst({
+      where: {
+        userId,
+        date: todayDate,
+      },
+      select: { id: true, entryTime: true, exitTime: true, entryTime2: true, exitTime2: true },
+    });
+
+    const isShiftActive = Boolean(
+      (attendance?.entryTime && !attendance?.exitTime) ||
+      (attendance?.entryTime2 && !attendance?.exitTime2)
+    );
+
+    const createdPings = await prisma.$transaction(
+      validPings.map((p) => {
+        let isInside = true;
+        if (user?.location?.geofenceLat && user?.location?.geofenceLng) {
+          const dist = calculateDistanceMeters(
+            p.latitude,
+            p.longitude,
+            user.location.geofenceLat,
+            user.location.geofenceLng
+          );
+          isInside = dist <= (user.location.geofenceRadius || 100);
+        }
+
+        const pingSource = p.source === "MANUAL" ? "MANUAL" : p.source.includes("BACKGROUND") ? "BACKGROUND_FETCH" : "APP";
+
+        return prisma.geoPing.create({
+          data: {
+            userId,
+            latitude: p.latitude,
+            longitude: p.longitude,
+            accuracy: p.accuracy ?? null,
+            isInsideZone: isInside,
+            source: pingSource as any,
+            attendanceId: isShiftActive ? attendance?.id : null,
+            timestamp: p.timestamp ? new Date(p.timestamp) : new Date(),
+          },
+        });
+      })
+    );
+
+    return NextResponse.json({
+      processed: pings.length,
+      saved: createdPings.length,
+      message: `Se sincronizaron ${createdPings.length} pings offline exitosamente.`,
+    });
+  } catch (error: any) {
+    console.error("Error al procesar lote de geo pings:", error);
     return NextResponse.json(
-      { error: "No se pudo conectar con el servicio de geolocalización" },
-      { status: 502 }
+      { error: "Error al registrar el lote de ubicaciones", details: error.message },
+      { status: 500 }
     );
   }
 }
