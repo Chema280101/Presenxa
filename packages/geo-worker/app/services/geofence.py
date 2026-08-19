@@ -32,11 +32,12 @@ class GeofenceService:
         lng: float,
         accuracy: Optional[float],
         source: str = "APP",
+        ping_time: Optional[datetime] = None,
     ) -> dict:
         """
         Procesa un ping de ubicación:
         1. Busca al usuario y su sede
-        2. Verifica si hay una asistencia abierta hoy
+        2. Verifica si hay una jornada laboral activa hoy (tramo 1 o tramo 2)
         3. Valida si está dentro de la geocerca (PostGIS)
         4. Aplica lógica de grace period si está fuera
         """
@@ -71,20 +72,25 @@ class GeofenceService:
         if not user_row["locationId"]:
             return {"status": "NO_LOCATION_CONFIGURED"}
 
-        # 2. ¿Tiene asistencia abierta hoy (entrada sin salida)? (Calculado con timezone local)
+        # 2. ¿Tiene asistencia abierta hoy? (Calculado con timezone local)
+        # Soporta horario normal (entryTime -> exitTime) y horario partido (entryTime2 -> exitTime2)
         today = datetime.now(LOCAL_TZ).date()
         attendance_row = await self.db.fetchrow(
             """
-            SELECT id, "entryTime", "exitTime", status
+            SELECT id, "entryTime", "exitTime", "entryTime2", "exitTime2", status
             FROM attendances
             WHERE "userId" = $1::uuid AND date = $2
             """,
             user_id, today,
         )
 
+        is_shift_1_active = bool(attendance_row and attendance_row["entryTime"] and not attendance_row["exitTime"])
+        is_shift_2_active = bool(attendance_row and attendance_row["entryTime2"] and not attendance_row["exitTime2"])
+        is_shift_active = is_shift_1_active or is_shift_2_active
+
         # 2.5 Detección de Teletransportación / GPS Spoofing Anómalo
         is_spoofing_suspected = False
-        if attendance_row and attendance_row["entryTime"] and not attendance_row["exitTime"]:
+        if is_shift_active and attendance_row:
             prev_ping = await self.db.fetchrow(
                 """
                 SELECT latitude, longitude, timestamp
@@ -101,9 +107,10 @@ class GeofenceService:
                 prev_lng = float(prev_ping["longitude"])
                 prev_time = prev_ping["timestamp"]
 
-                now_utc = datetime.now(timezone.utc)
+                effective_time = ping_time or datetime.now(timezone.utc)
+                effective_utc = effective_time.replace(tzinfo=timezone.utc) if effective_time.tzinfo is None else effective_time
                 prev_utc = prev_time.replace(tzinfo=timezone.utc) if prev_time.tzinfo is None else prev_time
-                delta_sec = max(1.0, (now_utc - prev_utc).total_seconds())
+                delta_sec = max(1.0, (effective_utc - prev_utc).total_seconds())
 
                 if delta_sec <= 180:  # Si el ping anterior fue hace menos de 3 minutos
                     dist_meters = self._calculate_distance_meters(prev_lat, prev_lng, lat, lng)
@@ -124,22 +131,22 @@ class GeofenceService:
         # 3. Validar geocerca con PostGIS
         is_inside = await self._check_geofence(user_row, lat, lng)
 
-        # Si no hay entrada o ya marcó salida, registrar ping sin activar penalización de abandono
-        if not attendance_row or not attendance_row["entryTime"] or attendance_row["exitTime"]:
-            await self._save_ping(user_id, lat, lng, accuracy, None, is_inside, source)
+        # Si no hay jornada activa en ningún tramo, registrar ping sin penalización de abandono
+        if not is_shift_active or not attendance_row:
+            await self._save_ping(user_id, lat, lng, accuracy, None, is_inside, source, ping_time)
             return {
                 "status": "INSIDE" if is_inside else "OUTSIDE",
                 "is_inside": is_inside,
                 "message": "Sin jornada activa",
             }
 
-        # 4. Guardar ping
+        # 4. Guardar ping asociado a la jornada
         ping_source = "SPOOF_SUSPECTED" if is_spoofing_suspected else source
         await self._save_ping(
-            user_id, lat, lng, accuracy, str(attendance_row["id"]), is_inside, ping_source
+            user_id, lat, lng, accuracy, str(attendance_row["id"]), is_inside, ping_source, ping_time
         )
 
-        # Si se detectó spoofing, rechazar la ubicación de inmediato para no afectar el grace period o validarla
+        # Si se detectó spoofing, rechazar la ubicación de inmediato
         if is_spoofing_suspected:
             return {
                 "status": "SPOOFING_REJECTED",
@@ -161,6 +168,7 @@ class GeofenceService:
                 attendance_id=str(attendance_row["id"]),
                 user_name=f"{user_row['firstName']} {user_row['lastName']}",
                 grace_minutes=grace_minutes,
+                effective_time=ping_time,
             )
 
     def _calculate_distance_meters(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -210,7 +218,7 @@ class GeofenceService:
                 """
                 SELECT ST_Within(
                     ST_SetSRID(ST_MakePoint($1, $2), 4326),
-                    ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)
+                    ST_GeomFromGeoJSON($3), 4326)
                 ) AS is_inside
                 """,
                 lng, lat, polygon_json,
@@ -226,20 +234,31 @@ class GeofenceService:
         attendance_id: str,
         user_name: str,
         grace_minutes: int,
+        effective_time: Optional[datetime] = None,
     ) -> dict:
         """
         Gestiona la lógica cuando el usuario está fuera del perímetro.
-        Usa el TTL de Redis como contador del grace period.
+        Guarda en Redis un registro estructurado con 'started_at' para evitar bugs de expiración y calcular el tiempo real.
         """
         grace_key = f"grace_period:{user_id}"
-        ttl = await self.redis.ttl(grace_key)
+        now_dt = effective_time or datetime.now(timezone.utc)
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.replace(tzinfo=timezone.utc)
 
-        if ttl < 0:
-            # Primera vez que sale → iniciar grace period
+        raw_data = await self.redis.get(grace_key)
+
+        if not raw_data:
+            # Primera vez que sale → registrar timestamp de inicio y setear en Redis con TTL amplio (24h)
+            grace_payload = {
+                "started_at": now_dt.isoformat(),
+                "grace_minutes": grace_minutes,
+                "attendance_id": attendance_id,
+                "user_name": user_name,
+            }
             await self.redis.setex(
                 grace_key,
-                grace_minutes * 60,
-                datetime.now(timezone.utc).isoformat(),
+                86400,  # 24 horas para retención de estado
+                json.dumps(grace_payload),
             )
 
             # Notificar al usuario
@@ -258,16 +277,33 @@ class GeofenceService:
                 "message": f"Grace period iniciado ({grace_minutes} min)",
             }
 
-        elif ttl > 0:
-            # Aún dentro del grace period
+        # Ya había salido antes, parsear datos
+        try:
+            parsed_data = json.loads(raw_data) if isinstance(raw_data, str) else json.loads(raw_data.decode("utf-8"))
+            started_at_str = parsed_data.get("started_at")
+            started_at = datetime.fromisoformat(started_at_str)
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+        except Exception:
+            try:
+                started_at = datetime.fromisoformat(raw_data if isinstance(raw_data, str) else raw_data.decode("utf-8"))
+                if started_at.tzinfo is None:
+                    started_at = started_at.replace(tzinfo=timezone.utc)
+            except Exception:
+                started_at = now_dt
+
+        elapsed_seconds = max(0.0, (now_dt - started_at).total_seconds())
+        allowed_seconds = grace_minutes * 60
+
+        if elapsed_seconds < allowed_seconds:
+            remaining_seconds = int(allowed_seconds - elapsed_seconds)
             return {
                 "status": "OUTSIDE_GRACE_PERIOD_ACTIVE",
                 "is_inside": False,
-                "grace_period_seconds_remaining": ttl,
+                "grace_period_seconds_remaining": remaining_seconds,
             }
-
         else:
-            # TTL = 0: expiró → registrar abandono de puesto
+            # Tiempo de tolerancia expirado → registrar abandono de puesto inmediatamente
             await self._register_abandonment(attendance_id, user_id, user_name)
             return {
                 "status": "ABANDONMENT_REGISTERED",
@@ -286,7 +322,7 @@ class GeofenceService:
             SET status = 'ABANDONO_PUESTO',
                 "statusChangedAt" = NOW(),
                 "statusChangedBy" = 'SISTEMA_GEO',
-                notes = 'Detectado por Geo-Worker: Fuera del perímetro de geocerca por más de 10 min.'
+                notes = 'Detectado por Geo-Worker: Fuera del perímetro de geocerca por más tiempo del permitido.'
             WHERE id = $1::uuid
             """,
             attendance_id,
@@ -313,12 +349,17 @@ class GeofenceService:
         attendance_id: Optional[str],
         is_inside: bool,
         source: str,
+        ping_time: Optional[datetime] = None,
     ) -> None:
         valid_source = "APP"
         if "MANUAL" in (source or "").upper():
             valid_source = "MANUAL"
         elif "BACKGROUND" in (source or "").upper():
             valid_source = "BACKGROUND_FETCH"
+        elif "OFFLINE" in (source or "").upper():
+            valid_source = "OFFLINE_SYNC"
+
+        ts = ping_time or datetime.now(timezone.utc)
 
         await self.db.execute(
             """
@@ -326,9 +367,9 @@ class GeofenceService:
                 (id, "userId", "attendanceId", latitude, longitude, accuracy,
                  "isInsideZone", source, timestamp)
             VALUES
-                (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5, $6, $7::"PingSource", NOW())
+                (gen_random_uuid(), $1::uuid, $2::uuid, $3, $4, $5, $6, $7::"PingSource", $8)
             """,
-            user_id, attendance_id, lat, lng, accuracy, is_inside, valid_source,
+            user_id, attendance_id, lat, lng, accuracy, is_inside, valid_source, ts,
         )
 
     async def _send_alert(

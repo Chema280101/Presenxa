@@ -23,21 +23,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // ── 1. RATE LIMITING: Máximo 10 peticiones por minuto por Kiosk / IP ─────
+    // ── 1. RATE LIMITING: Máximo 120 peticiones por minuto por Kiosk (capacidad de hora punta) ─────
     const forwardedFor = req.headers.get("x-forwarded-for");
     const ipAddress = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
     const rateLimitKey = `kiosk_scan:${apiKey}:${ipAddress}`;
 
     const rateResult = await checkRateLimit({
       key: rateLimitKey,
-      limit: 10,
+      limit: 120,
       windowSeconds: 60,
     });
 
     if (!rateResult.success) {
       return NextResponse.json(
         {
-          error: "Frecuencia de escaneos excedida (máx. 10 escaneos/min por Kiosk). Por favor espera unos segundos.",
+          error: "Frecuencia general de escaneos excedida en este Kiosk. Por favor espera unos segundos.",
           retryAfter: rateResult.resetSeconds,
         },
         {
@@ -102,6 +102,24 @@ export async function POST(req: Request) {
       }
       searchQrToken = verification.qrToken!;
       verifiedUserId = verification.userId;
+    }
+
+    // ── 4.5. DEBOUNCE POR USUARIO: Evitar doble marcación accidental del mismo empleado en < 5s ──
+    const userDebounceKey = `scan_debounce:${kiosk.location.organizationId}:${searchQrToken}`;
+    const debounceResult = await checkRateLimit({
+      key: userDebounceKey,
+      limit: 1,
+      windowSeconds: 5,
+    });
+
+    if (!debounceResult.success) {
+      return NextResponse.json(
+        {
+          error: "Marcación ya registrada hace un instante. Espera 5 segundos si necesitas volver a escanear.",
+          retryAfter: debounceResult.resetSeconds,
+        },
+        { status: 429 }
+      );
     }
 
     // ── 5. Buscar Usuario en PostgreSQL ────────────────────────────────────

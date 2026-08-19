@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Key, Shield, Smartphone, QrCode, Loader2 } from "lucide-react";
 
 interface KioskConfigModalProps {
@@ -19,6 +19,11 @@ export function KioskConfigModal({
   const [apiKey, setApiKey] = useState(currentKey);
   const [error, setError] = useState("");
   const [isValidating, setIsValidating] = useState(false);
+
+  useEffect(() => {
+    setApiKey(currentKey);
+    setError("");
+  }, [currentKey, isOpen]);
 
   if (!isOpen) return null;
 
@@ -91,6 +96,9 @@ export function KioskConfigModal({
             <input
               type="text"
               required
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               placeholder="Ej: f47ac10b-58cc-4372-a567-0e02b2c3d479"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}

@@ -244,6 +244,7 @@ export default function KioskAppPage() {
           locationName: data.location?.name || "Sede",
         });
         localStorage.setItem("asistcontrol_kiosk_api_key", key.trim());
+        setApiKey(key.trim());
         return true;
       } else {
         setIsOnline(false);
@@ -929,21 +930,6 @@ export default function KioskAppPage() {
         </div>
       )}
 
-      {/* Kiosk Configuration Modal */}
-      <KioskConfigModal
-        isOpen={isConfigOpen}
-        onClose={() => setIsConfigOpen(false)}
-        currentKey={apiKey}
-        onSaveKey={async (newKey: string) => {
-          setApiKey(newKey);
-          const valid = await validateApiKey(newKey);
-          if (valid) {
-            localStorage.setItem("asistcontrol_kiosk_api_key", newKey);
-            setIsConfigOpen(false);
-          }
-          return valid;
-        }}
-      />
     </div>
   );
 }

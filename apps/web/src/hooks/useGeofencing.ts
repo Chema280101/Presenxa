@@ -135,27 +135,38 @@ export function useGeofencing(
 
     setState((s) => ({ ...s, isFlushingOfflineQueue: true }));
 
+    // Enviar en lotes de hasta 50 pings
+    const batchSize = 50;
     const sentIds: number[] = [];
-    for (const item of queued) {
+
+    for (let i = 0; i < queued.length; i += batchSize) {
+      const chunk = queued.slice(i, i + batchSize);
+      const payloadPings = chunk.map((item) => ({
+        latitude: item.latitude,
+        longitude: item.longitude,
+        accuracy: item.accuracy,
+        source: item.source || "OFFLINE_SYNC",
+        timestamp: item.timestamp,
+      }));
+
       try {
-        const res = await fetch("/api/geo/ping", {
+        const res = await fetch("/api/geo/ping/batch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            latitude: item.latitude,
-            longitude: item.longitude,
-            accuracy: item.accuracy,
-            source: item.source || "OFFLINE_SYNC",
-            offlineTimestamp: item.timestamp,
-          }),
+          body: JSON.stringify({ pings: payloadPings }),
         });
 
-        if (res.ok && item.id) {
-          sentIds.push(item.id);
+        if (res.ok) {
+          chunk.forEach((item) => {
+            if (item.id) sentIds.push(item.id);
+          });
+        } else {
+          console.warn("[Geofencing] Falló lote de pings offline:", res.status);
+          break;
         }
       } catch (err) {
-        console.warn("[Geofencing] Falló el reintento de ping offline:", err);
-        break; // Stop and retry on next cycle
+        console.warn("[Geofencing] Error de red al sincronizar lote offline:", err);
+        break;
       }
     }
 

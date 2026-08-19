@@ -120,7 +120,28 @@ class GeoPingPayload(BaseModel):
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
     accuracy: Optional[float] = Field(None, description="Precisión GPS en metros")
-    source: str = Field("APP", description="APP | BACKGROUND_FETCH")
+    source: str = Field("APP", description="APP | BACKGROUND_FETCH | OFFLINE_SYNC")
+    timestamp: Optional[datetime] = Field(None, description="Timestamp ISO original del ping (útil para sync offline)")
+
+
+class GeoPingItem(BaseModel):
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    accuracy: Optional[float] = Field(None, description="Precisión GPS en metros")
+    source: str = Field("OFFLINE_SYNC", description="Fuente del ping")
+    timestamp: Optional[datetime] = Field(None, description="Timestamp ISO original del ping")
+
+
+class GeoPingBatchPayload(BaseModel):
+    user_id: str = Field(..., description="UUID del usuario")
+    pings: list[GeoPingItem] = Field(..., min_length=1, max_length=100, description="Lista de pings a sincronizar")
+
+
+class GeoPingBatchResponse(BaseModel):
+    processed: int
+    saved: int
+    last_status: Optional[str] = None
+    message: Optional[str] = None
 
 
 class GeoPingResponse(BaseModel):
@@ -167,8 +188,49 @@ async def geo_ping(
         lng=payload.longitude,
         accuracy=payload.accuracy,
         source=payload.source,
+        ping_time=payload.timestamp,
     )
     return result
+
+
+@app.post("/api/geo/ping/batch", response_model=GeoPingBatchResponse)
+async def geo_ping_batch(
+    payload: GeoPingBatchPayload,
+    _: None = Depends(verify_internal_secret),
+):
+    """
+    Sincroniza un lote de pings acumulados offline en una sola petición.
+    Procesa en orden cronológico respetando los timestamps originales.
+    """
+    service = GeofenceService(db, redis_client)
+    saved_count = 0
+    last_res = None
+
+    # Ordenar por timestamp ascendente si vienen definidos
+    sorted_pings = sorted(
+        payload.pings,
+        key=lambda x: x.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+    )
+
+    for item in sorted_pings:
+        res = await service.handle_ping(
+            user_id=payload.user_id,
+            lat=item.latitude,
+            lng=item.longitude,
+            accuracy=item.accuracy,
+            source=item.source or "OFFLINE_SYNC",
+            ping_time=item.timestamp,
+        )
+        if res.get("status") != "POOR_ACCURACY_SKIPPED":
+            saved_count += 1
+        last_res = res
+
+    return GeoPingBatchResponse(
+        processed=len(sorted_pings),
+        saved=saved_count,
+        last_status=last_res.get("status") if last_res else "OK",
+        message=f"{saved_count} de {len(sorted_pings)} pings sincronizados exitosamente.",
+    )
 
 
 @app.get("/api/geo/status/{user_id}", response_model=GeoPingResponse)

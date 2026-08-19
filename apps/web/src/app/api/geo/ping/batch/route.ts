@@ -3,12 +3,16 @@ import { auth } from "@/auth";
 import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
 
-const pingSchema = z.object({
+const pingItemSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   accuracy: z.number().nullable().optional(),
-  source: z.string().default("APP"),
-  offlineTimestamp: z.string().optional(),
+  source: z.string().default("OFFLINE_SYNC"),
+  timestamp: z.string().optional(),
+});
+
+const batchSchema = z.object({
+  pings: z.array(pingItemSchema).min(1).max(100),
 });
 
 export async function POST(req: Request) {
@@ -19,17 +23,17 @@ export async function POST(req: Request) {
 
   const userId = session.user.id;
 
-  // ── 1. RATE LIMITING: Máximo 4 pings por minuto por usuario ───────────────
+  // ── 1. RATE LIMITING: Máximo 10 batches por minuto por usuario ────────────
   const rateResult = await checkRateLimit({
-    key: `geo_ping:${userId}`,
-    limit: 4,
+    key: `geo_ping_batch:${userId}`,
+    limit: 10,
     windowSeconds: 60,
   });
 
   if (!rateResult.success) {
     return NextResponse.json(
       {
-        error: "Frecuencia de pings de geolocalización excedida (máx. 4 req/min).",
+        error: "Frecuencia de sincronización masiva excedida (máx. 10 lotes/min).",
         retryAfter: rateResult.resetSeconds,
       },
       {
@@ -45,24 +49,26 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const parsed = pingSchema.safeParse(body);
+    const parsed = batchSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Datos de ubicación inválidos", details: parsed.error.format() },
+        { error: "Datos de lote inválidos", details: parsed.error.format() },
         { status: 400 }
       );
     }
 
-    const { accuracy, latitude, longitude, source } = parsed.data;
+    const { pings } = parsed.data;
 
-    // ── 2. VALIDACIÓN DE PRECISIÓN GPS (Accuracy filter) ────────────────────
-    // Si la precisión del sensor es mayor a 100m (o negativa/irreal), se descarta
-    // para evitar falsas alarmas de abandono por oscilación de señal celular.
-    if (accuracy !== null && accuracy !== undefined && (accuracy > 100 || accuracy <= 0)) {
+    // Filtrar pings con precisión deficiente (> 100m)
+    const validPings = pings.filter(
+      (p) => p.accuracy === null || p.accuracy === undefined || (p.accuracy > 0 && p.accuracy <= 100)
+    );
+
+    if (validPings.length === 0) {
       return NextResponse.json({
-        status: "POOR_ACCURACY_SKIPPED",
-        is_inside: null,
-        message: `Precisión GPS insuficiente (${Math.round(accuracy)}m > 100m). Ping descartado para evitar falsos positivos.`,
+        processed: pings.length,
+        saved: 0,
+        message: "Todos los pings fueron omitidos por baja precisión GPS.",
       });
     }
 
@@ -71,14 +77,10 @@ export async function POST(req: Request) {
 
     const workerPayload = {
       user_id: userId,
-      latitude,
-      longitude,
-      accuracy: accuracy ?? null,
-      source,
-      timestamp: parsed.data.offlineTimestamp || undefined,
+      pings: validPings,
     };
 
-    const response = await fetch(`${geoWorkerUrl}/api/geo/ping`, {
+    const response = await fetch(`${geoWorkerUrl}/api/geo/ping/batch`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -90,7 +92,7 @@ export async function POST(req: Request) {
     if (!response.ok) {
       const errorText = await response.text();
       return NextResponse.json(
-        { error: "Error en el servicio Geo-Worker", details: errorText },
+        { error: "Error en el servicio Geo-Worker al procesar lote", details: errorText },
         { status: response.status }
       );
     }
@@ -98,7 +100,7 @@ export async function POST(req: Request) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error al reenviar ping al Geo Worker:", error);
+    console.error("Error al reenviar lote al Geo Worker:", error);
     return NextResponse.json(
       { error: "No se pudo conectar con el servicio de geolocalización" },
       { status: 502 }

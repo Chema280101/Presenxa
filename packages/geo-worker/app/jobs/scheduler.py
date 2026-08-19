@@ -21,6 +21,7 @@ from .daily_starter import start_day
 from .daily_closer import close_day
 from .late_monitor import check_late_arrivals
 from .cleanup_pings import purge_old_geo_pings
+from .abandonment_monitor import check_active_abandonments
 
 # Zona horaria configurable — leer de env o usar Lima por defecto
 _TZ_NAME = os.getenv("GEO_WORKER_TIMEZONE", "America/Lima")
@@ -150,6 +151,12 @@ class JobScheduler:
                         self._status["lastEOD"] = datetime.now(LOCAL_TZ).isoformat()
                         self._status["eodCount"] += 1
                         self._record_history("END_OF_DAY", res)
+
+                    # 5. Monitor Proactivo de Abandono de Puesto y Pérdida de Señal (cada 2 min)
+                    if minute % 2 == 0:
+                        res_ab = await check_active_abandonments(external_db=self.db, external_redis=self.redis)
+                        if res_ab.get("abandonos_registrados", 0) > 0 or res_ab.get("alertas_sin_senal", 0) > 0:
+                            self._record_history("ABANDON_MONITOR", res_ab)
 
                 await asyncio.sleep(30)
             except asyncio.CancelledError:
