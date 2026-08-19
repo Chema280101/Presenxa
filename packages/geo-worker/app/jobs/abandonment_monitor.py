@@ -110,7 +110,8 @@ async def check_active_abandonments(
         open_attendances = await db_to_use.fetch(
             """
             SELECT a.id, a."userId", u."firstName", u."lastName",
-                   MAX(p.timestamp) AS last_ping_time
+                   MAX(p.timestamp) AS last_ping_time,
+                   a."entryTime", a."entryTime2"
             FROM attendances a
             JOIN users u ON a."userId" = u.id
             LEFT JOIN geo_pings p ON a."userId" = p."userId" AND p.timestamp >= $2::timestamp
@@ -120,7 +121,7 @@ async def check_active_abandonments(
                   (a."entryTime" IS NOT NULL AND a."exitTime" IS NULL) OR
                   (a."entryTime2" IS NOT NULL AND a."exitTime2" IS NULL)
               )
-            GROUP BY a.id, a."userId", u."firstName", u."lastName"
+            GROUP BY a.id, a."userId", u."firstName", u."lastName", a."entryTime", a."entryTime2"
             """,
             today,
             datetime.combine(today, datetime.min.time()),
@@ -130,6 +131,13 @@ async def check_active_abandonments(
             last_ping = row["last_ping_time"]
             user_id = str(row["userId"])
             user_name = f"{row['firstName']} {row['lastName']}"
+            
+            # Si nunca envió pings hoy, usar la hora de entrada del tramo activo
+            if not last_ping:
+                if row["entryTime2"] and not row.get("exitTime2"):
+                    last_ping = row["entryTime2"]
+                elif row["entryTime"]:
+                    last_ping = row["entryTime"]
 
             if last_ping:
                 last_ping_utc = last_ping.replace(tzinfo=timezone.utc) if last_ping.tzinfo is None else last_ping
@@ -141,16 +149,24 @@ async def check_active_abandonments(
                     already_alerted = await redis_to_use.get(alert_key)
                     if not already_alerted:
                         await redis_to_use.setex(alert_key, 3600, "1")  # Máx 1 alerta por hora
+                        
+                        is_never_pinged = row["last_ping_time"] is None
+                        body_msg = (
+                            f"{user_name} no ha activado su GPS desde que marcó su entrada hace {int(gap_minutes)} min." 
+                            if is_never_pinged 
+                            else f"No se reciben pings de {user_name} desde hace más de {int(gap_minutes)} min."
+                        )
+                        
                         await service._send_alert(
                             user_id=user_id,
                             notification_type="SALIDA_PERIMETRO",
                             title="⚠️ Sin reporte de ubicación GPS",
-                            body=f"No se reciben pings de {user_name} desde hace más de {int(gap_minutes)} min.",
-                            data={"attendanceId": str(row["id"]), "gapMinutes": int(gap_minutes)},
+                            body=body_msg,
+                            data={"attendanceId": str(row["id"]), "gapMinutes": int(gap_minutes), "neverPinged": is_never_pinged},
                             notify_supervisors=True,
                         )
                         stats["alertas_sin_senal"] += 1
-                        print(f"[ABANDON_MONITOR] ⚠️ Alerta de señal perdida emitida para {user_name} (gap={int(gap_minutes)}m)")
+                        print(f"[ABANDON_MONITOR] ⚠️ Alerta de señal perdida emitida para {user_name} (gap={int(gap_minutes)}m, never_pinged={is_never_pinged})")
 
     except Exception as e:
         print(f"[ABANDON_MONITOR] Error general en monitor de abandono: {e}")

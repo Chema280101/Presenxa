@@ -332,6 +332,25 @@ export default function EmployeeAppPage() {
     }
   };
 
+  const silentCheckAttendance = async () => {
+    try {
+      const res = await fetch("/api/user/me");
+      if (res.ok) {
+        const data = await res.json();
+        const newAttendance = data.todayAttendance;
+        
+        // Si antes no teníamos turno y ahora sí tenemos (detectó entrada por Kiosk)
+        if (!isShiftActive && newAttendance && (newAttendance.entryTime || newAttendance.entryTime2)) {
+          setTodayAttendance(newAttendance);
+          setQrSuccessToast("¡Asistencia registrada exitosamente! GPS activado.");
+          setTimeout(() => setQrSuccessToast(null), 4000);
+        }
+      }
+    } catch (e) {
+      // ignore silent errors
+    }
+  };
+
   // Generate QR Canvas/DataUrl
   const generateQrCode = async (token: string) => {
     try {
@@ -404,6 +423,16 @@ export default function EmployeeAppPage() {
       loadHistory();
     }
   }, [activeTab]);
+
+  // Sondeo inteligente: Si está en la pestaña QR y NO está en turno, consultar cada 3 segundos
+  useEffect(() => {
+    if (activeTab === "qr" && !isShiftActive) {
+      const timer = setInterval(() => {
+        silentCheckAttendance();
+      }, 3000);
+      return () => clearInterval(timer);
+    }
+  }, [activeTab, isShiftActive]);
 
   return (
     <div
