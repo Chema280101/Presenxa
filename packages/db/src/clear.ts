@@ -2,6 +2,27 @@
  * Script para purgar / eliminar todos los datos de prueba y registros mock de la base de datos.
  * Ejecutar con: pnpm db:clear
  */
+import { existsSync } from "fs";
+import { resolve } from "path";
+
+// Cargar variables de entorno si no están cargadas
+const envPaths = [
+  resolve(__dirname, "../.env"),
+  resolve(__dirname, "../../../.env"),
+  resolve(process.cwd(), ".env"),
+  resolve(process.cwd(), "packages/db/.env"),
+];
+
+for (const envPath of envPaths) {
+  if (existsSync(envPath)) {
+    try {
+      if (typeof process.loadEnvFile === "function") {
+        process.loadEnvFile(envPath);
+      }
+    } catch {}
+  }
+}
+
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
