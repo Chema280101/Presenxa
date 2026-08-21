@@ -20,7 +20,6 @@ WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json turbo.json tsconfig.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/db/package.json ./packages/db/
-COPY packages/ui/package.json ./packages/ui/
 
 # Instalar dependencias
 RUN pnpm install --frozen-lockfile
@@ -28,7 +27,6 @@ RUN pnpm install --frozen-lockfile
 # Copiar código fuente
 COPY apps/web ./apps/web
 COPY packages/db ./packages/db
-COPY packages/ui ./packages/ui
 
 # Generar cliente Prisma
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
