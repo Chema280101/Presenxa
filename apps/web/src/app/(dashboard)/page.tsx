@@ -45,90 +45,106 @@ export default async function DashboardPage() {
   const todayStart = startOfDay(today);
   const todayEnd = endOfDay(today);
 
-  // ── Conteos de estado del día de hoy ────────────────────────
-  const [presentes, tardes, ausentes, abandonos, justificados, recentRaw] = await Promise.all([
-    prisma.attendance.count({
-      where: {
-        date: todayStart,
-        status: "PRESENTE",
-        ...(organizationId ? { user: { organizationId } } : {}),
-      },
-    }),
-    prisma.attendance.count({
-      where: {
-        date: todayStart,
-        status: "TARDE",
-        ...(organizationId ? { user: { organizationId } } : {}),
-      },
-    }),
-    prisma.attendance.count({
-      where: {
-        date: todayStart,
-        status: "AUSENTE",
-        ...(organizationId ? { user: { organizationId } } : {}),
-      },
-    }),
-    prisma.attendance.count({
-      where: {
-        date: todayStart,
-        status: "ABANDONO_PUESTO",
-        ...(organizationId ? { user: { organizationId } } : {}),
-      },
-    }),
-    prisma.attendance.count({
-      where: {
-        date: todayStart,
-        status: "JUSTIFICADO",
-        ...(organizationId ? { user: { organizationId } } : {}),
-      },
-    }),
-    // Últimas 8 actividades con entrada o salida hoy
-    prisma.attendance.findMany({
-      where: {
-        date: todayStart,
-        OR: [
-          { entryTime: { gte: todayStart, lte: todayEnd } },
-          { exitTime:  { gte: todayStart, lte: todayEnd } },
-        ],
-        ...(organizationId ? { user: { organizationId } } : {}),
-      },
-      orderBy: [
-        { updatedAt: "desc" },
-      ],
-      take: 8,
-      include: {
-        user: {
-          select: {
-            firstName: true,
-            lastName: true,
-            photoUrl: true,
+  // ── Conteos de estado del día de hoy (con fallback seguro) ──
+  let presentes = 0;
+  let tardes = 0;
+  let ausentes = 0;
+  let abandonos = 0;
+  let justificados = 0;
+  let recentRaw: any[] = [];
+  let avgLate = 0;
+  let totalEmpleados = 0;
+
+  try {
+    const [cPresentes, cTardes, cAusentes, cAbandonos, cJustificados, rawList, tardanzasDetalle, countEmpleados] =
+      await Promise.all([
+        prisma.attendance.count({
+          where: {
+            date: todayStart,
+            status: "PRESENTE",
+            ...(organizationId ? { user: { organizationId } } : {}),
           },
-        },
-      },
-    }),
-  ]);
+        }),
+        prisma.attendance.count({
+          where: {
+            date: todayStart,
+            status: "TARDE",
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+        }),
+        prisma.attendance.count({
+          where: {
+            date: todayStart,
+            status: "AUSENTE",
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+        }),
+        prisma.attendance.count({
+          where: {
+            date: todayStart,
+            status: "ABANDONO_PUESTO",
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+        }),
+        prisma.attendance.count({
+          where: {
+            date: todayStart,
+            status: "JUSTIFICADO",
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+        }),
+        prisma.attendance.findMany({
+          where: {
+            date: todayStart,
+            OR: [
+              { entryTime: { gte: todayStart, lte: todayEnd } },
+              { exitTime:  { gte: todayStart, lte: todayEnd } },
+            ],
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+          orderBy: [
+            { updatedAt: "desc" },
+          ],
+          take: 8,
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                photoUrl: true,
+              },
+            },
+          },
+        }),
+        prisma.attendance.aggregate({
+          where: {
+            date: todayStart,
+            status: "TARDE",
+            lateMinutes: { not: null },
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+          _avg: { lateMinutes: true },
+        }),
+        prisma.user.count({
+          where: {
+            isActive: true,
+            role: { in: ["EMPLEADO", "ALUMNO"] },
+            ...(organizationId ? { organizationId } : {}),
+          },
+        }),
+      ]);
 
-  // Calcular tardanzas promedio
-  const tardanzasDetalle = await prisma.attendance.aggregate({
-    where: {
-      date: todayStart,
-      status: "TARDE",
-      lateMinutes: { not: null },
-      ...(organizationId ? { user: { organizationId } } : {}),
-    },
-    _avg: { lateMinutes: true },
-  });
-
-  const avgLate = Math.round(tardanzasDetalle._avg.lateMinutes ?? 0);
-
-  // Total empleados activos en la org
-  const totalEmpleados = await prisma.user.count({
-    where: {
-      isActive: true,
-      role: { in: ["EMPLEADO", "ALUMNO"] },
-      ...(organizationId ? { organizationId } : {}),
-    },
-  });
+    presentes = cPresentes;
+    tardes = cTardes;
+    ausentes = cAusentes;
+    abandonos = cAbandonos;
+    justificados = cJustificados;
+    recentRaw = rawList;
+    avgLate = Math.round(tardanzasDetalle._avg.lateMinutes ?? 0);
+    totalEmpleados = countEmpleados;
+  } catch (error) {
+    console.error("[DashboardPage] Error loading metrics from database:", error);
+  }
 
   // Construir actividad reciente
   const recentActivity = recentRaw.map((att) => {
