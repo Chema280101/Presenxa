@@ -57,6 +57,9 @@ export default auth((req) => {
 
   // Rutas protegidas — redirigir al login si no hay sesión
   if (!isLoggedIn) {
+    if (path.startsWith("/api/")) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
     const loginUrl = new URL("/login", baseUrl);
     loginUrl.searchParams.set("callbackUrl", path);
     return NextResponse.redirect(loginUrl);

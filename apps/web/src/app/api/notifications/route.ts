@@ -75,7 +75,7 @@ export async function PATCH() {
   try {
     let whereClause: any = { userId: session.user.id, readAt: null };
 
-    if (role === "ADMIN" || role === "SUPER_ADMIN" || role === "SUPERVISOR") {
+    if ((role === "ADMIN" || role === "SUPER_ADMIN" || role === "SUPERVISOR") && orgId) {
       whereClause = {
         user: { organizationId: orgId },
         readAt: null,
