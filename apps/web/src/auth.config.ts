@@ -33,6 +33,7 @@ export const authConfig = {
   },
   providers: [],
   trustHost: true,
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "presenxa_prod_fallback_secret_auth_jwt_key_2026",
 } satisfies NextAuthConfig;
+
 

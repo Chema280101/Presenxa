@@ -24,10 +24,18 @@ const PUBLIC_API_ROUTES = [
   "/api/health",
 ];
 
+// Helper para obtener URL pública real detrás de proxies inversos (como Render, Vercel o Nginx)
+function getPublicBaseUrl(req: any): string {
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || req.nextUrl.host;
+  const proto = req.headers.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 export default auth((req) => {
   const { nextUrl, auth: session } = req;
   const isLoggedIn = !!session;
   const path = nextUrl.pathname;
+  const baseUrl = getPublicBaseUrl(req);
 
   // Permitir rutas públicas de API
   if (PUBLIC_API_ROUTES.some((r) => path.startsWith(r))) {
@@ -40,16 +48,16 @@ export default auth((req) => {
     if (isLoggedIn && path === "/login") {
       const role = (session?.user as any)?.role;
       if (role === "EMPLEADO") {
-        return NextResponse.redirect(new URL("/app", nextUrl));
+        return NextResponse.redirect(new URL("/app", baseUrl));
       }
-      return NextResponse.redirect(new URL("/", nextUrl));
+      return NextResponse.redirect(new URL("/", baseUrl));
     }
     return NextResponse.next();
   }
 
   // Rutas protegidas — redirigir al login si no hay sesión
   if (!isLoggedIn) {
-    const loginUrl = new URL("/login", nextUrl);
+    const loginUrl = new URL("/login", baseUrl);
     loginUrl.searchParams.set("callbackUrl", path);
     return NextResponse.redirect(loginUrl);
   }
@@ -57,7 +65,7 @@ export default auth((req) => {
   // Si un EMPLEADO intenta entrar al dashboard admin "/", redirigir a "/app"
   const role = (session?.user as any)?.role;
   if (role === "EMPLEADO" && path === "/") {
-    return NextResponse.redirect(new URL("/app", nextUrl));
+    return NextResponse.redirect(new URL("/app", baseUrl));
   }
 
   return NextResponse.next();
