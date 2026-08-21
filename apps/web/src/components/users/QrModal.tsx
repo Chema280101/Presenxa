@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { QrCode, Download, RefreshCw, X, Copy, Check, Printer, Shield, Sparkles } from "lucide-react";
 
@@ -25,7 +26,12 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
   const [dataUrl, setDataUrl] = useState<string>("");
   const [isCopied, setIsCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const payloadToEncode = user?.signedQrPayload || user?.qrToken || "";
 
@@ -45,7 +51,23 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
       .catch((err) => console.error("Error generating QR:", err));
   }, [payloadToEncode]);
 
-  if (!isOpen || !user) return null;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !user || !mounted) return null;
 
   const handleCopyToken = () => {
     navigator.clipboard.writeText(user.qrToken);
@@ -115,7 +137,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
       <div 
         className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
@@ -217,6 +239,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

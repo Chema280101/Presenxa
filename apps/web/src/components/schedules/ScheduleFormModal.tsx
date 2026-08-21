@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Clock,
@@ -57,6 +58,7 @@ export function ScheduleFormModal({
   initialData,
 }: ScheduleFormModalProps) {
   const isEditing = !!initialData?.id;
+  const [mounted, setMounted] = useState(false);
 
   const [name, setName] = useState("");
   const [workdaysMask, setWorkdaysMask] = useState(31); // Default Lun-Vie (1+2+4+8+16)
@@ -128,7 +130,27 @@ export function ScheduleFormModal({
     setError("");
   }, [initialData, isOpen]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !mounted) return null;
 
   const toggleDay = (bit: number) => {
     if (workdaysMask & bit) {
@@ -179,7 +201,7 @@ export function ScheduleFormModal({
       const [parsedXH2, parsedXM2] = exitTime2.split(":").map(Number);
 
       if (isNaN(parsedEH2) || isNaN(parsedEM2) || isNaN(parsedXH2) || isNaN(parsedXM2)) {
-        setError("Por favor ingresa horas válidas para el Tramo 2.");
+        setError("Por favor ingresa horas válidas para el Tramo 2 (turno partido).");
         return;
       }
 
@@ -195,18 +217,17 @@ export function ScheduleFormModal({
         id: initialData?.id,
         name: name.trim(),
         workdaysMask,
-        isSplit,
         entryHour: eH,
         entryMinute: eM,
         exitHour: xH,
         exitMinute: xM,
-        toleranceMinutes,
-        entryHour2: isSplit ? eH2 : null,
-        entryMinute2: isSplit ? eM2 : null,
-        exitHour2: isSplit ? xH2 : null,
-        exitMinute2: isSplit ? xM2 : null,
-        toleranceMinutes2: isSplit ? toleranceMinutes2 : null,
-        isActive: initialData?.isActive !== undefined ? initialData.isActive : true,
+        toleranceMinutes: Number(toleranceMinutes) || 0,
+        isSplit,
+        entryHour2: eH2,
+        entryMinute2: eM2,
+        exitHour2: xH2,
+        exitMinute2: xM2,
+        toleranceMinutes2: isSplit ? Number(toleranceMinutes2) || 0 : null,
       });
       if (success) {
         onClose();
@@ -218,13 +239,16 @@ export function ScheduleFormModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-3xl rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden flex flex-col max-h-[90vh]">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
+      <div 
+        className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
+        style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(24px)" }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
+        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-surface-950/40 flex-shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="p-2.5 rounded-2xl gradient-brand text-white shadow-lg shadow-indigo-900/40">
+            <div className="p-2.5 rounded-2xl bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
               <Clock className="w-5 h-5" />
             </div>
             <div>
@@ -514,35 +538,37 @@ export function ScheduleFormModal({
               </div>
             </div>
           )}
-
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10 flex-shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl gradient-brand hover:opacity-95 active:scale-[0.98] text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all disabled:opacity-50 cursor-pointer"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Guardando horario...
-                </>
-              ) : isEditing ? (
-                "Actualizar Horario"
-              ) : (
-                "Crear Horario"
-              )}
-            </button>
-          </div>
         </form>
+
+        {/* Form Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 sm:px-8 py-4 border-t border-white/10 bg-surface-950/60 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="schedule-form"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-400 hover:bg-primary-300 text-surface-950 text-xs font-bold shadow-lg shadow-primary-950/50 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Guardando horario...
+              </>
+            ) : isEditing ? (
+              "Actualizar Horario"
+            ) : (
+              "Crear Horario"
+            )}
+          </button>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

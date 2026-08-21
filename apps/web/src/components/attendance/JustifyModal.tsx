@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, FileText, CheckCircle2, ShieldAlert, Loader2 } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 
@@ -22,6 +23,7 @@ export function JustifyModal({
   attendance,
   onSuccess,
 }: JustifyModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<AttendanceStatus>(
     AttendanceStatus.JUSTIFICADO
@@ -29,7 +31,27 @@ export function JustifyModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  if (!isOpen || !attendance) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !attendance || !mounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +82,7 @@ export function JustifyModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
       <div 
         className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
@@ -187,6 +209,7 @@ export function JustifyModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

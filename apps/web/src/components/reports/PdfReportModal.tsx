@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Printer,
   Download,
@@ -73,7 +74,29 @@ interface PdfReportModalProps {
 }
 
 export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalProps) {
-  if (!isOpen || !reportData) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !reportData || !mounted) return null;
 
   const { organization, periodLabel, generatedAt, metrics, attendances } = reportData;
   const orgSettings = (organization?.settings as any) || {};
@@ -114,8 +137,8 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
     return status;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-surface-950/80 backdrop-blur-md overflow-y-auto animate-fade-in-up">
       {/* Container */}
       <div className="relative w-full max-w-5xl bg-slate-900 rounded-3xl border border-white/10 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in fade-in zoom-in-95">
         {/* Modal Top Action Toolbar (Hidden in Print) */}
@@ -377,6 +400,7 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
           }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body
   );
 }

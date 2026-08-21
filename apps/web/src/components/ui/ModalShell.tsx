@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, LucideIcon } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -46,6 +47,12 @@ export function ModalShell({
   footer,
   className,
 }: ModalShellProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -62,11 +69,11 @@ export function ModalShell({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-      {/* Backdrop */}
+      {/* Backdrop covering 100% of entire browser window */}
       <div
         className="fixed inset-0 bg-surface-950/80 backdrop-blur-md transition-opacity animate-fade-in-up"
         onClick={onClose}
@@ -136,6 +143,7 @@ export function ModalShell({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

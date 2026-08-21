@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Clock, Edit3, ShieldAlert, Loader2, Sun, Moon } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 import { format } from "date-fns";
@@ -30,6 +31,7 @@ export function EditAttendanceModal({
   attendance,
   onSuccess,
 }: EditAttendanceModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState<AttendanceStatus>(AttendanceStatus.PRESENTE);
   const [entryTime, setEntryTime] = useState("");
   const [exitTime, setExitTime] = useState("");
@@ -40,6 +42,26 @@ export function EditAttendanceModal({
   const [lateMinutes2, setLateMinutes2] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (attendance) {
@@ -63,7 +85,7 @@ export function EditAttendanceModal({
     setError("");
   }, [attendance, isOpen]);
 
-  if (!isOpen || !attendance) return null;
+  if (!isOpen || !attendance || !mounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,52 +93,18 @@ export function EditAttendanceModal({
     setError("");
 
     try {
-      // Build ISO date objects for entry/exit if specified
-      let entryDateStr = null;
-      let exitDateStr = null;
-      let entry2DateStr = null;
-      let exit2DateStr = null;
-
-      if (entryTime) {
-        const [eH, eM] = entryTime.split(":").map(Number);
-        const d = new Date(attendance.date);
-        d.setHours(eH, eM, 0, 0);
-        entryDateStr = d.toISOString();
-      }
-
-      if (exitTime) {
-        const [xH, xM] = exitTime.split(":").map(Number);
-        const d = new Date(attendance.date);
-        d.setHours(xH, xM, 0, 0);
-        exitDateStr = d.toISOString();
-      }
-
-      if (entryTime2) {
-        const [eH2, eM2] = entryTime2.split(":").map(Number);
-        const d = new Date(attendance.date);
-        d.setHours(eH2, eM2, 0, 0);
-        entry2DateStr = d.toISOString();
-      }
-
-      if (exitTime2) {
-        const [xH2, xM2] = exitTime2.split(":").map(Number);
-        const d = new Date(attendance.date);
-        d.setHours(xH2, xM2, 0, 0);
-        exit2DateStr = d.toISOString();
-      }
-
-      const res = await fetch(`/api/attendance/${attendance.id}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/attendance/${attendance.id}/edit`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status,
-          entryTime: entryDateStr,
-          exitTime: exitDateStr,
-          entryTime2: entry2DateStr,
-          exitTime2: exit2DateStr,
-          notes: notes.trim() || null,
-          lateMinutes: Number(lateMinutes) || 0,
-          lateMinutes2: Number(lateMinutes2) || 0,
+          entryTime: entryTime || null,
+          exitTime: exitTime || null,
+          entryTime2: entryTime2 || null,
+          exitTime2: exitTime2 || null,
+          notes: notes.trim(),
+          lateMinutes,
+          lateMinutes2,
         }),
       });
 
@@ -132,21 +120,24 @@ export function EditAttendanceModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/80 backdrop-blur-md overflow-hidden animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
+      <div 
+        className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
+        style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(24px)" }}
+      >
         {/* Header - Fixed Top */}
-        <div className="flex items-center justify-between px-6 md:px-8 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
+        <div className="flex items-center justify-between px-6 md:px-8 py-5 border-b border-white/10 bg-surface-950/40 flex-shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl gradient-brand text-white shadow-lg shadow-indigo-900/40">
+            <div className="p-2.5 rounded-2xl bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
               <Edit3 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              <h3 className="text-lg font-bold text-white tracking-tight">
                 Editar Registro de Asistencia
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Empleado: <strong className="text-slate-200">{attendance.userName}</strong> · Fecha: {attendance.date}
+                Colaborador: <strong className="text-slate-200">{attendance.userName}</strong> · Fecha: {attendance.date}
               </p>
             </div>
           </div>
@@ -323,12 +314,12 @@ export function EditAttendanceModal({
           </div>
         </form>
 
-        {/* Footer - Fixed Bottom */}
-        <div className="px-6 md:px-8 py-4 border-t border-white/10 bg-black/30 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
+        {/* Footer */}
+        <div className="px-6 md:px-8 py-4 border-t border-white/10 bg-surface-950/60 flex items-center justify-between flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
             Cancelar
           </button>
@@ -336,7 +327,7 @@ export function EditAttendanceModal({
             type="submit"
             form="edit-attendance-form"
             disabled={isSubmitting}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl gradient-brand hover:opacity-95 active:scale-[0.98] text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-400 hover:bg-primary-300 text-surface-950 text-xs font-bold shadow-lg shadow-primary-950/50 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
               <>
@@ -349,6 +340,7 @@ export function EditAttendanceModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
