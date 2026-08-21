@@ -23,6 +23,7 @@ import {
 } from "@/components/schedules/ScheduleFormModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface ScheduleItem {
   id: string;
@@ -310,9 +311,29 @@ export default function SchedulesPage() {
 
       {/* Schedule Cards Grid */}
       {isLoading ? (
-        <div className="p-12 text-center text-slate-500">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-400" />
-          <p className="text-sm">Cargando turnos y horarios...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="card-surface p-6 rounded-3xl border border-white/8 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+                <div className="flex gap-1.5">
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 py-2">
+                <Skeleton className="h-16 rounded-2xl" />
+                <Skeleton className="h-16 rounded-2xl" />
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredSchedules.length === 0 ? (
         <EmptyState
@@ -364,26 +385,26 @@ export default function SchedulesPage() {
             return (
               <div
                 key={sch.id}
-                className="card-surface-interactive overflow-hidden flex flex-col group"
+                className="card-surface-interactive overflow-hidden flex flex-col group rounded-3xl"
               >
                 {/* Card Header */}
                 <div className="p-6 pb-4 border-b border-white/5 flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      <h3 className="text-lg font-bold text-white group-hover:text-primary-300 transition-colors">
                         {sch.name}
                       </h3>
                       {sch.isSplit && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-400/20 text-primary-300 ring-1 ring-primary-400/30">
                           Partido (2 Tramos)
                         </span>
                       )}
                       {sch.isActive ? (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
                           Activo
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20">
                           Inactivo
                         </span>
                       )}

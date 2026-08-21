@@ -26,6 +26,7 @@ import { es } from "date-fns/locale";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PdfReportModal } from "@/components/reports/PdfReportModal";
+import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
 
 interface DailyRecord {
   date: string;
@@ -353,9 +354,29 @@ export default function ReportsPage() {
       </div>
 
       {isLoading || !summary ? (
-        <div className="py-20 text-center text-slate-400 card-surface">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-lime-400" />
-          <p className="text-sm">Generando analítica consolidada del periodo...</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+            <SkeletonStatCard />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="card-surface p-6 rounded-3xl border border-white/8 space-y-4">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-32" />
+              <div className="space-y-3 pt-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+            </div>
+            <div className="lg:col-span-2 card-surface p-6 rounded-3xl border border-white/8 space-y-4">
+              <Skeleton className="h-6 w-56" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-48 w-full rounded-2xl" />
+            </div>
+          </div>
         </div>
       ) : (
         <>
@@ -385,9 +406,9 @@ export default function ReportsPage() {
               variant="warning"
             />
             <StatCard
-              label="Alertas de Geocerca"
+              label="Abandonos de Puesto"
               value={summary.abandonedCount}
-              sub={`${summary.abandonedCount} abandonos de puesto detectados`}
+              sub={`${summary.abandonedCount} incidencias registradas`}
               icon={AlertTriangle}
               variant={summary.abandonedCount > 0 ? "danger" : "default"}
             />

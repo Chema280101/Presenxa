@@ -41,6 +41,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { SkeletonTable } from "@/components/ui/Skeleton";
 
 interface AttendanceRecord {
   id: string;
@@ -635,10 +636,7 @@ export default function AttendancePage() {
       {/* Attendance Records Display (Mobile Cards + Desktop Table) */}
       <div>
         {isLoading ? (
-          <div className="card-surface p-12 text-center text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
-            Cargando registros de asistencia...
-          </div>
+          <SkeletonTable rows={7} cols={6} />
         ) : attendances.length === 0 ? (
           <div className="card-surface p-8">
             <EmptyState

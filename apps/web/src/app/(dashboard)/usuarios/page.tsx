@@ -27,6 +27,7 @@ import { UserFormModal, UserFormData } from "@/components/users/UserFormModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { RoleBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonTable } from "@/components/ui/Skeleton";
 
 interface UserItem {
   id: string;
@@ -374,10 +375,7 @@ export default function UsersPage() {
       {/* Users Display (Mobile Cards + Desktop Table) */}
       <div>
         {isLoading ? (
-          <div className="card-surface p-12 text-center text-slate-400">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
-            Cargando usuarios...
-          </div>
+          <SkeletonTable rows={7} cols={7} />
         ) : filteredUsers.length === 0 ? (
           <div className="card-surface p-8">
             <EmptyState

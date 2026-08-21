@@ -24,6 +24,7 @@ import { KioskFormModal, KioskFormData } from "@/components/kiosks/KioskFormModa
 import { ApiKeyModal } from "@/components/kiosks/ApiKeyModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface KioskItem {
   id: string;
@@ -301,9 +302,30 @@ export default function KiosksPage() {
 
       {/* Kiosks Cards Grid */}
       {isLoading ? (
-        <div className="py-16 text-center text-slate-400 card-surface">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-400" />
-          <p className="text-sm">Cargando dispositivos kiosk...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="card-surface p-6 rounded-3xl border border-white/8 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-36" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+                <div className="flex gap-1.5">
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 py-1">
+                <Skeleton className="h-14 rounded-2xl" />
+                <Skeleton className="h-14 rounded-2xl" />
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredKiosks.length === 0 ? (
         <EmptyState
@@ -333,29 +355,29 @@ export default function KiosksPage() {
             return (
               <div
                 key={k.id}
-                className="card-surface-interactive overflow-hidden flex flex-col justify-between group"
+                className="card-surface-interactive overflow-hidden flex flex-col justify-between group rounded-3xl"
               >
                 {/* Header */}
                 <div className="p-6 pb-4 border-b border-white/5 flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      <h3 className="text-lg font-bold text-white group-hover:text-primary-300 transition-colors">
                         {k.name}
                       </h3>
                       {k.isActive ? (
                         online ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary-400 animate-pulse-dot" />
                             Online
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20">
                             <WifiOff className="w-3 h-3" />
                             Offline
                           </span>
                         )
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20">
                           Inactivo
                         </span>
                       )}
@@ -374,7 +396,7 @@ export default function KiosksPage() {
                         setIsKeyModalOpen(true);
                       }}
                       title="Ver API Key y QR de Emparejamiento"
-                      className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 transition-all active:scale-95"
+                      className="p-2 rounded-xl bg-primary-400/10 hover:bg-primary-400/20 text-primary-300 border border-primary-400/20 transition-all active:scale-95 cursor-pointer"
                     >
                       <Key className="w-4 h-4" />
                     </button>
@@ -390,7 +412,7 @@ export default function KiosksPage() {
                         setIsFormOpen(true);
                       }}
                       title="Editar Kiosk"
-                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
+                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -398,10 +420,10 @@ export default function KiosksPage() {
                     <button
                       onClick={() => handleToggleStatus(k)}
                       title={k.isActive ? "Desactivar" : "Reactivar"}
-                      className={`p-2 rounded-xl transition-all active:scale-95 border ${
+                      className={`p-2 rounded-xl transition-all active:scale-95 border cursor-pointer ${
                         k.isActive
                           ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
-                          : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
+                          : "bg-primary-400/10 hover:bg-primary-400/20 text-primary-400 border-primary-400/20"
                       }`}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -428,7 +450,7 @@ export default function KiosksPage() {
                   {/* Scans processed */}
                   <div className="pt-3 flex items-center justify-between text-xs text-slate-400 border-t border-white/5">
                     <span className="flex items-center gap-1.5 font-medium">
-                      <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                      <QrCode className="w-3.5 h-3.5 text-primary-400" />
                       Marcaciones Procesadas:
                     </span>
                     <strong className="text-white font-mono">

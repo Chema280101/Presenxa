@@ -21,6 +21,7 @@ import {
 } from "@/components/locations/LocationFormModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface LocationItem {
   id: string;
@@ -260,9 +261,26 @@ export default function LocationsPage() {
 
       {/* Locations Cards Grid */}
       {isLoading ? (
-        <div className="py-16 text-center text-slate-400 card-surface">
-          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-400" />
-          <p className="text-sm">Cargando sedes...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="card-surface p-6 rounded-3xl border border-white/8 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-36" />
+                  <Skeleton className="h-3 w-48" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+                <div className="flex gap-1.5">
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : filteredLocations.length === 0 ? (
         <EmptyState
@@ -284,21 +302,21 @@ export default function LocationsPage() {
             return (
               <div
                 key={loc.id}
-                className="card-surface-interactive overflow-hidden flex flex-col justify-between group p-6 space-y-4"
+                className="card-surface-interactive overflow-hidden flex flex-col justify-between group p-6 space-y-4 rounded-3xl"
               >
                 {/* Header of card */}
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
+                      <h3 className="text-base font-bold text-white group-hover:text-primary-300 transition-colors">
                         {loc.name}
                       </h3>
                       {loc.isActive ? (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
                           Activa
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20">
                           Inactiva
                         </span>
                       )}
@@ -326,7 +344,7 @@ export default function LocationsPage() {
                         setIsModalOpen(true);
                       }}
                       title="Editar Sede"
-                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
+                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white hover:border-primary-400/30 transition-all active:scale-95 cursor-pointer"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -334,10 +352,10 @@ export default function LocationsPage() {
                     <button
                       onClick={() => handleToggleStatus(loc)}
                       title={loc.isActive ? "Desactivar sede" : "Reactivar sede"}
-                      className={`p-2 rounded-xl transition-all active:scale-95 border ${
+                      className={`p-2 rounded-xl transition-all active:scale-95 border cursor-pointer ${
                         loc.isActive
                           ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
-                          : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
+                          : "bg-primary-400/10 hover:bg-primary-400/20 text-primary-400 border-primary-400/20"
                       }`}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -348,7 +366,7 @@ export default function LocationsPage() {
                 {/* Summary badges footer */}
                 <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5 text-xs text-slate-400">
                   <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-emerald-400" />
+                    <Users className="w-4 h-4 text-primary-400" />
                     <span>
                       <strong className="text-white font-mono">
                         {loc._count?.users || 0}
@@ -358,7 +376,7 @@ export default function LocationsPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-emerald-400" />
+                    <QrCode className="w-4 h-4 text-primary-400" />
                     <span>
                       <strong className="text-white font-mono">
                         {loc._count?.kiosks || 0}
