@@ -75,7 +75,7 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
           <h2 className="text-sm sm:text-base font-semibold text-white truncate">{pageTitle}</h2>
           <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
             <Building2 className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{session.user.organizationName}</span>
+            <span className="truncate">{session?.user?.organizationName || "Presenxa"}</span>
           </p>
         </div>
       </div>
@@ -104,10 +104,10 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
 
             <div className="text-left hidden sm:block">
               <p className="text-sm font-medium text-white leading-none">
-                {session.user.name}
+                {session?.user?.name || "Usuario"}
               </p>
               <p className="text-xs text-slate-500 mt-0.5 capitalize">
-                {session.user.role.toLowerCase().replace("_", " ")}
+                {(session?.user?.role || "ADMIN").toLowerCase().replace("_", " ")}
               </p>
             </div>
 
@@ -132,10 +132,10 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
                 {/* Info del usuario */}
                 <div className="px-4 py-3 border-b border-white/5">
                   <p className="text-sm font-medium text-white truncate">
-                    {session.user.name}
+                    {session?.user?.name || "Usuario"}
                   </p>
                   <p className="text-xs text-slate-400 truncate mt-0.5">
-                    {session.user.email}
+                    {session?.user?.email || ""}
                   </p>
                 </div>
 
