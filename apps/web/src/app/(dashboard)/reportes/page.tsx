@@ -93,8 +93,11 @@ export default function ReportsPage() {
       if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
 
       const res = await fetch(`/api/reports/summary?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Error ${res.status}: ${res.statusText}`);
+      }
       const data = await res.json();
-      if (data) {
+      if (data && Array.isArray(data.dailyBreakdown)) {
         setSummary(data);
       }
     } catch (err) {
@@ -528,7 +531,7 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              {summary.dailyBreakdown.length === 0 ? (
+              {(!summary.dailyBreakdown || summary.dailyBreakdown.length === 0) ? (
                 <EmptyState
                   icon={BarChart3}
                   title="Sin registros para este periodo"
@@ -547,7 +550,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-surface-700/60 font-mono">
-                      {summary.dailyBreakdown.map((row) => (
+                      {(summary.dailyBreakdown || []).map((row) => (
                         <tr key={row.date} className="hover:bg-white/[0.02]">
                           <td className="py-2 text-slate-200">{row.date}</td>
                           <td className="py-2 text-center text-emerald-400">

@@ -166,10 +166,15 @@ export default function AttendancePage() {
       if (search) params.append("search", search);
 
       const res = await fetch(`/api/attendance?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`Error ${res.status}: ${res.statusText}`);
+      }
       const data = await res.json();
-      if (data.attendances) {
+      if (data && data.attendances) {
         setAttendances(data.attendances);
-        setSummary(data.summary);
+        if (data.summary) {
+          setSummary(data.summary);
+        }
       }
     } catch (err) {
       console.error("Error fetching attendances:", err);

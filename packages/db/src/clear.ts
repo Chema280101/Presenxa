@@ -4,6 +4,7 @@
  */
 import { existsSync } from "fs";
 import { resolve } from "path";
+import dotenv from "dotenv";
 
 // Cargar variables de entorno si no están cargadas
 const envPaths = [
@@ -15,11 +16,7 @@ const envPaths = [
 
 for (const envPath of envPaths) {
   if (existsSync(envPath)) {
-    try {
-      if (typeof process.loadEnvFile === "function") {
-        process.loadEnvFile(envPath);
-      }
-    } catch {}
+    dotenv.config({ path: envPath, override: false });
   }
 }
 

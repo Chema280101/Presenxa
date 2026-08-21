@@ -2,6 +2,23 @@
  * Script interactivo para crear tu primera Organización, Sede y Usuario Administrador real.
  * Ejecutar: pnpm db:init
  */
+import { existsSync } from "fs";
+import { resolve } from "path";
+import dotenv from "dotenv";
+
+const envPaths = [
+  resolve(__dirname, "../.env"),
+  resolve(__dirname, "../../../.env"),
+  resolve(process.cwd(), ".env"),
+  resolve(process.cwd(), "packages/db/.env"),
+];
+
+for (const envPath of envPaths) {
+  if (existsSync(envPath)) {
+    dotenv.config({ path: envPath, override: false });
+  }
+}
+
 import { PrismaClient, OrgType, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import readline from "readline";
