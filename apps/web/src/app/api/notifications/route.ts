@@ -16,8 +16,8 @@ export async function GET(req: Request) {
   try {
     let whereClause: any = { userId: session.user.id };
 
-    // Si es ADMIN o SUPERVISOR, mostrar notificaciones de los usuarios de su organización
-    if (role === "ADMIN" || role === "SUPER_ADMIN" || role === "SUPERVISOR") {
+    // Si es ADMIN o SUPERVISOR, mostrar notificaciones de los usuarios de su organización si está definida
+    if ((role === "ADMIN" || role === "SUPER_ADMIN" || role === "SUPERVISOR") && orgId) {
       whereClause = {
         user: {
           organizationId: orgId,
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error("Error al obtener notificaciones:", error);
     return NextResponse.json(
-      { error: "Error al cargar notificaciones" },
+      { error: error?.message || "Error al cargar notificaciones" },
       { status: 500 }
     );
   }

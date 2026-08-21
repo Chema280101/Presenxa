@@ -8,10 +8,11 @@ import { getLocalTodayDate } from "@/lib/dateUtils";
 // GET /api/attendance
 export async function GET(req: Request) {
   const session = await auth();
-  if (!session?.user?.organizationId) {
+  if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const orgId = session.user.organizationId;
   const { searchParams } = new URL(req.url);
   const dateParam = searchParams.get("date");
   const startDateParam = searchParams.get("startDate");
@@ -20,30 +21,29 @@ export async function GET(req: Request) {
   const locationId = searchParams.get("locationId");
   const search = searchParams.get("search") || "";
 
-  const where: any = {
-    user: {
-      organizationId: session.user.organizationId,
-    },
-  };
+  const where: any = {};
 
-  // Date filtering
+  if (orgId) {
+    where.user = {
+      organizationId: orgId,
+    };
+  }
+
+  // Date filtering (@db.Date compatibility)
   if (startDateParam && endDateParam) {
+    const sDate = startDateParam.includes("T") ? startDateParam.split("T")[0] : startDateParam;
+    const eDate = endDateParam.includes("T") ? endDateParam.split("T")[0] : endDateParam;
     where.date = {
-      gte: startOfDay(parseISO(startDateParam)),
-      lte: endOfDay(parseISO(endDateParam)),
+      gte: new Date(`${sDate}T00:00:00.000Z`),
+      lte: new Date(`${eDate}T00:00:00.000Z`),
     };
   } else if (dateParam) {
-    where.date = {
-      gte: startOfDay(parseISO(dateParam)),
-      lte: endOfDay(parseISO(dateParam)),
-    };
+    const cleanDate = dateParam.includes("T") ? dateParam.split("T")[0] : dateParam;
+    where.date = new Date(`${cleanDate}T00:00:00.000Z`);
   } else {
     // Default to today in local timezone
     const today = getLocalTodayDate(new Date());
-    where.date = {
-      gte: startOfDay(today),
-      lte: endOfDay(today),
-    };
+    where.date = today;
   }
 
   // Status filtering
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
   // Search filtering
   if (search) {
     where.user = {
-      ...where.user,
+      ...(where.user || {}),
       OR: [
         { firstName: { contains: search, mode: "insensitive" } },
         { lastName: { contains: search, mode: "insensitive" } },
@@ -138,7 +138,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error("Error al obtener asistencias:", error);
     return NextResponse.json(
-      { error: "Error al obtener asistencias" },
+      { error: error?.message || "Error al obtener asistencias" },
       { status: 500 }
     );
   }
