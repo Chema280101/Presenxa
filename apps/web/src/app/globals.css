@@ -69,6 +69,37 @@ body {
   font-family: var(--font-sans);
 }
 
+/* ── Global Interactive Cursors & Tactile Feedback ── */
+button,
+[role="button"],
+a,
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"],
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Micro-interacción táctil al hacer click */
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active,
+a:active {
+  transform: scale(0.98);
+  transition: transform 0.05s ease-in-out;
+}
+
 /* ── Scrollbar personalizado ─────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--color-surface-950); }
