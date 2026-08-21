@@ -17,41 +17,41 @@ export interface StatCardProps {
 }
 
 const VARIANT_MAP = {
+  primary: {
+    iconBg: "bg-primary-400/15",
+    iconColor: "text-primary-300",
+    ring: "ring-1 ring-primary-400/30",
+    glowBorder: "via-primary-400/40",
+  },
   success: {
-    iconBg: "bg-success-500/10",
-    iconColor: "text-success-400",
-    ring: "ring-1 ring-success-500/20",
-    glow: "hover:shadow-success-500/10",
+    iconBg: "bg-lime-400/15",
+    iconColor: "text-lime-300",
+    ring: "ring-1 ring-lime-400/30",
+    glowBorder: "via-lime-400/40",
   },
   warning: {
-    iconBg: "bg-warning-500/10",
-    iconColor: "text-warning-400",
-    ring: "ring-1 ring-warning-500/20",
-    glow: "hover:shadow-warning-500/10",
+    iconBg: "bg-amber-500/15",
+    iconColor: "text-amber-300",
+    ring: "ring-1 ring-amber-500/30",
+    glowBorder: "via-amber-400/40",
   },
   danger: {
-    iconBg: "bg-danger-500/10",
-    iconColor: "text-danger-400",
-    ring: "ring-1 ring-danger-500/20",
-    glow: "hover:shadow-danger-500/10",
+    iconBg: "bg-rose-500/15",
+    iconColor: "text-rose-300",
+    ring: "ring-1 ring-rose-500/30",
+    glowBorder: "via-rose-400/40",
   },
   info: {
-    iconBg: "bg-info-500/10",
-    iconColor: "text-info-400",
-    ring: "ring-1 ring-info-500/20",
-    glow: "hover:shadow-info-500/10",
-  },
-  primary: {
-    iconBg: "bg-emerald-500/10",
-    iconColor: "text-emerald-400",
-    ring: "ring-1 ring-emerald-500/20",
-    glow: "hover:shadow-emerald-500/10",
+    iconBg: "bg-sky-500/15",
+    iconColor: "text-sky-300",
+    ring: "ring-1 ring-sky-500/30",
+    glowBorder: "via-sky-400/40",
   },
   default: {
-    iconBg: "bg-white/5",
-    iconColor: "text-slate-300",
-    ring: "ring-1 ring-white/10",
-    glow: "hover:shadow-white/5",
+    iconBg: "bg-white/10",
+    iconColor: "text-slate-200",
+    ring: "ring-1 ring-white/15",
+    glowBorder: "via-white/20",
   },
 };
 
@@ -67,19 +67,25 @@ export function StatCard({
 }: StatCardProps) {
   const v = VARIANT_MAP[variant] || VARIANT_MAP.primary;
 
-  const content = (
+  return (
     <div
+      onClick={onClick}
       className={clsx(
         "card-surface-interactive p-5 relative overflow-hidden flex flex-col justify-between group",
         onClick && "cursor-pointer",
         className
       )}
     >
-      {/* Glow highlight top accent */}
-      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      {/* Dynamic top highlight border glow */}
+      <div
+        className={clsx(
+          "absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300",
+          v.glowBorder
+        )}
+      />
 
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             {label}
           </p>
@@ -90,10 +96,10 @@ export function StatCard({
             {trend && (
               <span
                 className={clsx(
-                  "text-xs font-medium px-1.5 py-0.5 rounded-md",
+                  "text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1",
                   trend.isPositive
-                    ? "text-emerald-400 bg-emerald-500/10"
-                    : "text-rose-400 bg-rose-500/10"
+                    ? "text-lime-300 bg-lime-400/15 ring-lime-400/30"
+                    : "text-rose-300 bg-rose-500/15 ring-rose-500/30"
                 )}
               >
                 {trend.value}
@@ -104,7 +110,7 @@ export function StatCard({
 
         <div
           className={clsx(
-            "w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110",
+            "w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110 shadow-inner",
             v.iconBg,
             v.iconColor,
             v.ring
@@ -115,12 +121,10 @@ export function StatCard({
       </div>
 
       {sub && (
-        <p className="text-xs text-slate-500 font-medium truncate flex items-center gap-1.5">
+        <p className="text-xs text-slate-400 font-medium truncate flex items-center gap-1.5 pt-1 border-t border-white/5">
           {sub}
         </p>
       )}
     </div>
   );
-
-  return content;
 }

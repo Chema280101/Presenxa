@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   XCircle,
   Sparkles,
-  ExternalLink,
 } from "lucide-react";
 
 interface NotificationItem {
@@ -113,7 +112,6 @@ export function NotificationDropdown() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Mark notification as read and updated
         setNotifications((prev) =>
           prev.map((n) =>
             n.id === notificationId
@@ -151,13 +149,13 @@ export function NotificationDropdown() {
       case "ABANDONO_REGISTRADO":
         return <AlertOctagon className="w-4 h-4 text-rose-400" />;
       case "LLEGADA_TARDE":
-        return <Clock className="w-4 h-4 text-orange-400" />;
+        return <Clock className="w-4 h-4 text-amber-400" />;
       case "BIENVENIDA":
-        return <Sparkles className="w-4 h-4 text-emerald-400" />;
+        return <Sparkles className="w-4 h-4 text-primary-400" />;
       case "FALTA_REGISTRADA":
         return <XCircle className="w-4 h-4 text-rose-400" />;
       default:
-        return <Bell className="w-4 h-4 text-indigo-400" />;
+        return <Bell className="w-4 h-4 text-primary-300" />;
     }
   };
 
@@ -165,9 +163,9 @@ export function NotificationDropdown() {
     const diffMs = Date.now() - new Date(isoString).getTime();
     const diffMins = Math.floor(diffMs / 60000);
     if (diffMins < 1) return "Justo ahora";
-    if (diffMins < 60) return `Hace ${diffMins} min`;
+    if (diffMins < 60) return `Hace ${diffMins}m`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `Hace ${diffHours} h`;
+    if (diffHours < 24) return `Hace ${diffHours}h`;
     return new Date(isoString).toLocaleDateString();
   };
 
@@ -179,12 +177,13 @@ export function NotificationDropdown() {
           setIsOpen(!isOpen);
           if (!isOpen) fetchNotifications();
         }}
-        className="relative p-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all"
+        className="relative p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/8 hover:border-primary-400/30 transition-all cursor-pointer"
         title="Centro de Notificaciones"
+        aria-label="Abrir centro de notificaciones"
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center border-2 border-slate-950 animate-pulse shadow-lg shadow-rose-500/50">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-black text-[10px] flex items-center justify-center border-2 border-surface-900 animate-pulse shadow-md">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -192,13 +191,16 @@ export function NotificationDropdown() {
 
       {/* Floating Dropdown Modal */}
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-3xl bg-[#0b1210]/95 border border-emerald-500/20 backdrop-blur-2xl shadow-2xl shadow-black/90 z-50 overflow-hidden animate-[slide-up_0.2s_ease-out]">
+        <div 
+          className="absolute right-0 mt-3 w-80 sm:w-96 rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 z-50 overflow-hidden animate-scale-up"
+          style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(20px)" }}
+        >
           {/* Header */}
-          <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/40">
+          <div className="p-4 border-b border-white/8 flex items-center justify-between bg-surface-950/40">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white">Notificaciones</h2>
+              <h2 className="text-xs font-bold text-white uppercase tracking-wider">Notificaciones</h2>
               {unreadCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                <span className="px-2 py-0.5 rounded-full bg-primary-400/15 text-primary-300 text-[10px] font-bold border border-primary-400/30">
                   {unreadCount} nuevas
                 </span>
               )}
@@ -208,7 +210,7 @@ export function NotificationDropdown() {
               <button
                 onClick={markAllAsRead}
                 disabled={isLoading}
-                className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50"
+                className="text-[11px] text-primary-400 hover:text-primary-300 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Marcar todas</span>
@@ -234,15 +236,15 @@ export function NotificationDropdown() {
                     key={item.id}
                     className={`p-3.5 flex items-start gap-3 transition-colors ${
                       isUnread
-                        ? "bg-emerald-950/20 hover:bg-emerald-950/35 border-l-2 border-emerald-500"
-                        : "hover:bg-white/5 opacity-80"
+                        ? "bg-primary-400/8 hover:bg-primary-400/12 border-l-2 border-primary-400"
+                        : "hover:bg-white/5 opacity-85"
                     }`}
                   >
-                    <div className="p-2 rounded-xl bg-white/5 border border-white/10 shrink-0 mt-0.5">
+                    <div className="p-2 rounded-xl bg-white/5 border border-white/8 shrink-0 mt-0.5 shadow-xs">
                       {getTypeIcon(item.type, item.data)}
                     </div>
 
-                    <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center justify-between gap-1">
                         <h3
                           className={`text-xs font-bold truncate ${
@@ -251,12 +253,12 @@ export function NotificationDropdown() {
                         >
                           {item.title}
                         </h3>
-                        <span className="text-[10px] text-slate-500 shrink-0 font-medium">
+                        <span className="text-[10px] text-slate-400 shrink-0 font-medium">
                           {formatRelativeTime(item.createdAt)}
                         </span>
                       </div>
 
-                      <p className="text-[11px] text-slate-400 leading-snug break-words">
+                      <p className="text-[11px] text-slate-300 leading-snug break-words">
                         {item.body}
                       </p>
 
@@ -268,7 +270,7 @@ export function NotificationDropdown() {
                               handleDniAction(item.id, item.data.attendanceId, "APPROVE")
                             }
                             disabled={isLoadingItem}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-[11px] flex items-center gap-1 shadow-md shadow-emerald-950/40 transition-all disabled:opacity-50 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-primary-400 hover:bg-primary-300 text-surface-950 font-bold text-[11px] flex items-center gap-1 shadow-md transition-all disabled:opacity-50 cursor-pointer"
                           >
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Aprobar</span>
@@ -278,7 +280,7 @@ export function NotificationDropdown() {
                               handleDniAction(item.id, item.data.attendanceId, "REJECT")
                             }
                             disabled={isLoadingItem}
-                            className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-semibold text-[11px] flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-semibold text-[11px] flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
                           >
                             <XCircle className="w-3 h-3" />
                             <span>Rechazar</span>
@@ -287,7 +289,7 @@ export function NotificationDropdown() {
                       )}
 
                       {item.user && !isDniApproval && (
-                        <p className="text-[10px] text-emerald-400/90 font-medium">
+                        <p className="text-[10px] text-primary-300/90 font-semibold">
                           {item.user.firstName} {item.user.lastName} ({item.user.role})
                         </p>
                       )}
@@ -296,7 +298,7 @@ export function NotificationDropdown() {
                     {isUnread && (
                       <button
                         onClick={() => markAsRead(item.id)}
-                        className="p-1 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                         title="Marcar como leída"
                       >
                         <Check className="w-3.5 h-3.5" />
@@ -309,9 +311,9 @@ export function NotificationDropdown() {
           </div>
 
           {/* Footer */}
-          <div className="p-2.5 border-t border-white/5 bg-black/40 text-center">
-            <span className="text-[11px] text-slate-400 font-medium">
-              Presenxa Notificaciones
+          <div className="p-2.5 border-t border-white/8 bg-surface-950/50 text-center">
+            <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
+              Presenxa Live Feed
             </span>
           </div>
         </div>

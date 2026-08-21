@@ -61,26 +61,29 @@ export function JustifyModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/80 backdrop-blur-md overflow-hidden animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl glass border border-white/15 shadow-2xl shadow-black/90 my-auto overflow-hidden">
-        {/* Header - Fixed Top */}
-        <div className="flex items-center justify-between px-6 md:px-8 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
+      <div 
+        className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
+        style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(24px)" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-surface-950/40 flex-shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-lg shadow-amber-900/20">
+            <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              <h3 className="text-lg font-bold text-white tracking-tight">
                 Justificar Inasistencia / Permiso
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Empleado: <strong className="text-slate-200">{attendance.userName}</strong> · Fecha: {attendance.date}
+                Colaborador: <strong className="text-slate-200">{attendance.userName}</strong> · Fecha: {attendance.date}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
             title="Cerrar ventana"
           >
             <X className="w-5 h-5" />
@@ -88,16 +91,16 @@ export function JustifyModal({
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} id="justify-form" className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6 custom-scrollbar">
+        <form onSubmit={handleSubmit} id="justify-form" className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && (
-            <div className="px-4 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2.5 animate-shake">
+            <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5 animate-shake">
               <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0 animate-ping" />
               <span>{error}</span>
             </div>
           )}
 
           {/* Section 1: Tipo */}
-          <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
+          <div className="rounded-2xl p-5 bg-surface-950/40 border border-white/8 space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <CheckCircle2 className="w-4 h-4 text-amber-400" />
               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
@@ -134,9 +137,9 @@ export function JustifyModal({
           </div>
 
           {/* Section 2: Sustento */}
-          <div className="rounded-2xl p-5 bg-white/[0.02] border border-white/10 space-y-4">
+          <div className="rounded-2xl p-5 bg-surface-950/40 border border-white/8 space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-              <FileText className="w-4 h-4 text-indigo-400" />
+              <FileText className="w-4 h-4 text-primary-400" />
               <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
                 2. Sustento o Documento de Respaldo
               </h4>
@@ -152,18 +155,18 @@ export function JustifyModal({
                 placeholder="Ej: Certificado médico emitido por ESSALUD / CITT N° 123456 con fecha 16/08/2026..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all resize-none"
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all resize-none input-standard"
               />
             </div>
           </div>
         </form>
 
-        {/* Footer - Fixed Bottom */}
-        <div className="px-6 md:px-8 py-4 border-t border-white/10 bg-black/30 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-white/10 bg-surface-950/60 flex items-center justify-between flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
             Cancelar
           </button>
@@ -171,7 +174,7 @@ export function JustifyModal({
             type="submit"
             form="justify-form"
             disabled={isSubmitting}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-900/30 transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-surface-950 font-bold text-xs shadow-lg transition-all disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? (
               <>

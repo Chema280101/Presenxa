@@ -7,8 +7,6 @@ import {
   ShieldCheck,
   FileText,
   HelpCircle,
-  UserCheck,
-  ShieldAlert,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -44,8 +42,8 @@ export function StatusBadge({
 
   const sizeClasses =
     size === "sm"
-      ? "px-2 py-0.5 text-[11px] gap-1"
-      : "px-2.5 py-1 text-xs gap-1.5";
+      ? "px-2 py-0.5 text-[11px] gap-1.5"
+      : "px-2.5 py-1 text-xs gap-2";
 
   switch (normStatus) {
     case "PRESENTE":
@@ -53,13 +51,13 @@ export function StatusBadge({
         return (
           <span
             className={clsx(
-              "inline-flex items-center rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 font-medium",
+              "inline-flex items-center rounded-xl bg-lime-400/15 text-lime-300 ring-1 ring-lime-400/35 font-medium shadow-xs",
               sizeClasses,
               className
             )}
             title="Jornada completada con éxito (Entrada y Salida registradas)"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-lime-400" />
             Completado
           </span>
         );
@@ -68,15 +66,15 @@ export function StatusBadge({
         return (
           <span
             className={clsx(
-              "inline-flex items-center rounded-xl bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40 font-medium",
+              "inline-flex items-center rounded-xl bg-lime-400/20 text-lime-200 ring-1 ring-lime-400/50 font-semibold shadow-sm",
               sizeClasses,
               className
             )}
             title="En jornada laboral activa"
           >
-            <span className="relative flex h-2 w-2 mr-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime-400 opacity-80"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-400"></span>
             </span>
             En Turno
           </span>
@@ -90,7 +88,7 @@ export function StatusBadge({
             className
           )}
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span className="w-1.5 h-1.5 rounded-full bg-lime-400 shadow-xs" />
           Presente
         </span>
       );
@@ -100,7 +98,7 @@ export function StatusBadge({
         return (
           <span
             className={clsx(
-              "inline-flex items-center rounded-xl bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30 font-medium",
+              "inline-flex items-center rounded-xl bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/35 font-medium",
               sizeClasses,
               className
             )}
@@ -115,14 +113,14 @@ export function StatusBadge({
         return (
           <span
             className={clsx(
-              "inline-flex items-center rounded-xl bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/40 font-medium",
+              "inline-flex items-center rounded-xl bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/50 font-semibold",
               sizeClasses,
               className
             )}
             title="En jornada laboral activa con tardanza registrada"
           >
-            <span className="relative flex h-2 w-2 mr-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
             </span>
             En Turno {lateMinutes ? `(+${lateMinutes}m)` : "(Tarde)"}
@@ -146,7 +144,7 @@ export function StatusBadge({
       return (
         <span
           className={clsx(
-            "inline-flex items-center rounded-xl badge-abandono animate-pulse",
+            "inline-flex items-center rounded-xl badge-abandono animate-pulse font-semibold",
             sizeClasses,
             className
           )}
@@ -179,7 +177,7 @@ export function StatusBadge({
             className
           )}
         >
-          <ShieldCheck className="w-3.5 h-3.5" />
+          <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
           Justificado
         </span>
       );
@@ -193,7 +191,7 @@ export function StatusBadge({
             className
           )}
         >
-          <FileText className="w-3.5 h-3.5" />
+          <FileText className="w-3.5 h-3.5 text-lime-400" />
           Permiso
         </span>
       );
@@ -207,7 +205,7 @@ export function StatusBadge({
             className
           )}
         >
-          <HelpCircle className="w-3.5 h-3.5" />
+          <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
           Incompleto
         </span>
       );
@@ -253,11 +251,12 @@ export function RoleBadge({ role, size = "md", className }: RoleBadgeProps) {
   const normRole = (role || "").toUpperCase();
   const sizeClasses =
     size === "sm"
-      ? "px-2 py-0.5 text-[10px] tracking-wide"
-      : "px-2.5 py-1 text-xs tracking-wide";
+      ? "px-2 py-0.5 text-[10px] tracking-wider"
+      : "px-2.5 py-1 text-xs tracking-wider";
 
   switch (normRole) {
     case "ADMIN":
+    case "SUPER_ADMIN":
       return (
         <span
           className={clsx(

@@ -28,10 +28,10 @@ const MAX_WIDTHS = {
 };
 
 const ICON_VARIANTS = {
-  primary: "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20",
-  warning: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
-  danger: "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20",
-  info: "bg-sky-500/10 text-sky-400 ring-1 ring-sky-500/20",
+  primary: "bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30",
+  warning: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
+  danger: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30",
+  info: "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30",
 };
 
 export function ModalShell({
@@ -68,7 +68,7 @@ export function ModalShell({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity animate-fade-in-up"
+        className="fixed inset-0 bg-surface-950/80 backdrop-blur-md transition-opacity animate-fade-in-up"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -77,12 +77,12 @@ export function ModalShell({
       <div
         className={clsx(
           "relative w-full z-10 my-auto rounded-3xl overflow-hidden shadow-2xl shadow-black/90",
-          "border border-emerald-500/20 animate-scale-up flex flex-col max-h-[90vh]",
+          "border border-primary-400/20 animate-scale-up flex flex-col max-h-[90vh]",
           MAX_WIDTHS[maxWidth] || MAX_WIDTHS.lg,
           className
         )}
         style={{
-          background: "rgba(10, 18, 13, 0.96)",
+          background: "rgba(10, 27, 44, 0.96)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
         }}
@@ -90,12 +90,12 @@ export function ModalShell({
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-6 pb-4 border-b border-white/8 flex-shrink-0">
+        <div className="flex items-start justify-between p-6 pb-4 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-3.5 pr-6">
             {Icon && (
               <div
                 className={clsx(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0",
+                  "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner",
                   ICON_VARIANTS[iconVariant]
                 )}
               >
@@ -117,7 +117,7 @@ export function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/8 transition-all flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-400/50 cursor-pointer"
             aria-label="Cerrar modal"
           >
             <X className="w-4 h-4" />
@@ -131,7 +131,7 @@ export function ModalShell({
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-white/8 bg-black/20 flex items-center justify-end gap-3 flex-shrink-0">
+          <div className="px-6 py-4 border-t border-white/10 bg-surface-950/40 flex items-center justify-end gap-3 flex-shrink-0">
             {footer}
           </div>
         )}

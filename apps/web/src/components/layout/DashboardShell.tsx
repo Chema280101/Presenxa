@@ -33,7 +33,7 @@ export function DashboardShell({ session, children }: DashboardShellProps) {
   }, [mobileNavOpen]);
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-surface-900">
+    <div className="flex h-[100dvh] overflow-hidden bg-surface-950">
       {/* Sidebar Desktop (fijo) + Sidebar Mobile (drawer deslizable) */}
       <Sidebar
         isMobileOpen={mobileNavOpen}

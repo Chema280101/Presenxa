@@ -723,13 +723,13 @@ export default function KioskAppPage() {
           {/* Big Glowing Clock */}
           <div className="space-y-1" suppressHydrationWarning>
             <div
-              className="text-6xl md:text-8xl font-extrabold tracking-tight font-mono text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-emerald-200 drop-shadow-sm"
+              className="text-6xl md:text-8xl font-extrabold tracking-tight font-mono text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-lime-200 drop-shadow-sm"
               suppressHydrationWarning
             >
               {mounted && currentTime ? format(currentTime, "HH:mm:ss") : "--:--:--"}
             </div>
             <p
-              className="text-lg md:text-xl font-medium text-emerald-400 capitalize"
+              className="text-lg md:text-xl font-semibold text-primary-400 capitalize"
               suppressHydrationWarning
             >
               {mounted && currentTime
@@ -739,16 +739,16 @@ export default function KioskAppPage() {
           </div>
 
           {/* Instruction callout */}
-          <div className="p-6 rounded-3xl glass border border-white/10 max-w-md space-y-3 shadow-xl">
+          <div className="p-6 rounded-3xl card-surface max-w-md space-y-3 shadow-xl">
             <div className="flex items-center gap-3 text-white font-bold text-base">
-              <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+              <div className="p-2 rounded-xl bg-primary-400/15 text-primary-300 border border-primary-400/25">
                 <Sparkles className="w-5 h-5" />
               </div>
               <span>Control de Asistencia Biométrico / QR</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
               Muestra tu código QR personal frente a la cámara para marcar tu hora
-              oficial de ingreso o salida.
+              oficial de ingreso o salida en tiempo real.
             </p>
 
             {/* Manual DNI button */}
@@ -757,7 +757,7 @@ export default function KioskAppPage() {
                 onClick={() => setIsManualModalOpen(true)}
                 className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                <Hash className="w-4 h-4 text-emerald-400" />
+                <Hash className="w-4 h-4 text-primary-400" />
                 <span>¿No tienes tu QR? Ingresar DNI manualmente</span>
               </button>
             </div>
@@ -768,31 +768,31 @@ export default function KioskAppPage() {
         <div className="w-full lg:w-1/2 flex flex-col items-center justify-center">
           {lastScanResult ? (
             /* Result Feedback Card */
-            <div className="w-full max-w-md rounded-3xl p-8 glass border border-white/20 shadow-2xl shadow-black/80 flex flex-col items-center text-center animate-[scale-up_0.25s_ease-out]">
+            <div className="w-full max-w-md rounded-3xl p-8 glass-card border border-primary-400/30 shadow-2xl shadow-black/80 flex flex-col items-center text-center animate-scale-up">
               {/* Status Icon */}
               <div className="relative mb-4">
                 <img
                   src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
                     `${lastScanResult.user.firstName} ${lastScanResult.user.lastName}`
-                  )}&backgroundColor=16a34a&textColor=ffffff`}
+                  )}&backgroundColor=a3e635&textColor=060e17`}
                   alt="Avatar"
-                  className="w-24 h-24 rounded-3xl ring-4 ring-emerald-500/30 shadow-2xl"
+                  className="w-24 h-24 rounded-3xl ring-4 ring-primary-400/40 shadow-2xl bg-surface-950"
                 />
                 <div
                   className={`absolute -bottom-2 -right-2 p-2 rounded-2xl shadow-lg ${
                     lastScanResult.requiresVerification
-                      ? "bg-amber-500 text-slate-950 animate-pulse ring-4 ring-amber-500/30"
+                      ? "bg-amber-400 text-surface-950 animate-pulse ring-4 ring-amber-500/30"
                       : lastScanResult.status === "TARDE"
-                      ? "bg-amber-500 text-slate-950"
-                      : "bg-emerald-500 text-slate-950"
+                      ? "bg-amber-400 text-surface-950"
+                      : "bg-primary-400 text-surface-950"
                   }`}
                 >
                   {lastScanResult.requiresVerification ? (
-                    <Clock className="w-5 h-5" />
+                    <Clock className="w-5 h-5 font-bold" />
                   ) : lastScanResult.status === "TARDE" ? (
-                    <Clock className="w-5 h-5" />
+                    <Clock className="w-5 h-5 font-bold" />
                   ) : (
-                    <CheckCircle2 className="w-5 h-5" />
+                    <CheckCircle2 className="w-5 h-5 font-bold" />
                   )}
                 </div>
               </div>
@@ -801,20 +801,20 @@ export default function KioskAppPage() {
               <h2 className="text-2xl font-bold text-white mb-1">
                 {lastScanResult.user.firstName} {lastScanResult.user.lastName}
               </h2>
-              <p className="text-xs text-emerald-300 font-semibold uppercase tracking-wider mb-4">
+              <p className="text-xs text-primary-300 font-semibold uppercase tracking-wider mb-4">
                 {lastScanResult.user.role} {lastScanResult.user.documentId ? `· DNI ${lastScanResult.user.documentId}` : ""}
               </p>
 
               {/* Scan Type Badge */}
               <div
-                className={`py-2 px-5 rounded-2xl text-sm font-bold border mb-4 ${
+                className={`py-2 px-5 rounded-2xl text-xs sm:text-sm font-bold border mb-4 ${
                   lastScanResult.requiresVerification
-                    ? "bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse"
+                    ? "bg-amber-500/20 text-amber-200 border-amber-500/40 animate-pulse"
                     : lastScanResult.scanType === "ENTRY"
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                    ? "bg-primary-400/20 text-primary-200 border-primary-400/40"
                     : lastScanResult.scanType === "EXIT"
-                    ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
-                    : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                    ? "bg-sky-500/20 text-sky-200 border-sky-500/40"
+                    : "bg-primary-400/20 text-primary-200 border-primary-400/40"
                 }`}
               >
                 {lastScanResult.requiresVerification
@@ -827,12 +827,12 @@ export default function KioskAppPage() {
               </div>
 
               {/* Message */}
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
                 {lastScanResult.message}
               </p>
 
               {/* Time & Late/Worked chip */}
-              <div className="w-full grid grid-cols-2 gap-2 text-xs font-mono p-3 rounded-2xl bg-white/5 border border-white/10 mb-6">
+              <div className="w-full grid grid-cols-2 gap-2 text-xs font-mono p-3 rounded-2xl bg-surface-950/60 border border-white/10 mb-6">
                 <div>
                   <span className="text-slate-400 block text-[11px]">HORA CAPTURADA</span>
                   <span className="text-white font-bold text-sm">
@@ -847,7 +847,7 @@ export default function KioskAppPage() {
                         ? "text-amber-400"
                         : lastScanResult.status === "TARDE"
                         ? "text-amber-400"
-                        : "text-emerald-400"
+                        : "text-primary-400"
                     }`}
                   >
                     {lastScanResult.requiresVerification ? "POR CONFIRMAR" : lastScanResult.status}
@@ -859,7 +859,7 @@ export default function KioskAppPage() {
               <div className="flex items-center justify-between w-full pt-2 border-t border-white/10">
                 <div className="text-xs text-slate-400 flex items-center gap-1.5">
                   <span>Siguiente escaneo en</span>
-                  <strong className="text-emerald-400 font-mono text-sm">{countdown}s</strong>
+                  <strong className="text-primary-400 font-mono text-sm">{countdown}s</strong>
                 </div>
                 <button
                   type="button"
@@ -867,7 +867,7 @@ export default function KioskAppPage() {
                     setLastScanResult(null);
                     setIsProcessing(false);
                   }}
-                  className="px-4 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1"
+                  className="px-4 py-1.5 rounded-xl bg-primary-400/20 hover:bg-primary-400/30 text-primary-300 hover:text-white text-xs font-bold border border-primary-400/30 transition-all cursor-pointer flex items-center gap-1"
                 >
                   <span>Siguiente</span>
                   <span>➔</span>
@@ -876,7 +876,7 @@ export default function KioskAppPage() {
             </div>
           ) : scanError ? (
             /* Error Card */
-            <div className="w-full max-w-md rounded-3xl p-8 glass border border-rose-500/30 bg-rose-500/5 shadow-2xl flex flex-col items-center text-center animate-[shake_0.3s_ease-in-out]">
+            <div className="w-full max-w-md rounded-3xl p-8 glass-card border border-rose-500/30 bg-rose-500/5 shadow-2xl flex flex-col items-center text-center animate-[shake_0.3s_ease-in-out]">
               <div className="p-4 rounded-3xl bg-rose-500/20 text-rose-400 mb-4">
                 <ShieldAlert className="w-12 h-12" />
               </div>
@@ -898,38 +898,38 @@ export default function KioskAppPage() {
             <div className="w-full max-w-sm flex flex-col items-center">
               <div
                 onClick={handleTriggerFocus}
-                className="relative w-72 h-72 rounded-3xl overflow-hidden glass border-2 border-emerald-500/40 shadow-2xl shadow-emerald-950/60 flex items-center justify-center bg-black/60 cursor-pointer group"
+                className="relative w-72 h-72 rounded-3xl overflow-hidden glass border-2 border-primary-400/40 shadow-2xl shadow-primary-950/60 flex items-center justify-center bg-black/60 cursor-pointer group"
                 title="Toca el recuadro para enfocar la cámara"
               >
                 {/* HTML5 QR Container */}
                 <div id="qr-reader" className="w-full h-full object-cover" />
 
                 {/* Animated laser line */}
-                <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_14px_#22c55e] animate-[scan-laser_2s_infinite_ease-in-out] pointer-events-none" />
+                <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-primary-400 to-transparent shadow-[0_0_14px_#a3e635] animate-[scan-laser_2s_infinite_ease-in-out] pointer-events-none" />
 
                 {/* Viewfinder corner brackets */}
-                <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg pointer-events-none" />
-                <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg pointer-events-none" />
-                <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg pointer-events-none" />
-                <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-emerald-400 rounded-br-lg pointer-events-none" />
+                <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-primary-400 rounded-tl-lg pointer-events-none" />
+                <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-primary-400 rounded-tr-lg pointer-events-none" />
+                <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-primary-400 rounded-bl-lg pointer-events-none" />
+                <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-primary-400 rounded-br-lg pointer-events-none" />
 
                 {/* Focus indicator animation when tapped */}
                 {isFocusing && (
                   <div
-                    className="absolute pointer-events-none w-14 h-14 border-2 border-lime-400 rounded-2xl animate-ping flex items-center justify-center"
+                    className="absolute pointer-events-none w-14 h-14 border-2 border-primary-400 rounded-2xl animate-ping flex items-center justify-center"
                     style={{
                       left: focusPoint ? `${focusPoint.x - 28}px` : "calc(50% - 28px)",
                       top: focusPoint ? `${focusPoint.y - 28}px` : "calc(50% - 28px)",
                     }}
                   >
-                    <div className="w-2 h-2 bg-lime-400 rounded-full" />
+                    <div className="w-2 h-2 bg-primary-400 rounded-full" />
                   </div>
                 )}
 
                 {/* Badge inside viewfinder */}
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-emerald-300 pointer-events-none flex items-center gap-1">
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-surface-950/80 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-primary-300 pointer-events-none flex items-center gap-1">
                   <span>{cameraFacing === "environment" ? "📷 Cámara Trasera" : "🤳 Cámara Frontal"}</span>
-                  {zoomLevel > 1 && <span className="text-lime-300 font-mono">({zoomLevel}x)</span>}
+                  {zoomLevel > 1 && <span className="text-primary-300 font-mono">({zoomLevel}x)</span>}
                 </div>
 
                 {/* Tap to focus hint on hover */}
@@ -949,12 +949,12 @@ export default function KioskAppPage() {
                   }}
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
                     isFocusing
-                      ? "bg-lime-400/20 text-lime-300 border-lime-400/40 animate-pulse"
+                      ? "bg-primary-400/20 text-primary-300 border-primary-400/40 animate-pulse"
                       : "bg-white/5 hover:bg-white/10 text-slate-200 border-white/10"
                   }`}
                   title="Re-enfocar la cámara"
                 >
-                  <Focus className={`w-3.5 h-3.5 ${isFocusing ? "text-lime-400 animate-spin" : "text-emerald-400"}`} />
+                  <Focus className={`w-3.5 h-3.5 ${isFocusing ? "text-primary-400 animate-spin" : "text-primary-400"}`} />
                   <span>{isFocusing ? "Enfocando..." : "Enfocar"}</span>
                 </button>
 
@@ -968,7 +968,7 @@ export default function KioskAppPage() {
                         onClick={() => handleSetZoom(lvl)}
                         className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
                           zoomLevel === lvl
-                            ? "bg-emerald-500 text-slate-950 shadow-sm"
+                            ? "bg-primary-400 text-surface-950 shadow-sm"
                             : "text-slate-400 hover:text-white"
                         }`}
                       >
@@ -982,7 +982,7 @@ export default function KioskAppPage() {
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
-                  className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 font-semibold bg-primary-400/10 hover:bg-primary-400/20 border border-primary-400/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
                   title="Alternar entre cámara trasera y frontal"
                 >
                   <SwitchCamera className="w-3.5 h-3.5" />
@@ -996,12 +996,12 @@ export default function KioskAppPage() {
 
       {/* Footer info */}
       <footer
-        className="p-4 text-center text-xs text-slate-500 flex items-center justify-between px-10"
+        className="p-4 text-center text-xs text-slate-500 flex items-center justify-between px-10 bg-surface-950/60"
         style={{
-          borderTop: "1px solid rgba(22, 163, 74, 0.08)",
+          borderTop: "1px solid rgba(163, 230, 53, 0.1)",
         }}
       >
-        <span className="text-slate-400">Presenxa &copy; {new Date().getFullYear()} — Control Biométrico & QR</span>
+        <span className="text-slate-400">Presenxa &copy; {new Date().getFullYear()} — Terminal de Asistencia QR</span>
         <span className="font-mono text-[11px] text-slate-500">
           Kiosk Key: {apiKey ? `${apiKey.substring(0, 8)}...` : "No configurado"}
         </span>
@@ -1017,11 +1017,14 @@ export default function KioskAppPage() {
 
       {/* Manual DNI Modal */}
       {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-3xl p-6 glass border border-white/15 shadow-2xl text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-950/80 backdrop-blur-md">
+          <div 
+            className="w-full max-w-sm rounded-3xl p-6 border border-primary-400/20 shadow-2xl text-white animate-scale-up"
+            style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(20px)" }}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
               <h3 className="text-base font-bold flex items-center gap-2">
-                <Hash className="w-4 h-4 text-emerald-400" />
+                <Hash className="w-4 h-4 text-primary-400" />
                 Ingreso por DNI o Token
               </h3>
               <button
@@ -1034,7 +1037,7 @@ export default function KioskAppPage() {
 
             <form onSubmit={handleManualSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs text-slate-300 mb-1.5">
+                <label className="block text-xs text-slate-300 mb-1.5 font-medium">
                   Número de Documento (DNI) o Token
                 </label>
                 <input
@@ -1044,7 +1047,7 @@ export default function KioskAppPage() {
                   placeholder="Ej: 23456789"
                   value={manualInput}
                   onChange={(e) => setManualInput(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/15 text-white font-mono text-center text-lg tracking-wider focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none"
+                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/15 text-white font-mono text-center text-lg tracking-wider focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none input-standard"
                 />
               </div>
 
@@ -1058,7 +1061,7 @@ export default function KioskAppPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl gradient-brand text-white text-xs font-bold shadow-lg shadow-emerald-950/50 cursor-pointer"
+                  className="px-5 py-2 rounded-xl gradient-brand text-surface-950 text-xs font-bold shadow-lg shadow-primary-950/50 cursor-pointer"
                 >
                   Registrar Asistencia
                 </button>

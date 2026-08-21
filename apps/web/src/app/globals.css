@@ -60,63 +60,40 @@ html {
 }
 
 body {
-  background-color: var(--color-surface-900);
+  background-color: var(--color-surface-950);
+  background-image: 
+    radial-gradient(at 10% 10%, rgba(16, 42, 67, 0.5) 0px, transparent 50%),
+    radial-gradient(at 90% 90%, rgba(163, 230, 53, 0.04) 0px, transparent 50%);
+  background-attachment: fixed;
   color: #f1f5f9;
   font-family: var(--font-sans);
 }
 
 /* ── Scrollbar personalizado ─────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--color-surface-900); }
+::-webkit-scrollbar-track { background: var(--color-surface-950); }
 ::-webkit-scrollbar-thumb {
   background: var(--color-surface-700);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--color-primary-500); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-primary-400); }
 
-/* ── Glassmorphism util ──────────────────────────── */
+/* ── Glassmorphism & Surface Utilities ─────────────── */
 .glass {
-  background: rgba(16, 42, 67, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(16, 42, 67, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(163, 230, 53, 0.12);
 }
 
-/* ── Gradiente de marca (Presenxa Lime + Deep Navy) ─ */
-.gradient-brand {
-  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
-  color: #102a43;
+.glass-card {
+  background: rgba(10, 27, 44, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
 
-.gradient-brand-navy {
-  background: linear-gradient(135deg, #102a43 0%, #183b5e 100%);
-  color: #ffffff;
-}
-
-.gradient-brand-text {
-  background: linear-gradient(135deg, #a3e635, #bef264);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ── Status badges ───────────────────────────────── */
-.badge-presente    { @apply bg-success-400/20 text-lime-300 ring-1 ring-lime-400/40 font-medium; }
-.badge-tarde       { @apply bg-warning-500/15 text-warning-400 ring-1 ring-warning-500/30 font-medium; }
-.badge-ausente     { @apply bg-danger-500/15  text-danger-400  ring-1 ring-danger-500/30  font-medium; }
-.badge-abandono    { @apply bg-danger-600/20  text-danger-400  ring-1 ring-danger-600/40  font-medium; }
-.badge-incompleto  { @apply bg-warning-600/15 text-warning-400 ring-1 ring-warning-600/30 font-medium; }
-.badge-pendiente   { @apply bg-surface-700/60 text-slate-400   ring-1 ring-slate-600/30   font-medium; }
-.badge-justificado { @apply bg-info-500/15    text-info-400    ring-1 ring-info-500/30     font-medium; }
-.badge-permiso     { @apply bg-primary-400/20 text-lime-300    ring-1 ring-lime-400/30    font-medium; }
-
-/* ── Role badges ─────────────────────────────────── */
-.badge-role-admin      { @apply bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/30 font-semibold text-xs; }
-.badge-role-supervisor { @apply bg-sky-500/15    text-sky-300    ring-1 ring-sky-500/30    font-semibold text-xs; }
-.badge-role-empleado   { @apply bg-lime-400/20   text-lime-300   ring-1 ring-lime-400/40   font-semibold text-xs; }
-.badge-role-alumno     { @apply bg-amber-500/15  text-amber-300   ring-1 ring-amber-500/30   font-semibold text-xs; }
-
-/* ── Unified Cards & Containers ──────────────────── */
 .card-surface {
   background: rgba(16, 42, 67, 0.82);
   backdrop-filter: blur(16px);
@@ -131,61 +108,115 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(163, 230, 53, 0.12);
   border-radius: 1.25rem;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
 }
 
 .card-surface-interactive:hover {
   background: rgba(24, 59, 94, 0.92);
-  border-color: rgba(163, 230, 53, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(163, 230, 53, 0.18);
+  border-color: rgba(163, 230, 53, 0.35);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.6), 0 0 24px -4px rgba(163, 230, 53, 0.22);
 }
 
-.card-emerald-glow {
-  box-shadow: 0 0 35px -8px rgba(163, 230, 53, 0.22);
+/* ── Glow Effects ─────────────────────────────────── */
+.glow-lime {
+  box-shadow: 0 0 25px -4px rgba(163, 230, 53, 0.3);
 }
+
+.glow-lime-sm {
+  box-shadow: 0 0 14px -2px rgba(163, 230, 53, 0.25);
+}
+
+.glow-subtle {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.border-glow-lime {
+  border-color: rgba(163, 230, 53, 0.4);
+  box-shadow: inset 0 0 12px rgba(163, 230, 53, 0.1);
+}
+
+/* ── Gradientes de marca ──────────────────────────── */
+.gradient-brand {
+  background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
+  color: #060e17;
+  font-weight: 600;
+}
+
+.gradient-brand-navy {
+  background: linear-gradient(135deg, #102a43 0%, #183b5e 100%);
+  color: #ffffff;
+}
+
+.gradient-brand-text {
+  background: linear-gradient(135deg, #a3e635 0%, #bef264 50%, #ffffff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-dark-card {
+  background: linear-gradient(180deg, rgba(16, 42, 67, 0.9) 0%, rgba(10, 27, 44, 0.95) 100%);
+}
+
+/* ── Status badges ───────────────────────────────── */
+.badge-presente    { @apply bg-lime-400/15 text-lime-300 ring-1 ring-lime-400/35 font-medium; }
+.badge-tarde       { @apply bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/35 font-medium; }
+.badge-ausente     { @apply bg-rose-500/15  text-rose-300  ring-1 ring-rose-500/35  font-medium; }
+.badge-abandono    { @apply bg-red-600/20   text-rose-300  ring-1 ring-red-600/45   font-medium; }
+.badge-incompleto  { @apply bg-amber-600/15 text-amber-300 ring-1 ring-amber-600/35 font-medium; }
+.badge-pendiente   { @apply bg-surface-700/50 text-slate-300 ring-1 ring-slate-600/40 font-medium; }
+.badge-justificado { @apply bg-sky-500/15   text-sky-300   ring-1 ring-sky-500/35   font-medium; }
+.badge-permiso     { @apply bg-lime-500/15  text-lime-300  ring-1 ring-lime-500/35  font-medium; }
+
+/* ── Role badges ─────────────────────────────────── */
+.badge-role-admin      { @apply bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/35 font-semibold text-xs; }
+.badge-role-supervisor { @apply bg-sky-500/15    text-sky-300    ring-1 ring-sky-500/35    font-semibold text-xs; }
+.badge-role-empleado   { @apply bg-lime-400/15   text-lime-300   ring-1 ring-lime-400/35   font-semibold text-xs; }
+.badge-role-alumno     { @apply bg-amber-500/15  text-amber-300  ring-1 ring-amber-500/35  font-semibold text-xs; }
 
 /* ── Form Inputs ─────────────────────────────────── */
 .input-standard {
-  background: rgba(6, 10, 7, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(6, 14, 23, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #f1f5f9;
   border-radius: 0.875rem;
   outline: none;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .input-standard:focus {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+  border-color: #a3e635;
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.2);
 }
 
 .input-standard:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* ── Animations ──────────────────────────────────── */
 @keyframes scan-laser {
-  0%   { top: 10%; opacity: 0; }
+  0%   { top: 5%; opacity: 0; }
   25%  { opacity: 1; }
   75%  { opacity: 1; }
-  100% { top: 90%; opacity: 0; }
+  100% { top: 95%; opacity: 0; }
 }
 
 @keyframes scale-up {
-  0%   { transform: scale(0.95); opacity: 0; }
+  0%   { transform: scale(0.96); opacity: 0; }
   100% { transform: scale(1);    opacity: 1; }
 }
 
 @keyframes shake {
   0%, 100%  { transform: translateX(0);  }
-  20%, 60%  { transform: translateX(-8px); }
-  40%, 80%  { transform: translateX(8px);  }
+  20%, 60%  { transform: translateX(-6px); }
+  40%, 80%  { transform: translateX(6px);  }
 }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1;   transform: scale(1);    }
-  50%       { opacity: 0.5; transform: scale(0.85); }
+  50%       { opacity: 0.4; transform: scale(0.85); }
 }
 
 @keyframes fade-in-up {
