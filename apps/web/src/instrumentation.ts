@@ -22,7 +22,7 @@ export async function register() {
   const criticalSecrets: Array<{ name: string; value: string | undefined }> = [
     { name: "NEXTAUTH_SECRET",   value: process.env.NEXTAUTH_SECRET },
     { name: "QR_HMAC_SECRET",    value: process.env.QR_HMAC_SECRET },
-    { name: "GEO_WORKER_SECRET", value: process.env.GEO_WORKER_SECRET },
+    { name: "CRON_SECRET",       value: process.env.CRON_SECRET },
     { name: "VAPID_PRIVATE_KEY", value: process.env.VAPID_PRIVATE_KEY },
   ];
 

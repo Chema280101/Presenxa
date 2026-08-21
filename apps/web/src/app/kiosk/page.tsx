@@ -66,6 +66,7 @@ export default function KioskAppPage() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<"environment" | "user">("environment");
+  const [offlineQueue, setOfflineQueue] = useState<any[]>([]);
 
   // Focus & Zoom capabilities
   const [isFocusing, setIsFocusing] = useState(false);
@@ -88,7 +89,6 @@ export default function KioskAppPage() {
   const scannerRef = useRef<any>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const apiKeyRef = useRef<string>(apiKey);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     apiKeyRef.current = apiKey;
@@ -215,6 +215,62 @@ export default function KioskAppPage() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Offline queue loader & network listeners
+  useEffect(() => {
+    const savedQueue = localStorage.getItem("asistcontrol_offline_queue");
+    if (savedQueue) {
+      try {
+        setOfflineQueue(JSON.parse(savedQueue));
+      } catch {}
+    }
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    if (typeof navigator !== "undefined") {
+      setIsOnline(navigator.onLine);
+    }
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Offline Sync Loop
+  useEffect(() => {
+    let isSyncing = false;
+    const syncInterval = setInterval(async () => {
+      if (!isOnline || offlineQueue.length === 0 || isSyncing || !apiKeyRef.current) return;
+      isSyncing = true;
+      try {
+        const batch = offlineQueue.slice(0, 50);
+        const res = await fetch("/api/attendance/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-kiosk-api-key": apiKeyRef.current,
+          },
+          body: JSON.stringify({ records: batch }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setOfflineQueue((prev) => {
+            const successfulIds = data.results.filter((r: any) => r.success).map((r: any) => r.id);
+            const newQueue = prev.filter((q: any) => !successfulIds.includes(q.id));
+            localStorage.setItem("asistcontrol_offline_queue", JSON.stringify(newQueue));
+            return newQueue;
+          });
+        }
+      } catch (err) {
+        console.warn("Error en sync offline:", err);
+      } finally {
+        isSyncing = false;
+      }
+    }, 10000); // Check every 10s
+    return () => clearInterval(syncInterval);
+  }, [isOnline, offlineQueue]);
 
   // Check saved API key on mount
   useEffect(() => {
@@ -364,20 +420,37 @@ export default function KioskAppPage() {
     return () => {
       isCancelled = true;
       videoTrackRef.current = null;
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
       if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().catch(() => {});
       }
     };
   }, [isScanning, lastScanResult, isProcessing, cameraFacing]);
 
+  // Dedicated Auto-Dismiss Countdown Effect when a Scan Result is showing
+  useEffect(() => {
+    if (!lastScanResult) return;
+
+    const initialSecs = lastScanResult.requiresVerification ? 6 : 4;
+    setCountdown(initialSecs);
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setLastScanResult(null);
+          setIsProcessing(false);
+          return initialSecs;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lastScanResult]);
+
   // Handle scanned QR code
   const handleQrScanned = async (token: string) => {
     if (isProcessing) return;
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current);
-      countdownTimerRef.current = null;
-    }
 
     // Check if scanned QR is a kiosk pairing payload
     try {
@@ -400,17 +473,6 @@ export default function KioskAppPage() {
               role: "KIOSK",
             },
           });
-          setCountdown(4);
-          countdownTimerRef.current = setInterval(() => {
-            setCountdown((prev) => {
-              if (prev <= 1) {
-                if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-                setLastScanResult(null);
-                setIsProcessing(false);
-              }
-              return prev - 1;
-            });
-          }, 1000);
           return;
         }
       }
@@ -474,32 +536,48 @@ export default function KioskAppPage() {
       }
 
       setLastScanResult(data);
-
-      // Countdown auto-dismiss
-      setCountdown(data.requiresVerification ? 6 : 4);
-      countdownTimerRef.current = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
-            setLastScanResult(null);
-            setIsProcessing(false);
-            try {
-              if (scannerRef.current && typeof scannerRef.current.resume === "function") {
-                scannerRef.current.resume();
-              }
-            } catch {}
-            return 4;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (err: any) {
-      playSound("ERROR");
-      setScanError("Error de conexión con el servidor");
-      setTimeout(() => {
-        setScanError(null);
-        setIsProcessing(false);
-      }, 3000);
+      if (!isOnline || err.message?.includes("Failed to fetch") || err.name === "TypeError") {
+        // OFFLINE FALLBACK
+        const record = {
+          id: Date.now().toString() + Math.random().toString(36).substring(2),
+          qrToken: token.trim(),
+          scannedAt: new Date().toISOString(),
+          mode: "AUTO",
+        };
+        setOfflineQueue((prev) => {
+          const newQueue = [...prev, record];
+          localStorage.setItem("asistcontrol_offline_queue", JSON.stringify(newQueue));
+          return newQueue;
+        });
+        
+        playSound("SUCCESS");
+        setLastScanResult({
+          scanType: "ENTRY",
+          message: "Modo Offline: La asistencia se ha guardado localmente y se sincronizará cuando vuelva la red.",
+          time: new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          date: new Date().toLocaleDateString("es-PE", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+          status: "OFFLINE",
+          user: {
+            firstName: "Usuario",
+            lastName: "Identificado",
+            email: "Sincronización Pendiente",
+            role: "EMPLEADO",
+          },
+        });
+      } else {
+        playSound("ERROR");
+        setScanError("Error de conexión con el servidor");
+        setTimeout(() => {
+          setScanError(null);
+          setIsProcessing(false);
+          try {
+            if (scannerRef.current && typeof scannerRef.current.resume === "function") {
+              scannerRef.current.resume();
+            }
+          } catch {}
+        }, 3000);
+      }
     }
   };
 
@@ -523,7 +601,7 @@ export default function KioskAppPage() {
 
   return (
     <div
-      className="min-h-screen text-white flex flex-col justify-between select-none relative overflow-hidden font-sans"
+      className="min-h-[100dvh] text-white flex flex-col justify-between select-none relative overflow-hidden font-sans"
       style={{
         background: "radial-gradient(ellipse at 50% 0%, #102a43 0%, #0a1b2c 60%, #060e17 100%)",
       }}
@@ -571,19 +649,28 @@ export default function KioskAppPage() {
           <div
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
               isOnline
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                ? offlineQueue.length > 0 
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 : "bg-rose-500/10 text-rose-400 border-rose-500/20"
             }`}
           >
             {isOnline ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span>En Línea</span>
-              </>
+              offlineQueue.length > 0 ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Sincronizando ({offlineQueue.length})</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span>En Línea</span>
+                </>
+              )
             ) : (
               <>
                 <WifiOff className="w-3.5 h-3.5" />
-                <span>Sin Conexión</span>
+                <span>Offline ({offlineQueue.length} pt.)</span>
               </>
             )}
           </div>
@@ -768,10 +855,23 @@ export default function KioskAppPage() {
                 </div>
               </div>
 
-              {/* Countdown return */}
-              <div className="text-xs text-slate-400 flex items-center gap-1.5">
-                <span>Listo para el siguiente en</span>
-                <strong className="text-emerald-400 font-mono">{countdown}s</strong>
+              {/* Countdown return & Quick dismiss */}
+              <div className="flex items-center justify-between w-full pt-2 border-t border-white/10">
+                <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <span>Siguiente escaneo en</span>
+                  <strong className="text-emerald-400 font-mono text-sm">{countdown}s</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLastScanResult(null);
+                    setIsProcessing(false);
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <span>Siguiente</span>
+                  <span>➔</span>
+                </button>
               </div>
             </div>
           ) : scanError ? (

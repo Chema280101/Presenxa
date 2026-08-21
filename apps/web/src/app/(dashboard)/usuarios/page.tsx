@@ -371,191 +371,312 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="card-surface overflow-hidden shadow-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/[0.02] text-xs font-semibold text-slate-400">
-                <th className="py-4 px-5">Usuario</th>
-                <th className="py-4 px-4">Documento</th>
-                <th className="py-4 px-4">Rol</th>
-                <th className="py-4 px-4">Sede Asignada</th>
-                <th className="py-4 px-4">Horario</th>
-                <th className="py-4 px-4">Estado</th>
-                <th className="py-4 px-5 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 text-sm">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
-                    Cargando usuarios...
-                  </td>
-                </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-8">
-                    <EmptyState
-                      icon={UserX}
-                      title="Sin usuarios encontrados"
-                      description="No hay colaboradores o alumnos que coincidan con los filtros ingresados."
-                      action={{
-                        label: "Crear Usuario",
-                        icon: UserPlus,
-                        onClick: () => {
-                          setEditingUserData(null);
-                          setIsFormModalOpen(true);
-                        },
-                      }}
-                    />
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => {
-                  const schedule = user.userSchedules?.[0]?.schedule;
-                  return (
-                    <tr
-                      key={user.id}
-                      className="hover:bg-white/[0.02] transition-colors group"
-                    >
-                      {/* Usuario info & avatar */}
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-                              `${user.firstName} ${user.lastName}`
-                            )}&backgroundColor=16a34a&textColor=ffffff`}
-                            alt={user.firstName}
-                            className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
-                          />
-                          <div>
-                            <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
-                              {user.firstName} {user.lastName}
-                            </p>
-                            <p className="text-xs text-slate-400">{user.email}</p>
-                          </div>
+      {/* Users Display (Mobile Cards + Desktop Table) */}
+      <div>
+        {isLoading ? (
+          <div className="card-surface p-12 text-center text-slate-400">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
+            Cargando usuarios...
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="card-surface p-8">
+            <EmptyState
+              icon={UserX}
+              title="Sin usuarios encontrados"
+              description="No hay colaboradores o alumnos que coincidan con los filtros ingresados."
+              action={{
+                label: "Crear Usuario",
+                icon: UserPlus,
+                onClick: () => {
+                  setEditingUserData(null);
+                  setIsFormModalOpen(true);
+                },
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            {/* ── 1. Mobile Cards View (md:hidden) ── */}
+            <div className="md:hidden space-y-3">
+              {filteredUsers.map((user) => {
+                const schedule = user.userSchedules?.[0]?.schedule;
+                return (
+                  <div
+                    key={user.id}
+                    className="card-surface p-4 rounded-2xl border border-white/10 space-y-3 shadow-lg"
+                  >
+                    {/* Header: Avatar + User Info + Role/Status */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+                            `${user.firstName} ${user.lastName}`
+                          )}&backgroundColor=16a34a&textColor=ffffff`}
+                          alt={user.firstName}
+                          className="w-11 h-11 rounded-2xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-white text-sm truncate">
+                            {user.firstName} {user.lastName}
+                          </p>
+                          <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                          {user.documentId && (
+                            <p className="text-[11px] font-mono text-slate-500">DNI: {user.documentId}</p>
+                          )}
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Documento */}
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-300">
-                        {user.documentId || "—"}
-                      </td>
-
-                      {/* Rol */}
-                      <td className="py-3.5 px-4">
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                         <RoleBadge role={user.role} size="sm" />
-                      </td>
-
-                      {/* Sede */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-300">
-                          <Building className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                          <span>{user.location?.name || "Sin asignar"}</span>
-                        </div>
-                      </td>
-
-                      {/* Horario */}
-                      <td className="py-3.5 px-4">
-                        {schedule ? (
-                          <div className="space-y-0.5 text-xs text-slate-300">
-                            <div className="flex items-center gap-1.5 font-medium">
-                              <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                              <span className="text-white">{schedule.name}</span>
-                              {schedule.isSplit && (
-                                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                  Partido
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] font-mono text-slate-400 pl-5">
-                              {String(schedule.entryHour).padStart(2, "0")}:{String(schedule.entryMinute).padStart(2, "0")} - {String(schedule.exitHour).padStart(2, "0")}:{String(schedule.exitMinute).padStart(2, "0")}
-                              {schedule.isSplit && schedule.entryHour2 !== null && schedule.exitHour2 !== null ? (
-                                <> · {String(schedule.entryHour2).padStart(2, "0")}:{String(schedule.entryMinute2 || 0).padStart(2, "0")} - {String(schedule.exitHour2).padStart(2, "0")}:{String(schedule.exitMinute2 || 0).padStart(2, "0")}</>
-                              ) : null}
-                            </p>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-500">Sin horario</span>
-                        )}
-                      </td>
-
-                      {/* Estado */}
-                      <td className="py-3.5 px-4">
                         {user.isActive ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
                             Activo
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
                             Inactivo
                           </span>
                         )}
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Acciones */}
-                      <td className="py-3.5 px-5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Ver QR Button */}
-                          <button
-                            onClick={() => handleOpenQr(user)}
-                            title="Ver Credencial QR"
-                            className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 transition-all active:scale-95"
-                          >
-                            <QrCode className="w-4 h-4" />
-                          </button>
-
-                          {/* Editar Button */}
-                          <button
-                            onClick={() => {
-                              setEditingUserData({
-                                id: user.id,
-                                firstName: user.firstName,
-                                lastName: user.lastName,
-                                email: user.email,
-                                phone: user.phone || "",
-                                documentId: user.documentId || "",
-                                role: user.role,
-                                locationId: user.location?.id || "",
-                                scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
-                                isActive: user.isActive,
-                              });
-                              setIsFormModalOpen(true);
-                            }}
-                            title="Editar Usuario"
-                            className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-
-                          {/* Activar / Desactivar Button */}
-                          <button
-                            onClick={() => handleToggleStatus(user)}
-                            title={user.isActive ? "Desactivar" : "Reactivar"}
-                            className={`p-2 rounded-xl transition-all active:scale-95 border ${
-                              user.isActive
-                                ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
-                                : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
-                            }`}
-                          >
-                            {user.isActive ? (
-                              <Trash2 className="w-4 h-4" />
-                            ) : (
-                              <UserCheck className="w-4 h-4" />
-                            )}
-                          </button>
+                    {/* Sede y Horario info */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-black/20 p-2.5 rounded-xl border border-white/5">
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Sede Asignada</span>
+                        <div className="flex items-center gap-1 text-slate-300 truncate mt-0.5">
+                          <Building className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                          <span className="truncate">{user.location?.name || "Sin asignar"}</span>
                         </div>
-                      </td>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 text-[10px] block">Turno / Horario</span>
+                        <div className="flex items-center gap-1 text-slate-300 truncate mt-0.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                          <span className="truncate">{schedule ? schedule.name : "Sin horario"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Touch Action Buttons */}
+                    <div className="flex items-center gap-2 pt-1">
+                      {/* Ver QR */}
+                      <button
+                        onClick={() => handleOpenQr(user)}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[44px]"
+                      >
+                        <QrCode className="w-4 h-4" />
+                        <span>Ver QR</span>
+                      </button>
+
+                      {/* Editar */}
+                      <button
+                        onClick={() => {
+                          setEditingUserData({
+                            id: user.id,
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            email: user.email,
+                            phone: user.phone || "",
+                            documentId: user.documentId || "",
+                            role: user.role,
+                            locationId: user.location?.id || "",
+                            scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
+                            isActive: user.isActive,
+                          });
+                          setIsFormModalOpen(true);
+                        }}
+                        className="flex-1 py-2.5 px-3 rounded-xl card-surface text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[44px]"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        <span>Editar</span>
+                      </button>
+
+                      {/* Toggle Active */}
+                      <button
+                        onClick={() => handleToggleStatus(user)}
+                        title={user.isActive ? "Desactivar" : "Reactivar"}
+                        className={`p-2.5 rounded-xl transition-all active:scale-95 border min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                          user.isActive
+                            ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
+                            : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
+                        }`}
+                      >
+                        {user.isActive ? (
+                          <Trash2 className="w-4 h-4" />
+                        ) : (
+                          <UserCheck className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── 2. Desktop Table View (hidden md:block) ── */}
+            <div className="hidden md:block card-surface overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/[0.02] text-xs font-semibold text-slate-400">
+                      <th className="py-4 px-5">Usuario</th>
+                      <th className="py-4 px-4">Documento</th>
+                      <th className="py-4 px-4">Rol</th>
+                      <th className="py-4 px-4">Sede Asignada</th>
+                      <th className="py-4 px-4">Horario</th>
+                      <th className="py-4 px-4">Estado</th>
+                      <th className="py-4 px-5 text-right">Acciones</th>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-sm">
+                    {filteredUsers.map((user) => {
+                      const schedule = user.userSchedules?.[0]?.schedule;
+                      return (
+                        <tr
+                          key={user.id}
+                          className="hover:bg-white/[0.02] transition-colors group"
+                        >
+                          {/* Usuario info & avatar */}
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+                                  `${user.firstName} ${user.lastName}`
+                                )}&backgroundColor=16a34a&textColor=ffffff`}
+                                alt={user.firstName}
+                                className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
+                              />
+                              <div>
+                                <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                                  {user.firstName} {user.lastName}
+                                </p>
+                                <p className="text-xs text-slate-400">{user.email}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Documento */}
+                          <td className="py-3.5 px-4 font-mono text-xs text-slate-300">
+                            {user.documentId || "—"}
+                          </td>
+
+                          {/* Rol */}
+                          <td className="py-3.5 px-4">
+                            <RoleBadge role={user.role} size="sm" />
+                          </td>
+
+                          {/* Sede */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                              <Building className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                              <span>{user.location?.name || "Sin asignar"}</span>
+                            </div>
+                          </td>
+
+                          {/* Horario */}
+                          <td className="py-3.5 px-4">
+                            {schedule ? (
+                              <div className="space-y-0.5 text-xs text-slate-300">
+                                <div className="flex items-center gap-1.5 font-medium">
+                                  <Clock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                                  <span className="text-white">{schedule.name}</span>
+                                  {schedule.isSplit && (
+                                    <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                      Partido
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] font-mono text-slate-400 pl-5">
+                                  {String(schedule.entryHour).padStart(2, "0")}:{String(schedule.entryMinute).padStart(2, "0")} - {String(schedule.exitHour).padStart(2, "0")}:{String(schedule.exitMinute).padStart(2, "0")}
+                                  {schedule.isSplit && schedule.entryHour2 !== null && schedule.exitHour2 !== null ? (
+                                    <> · {String(schedule.entryHour2).padStart(2, "0")}:{String(schedule.entryMinute2 || 0).padStart(2, "0")} - {String(schedule.exitHour2).padStart(2, "0")}:{String(schedule.exitMinute2 || 0).padStart(2, "0")}</>
+                                  ) : null}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">Sin horario</span>
+                            )}
+                          </td>
+
+                          {/* Estado */}
+                          <td className="py-3.5 px-4">
+                            {user.isActive ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                                Activo
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                                Inactivo
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Acciones */}
+                          <td className="py-3.5 px-5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Ver QR Button */}
+                              <button
+                                onClick={() => handleOpenQr(user)}
+                                title="Ver Credencial QR"
+                                className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 transition-all active:scale-95"
+                              >
+                                <QrCode className="w-4 h-4" />
+                              </button>
+
+                              {/* Editar Button */}
+                              <button
+                                onClick={() => {
+                                  setEditingUserData({
+                                    id: user.id,
+                                    firstName: user.firstName,
+                                    lastName: user.lastName,
+                                    email: user.email,
+                                    phone: user.phone || "",
+                                    documentId: user.documentId || "",
+                                    role: user.role,
+                                    locationId: user.location?.id || "",
+                                    scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
+                                    isActive: user.isActive,
+                                  });
+                                  setIsFormModalOpen(true);
+                                }}
+                                title="Editar Usuario"
+                                className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+
+                              {/* Activar / Desactivar Button */}
+                              <button
+                                onClick={() => handleToggleStatus(user)}
+                                title={user.isActive ? "Desactivar" : "Reactivar"}
+                                className={`p-2 rounded-xl transition-all active:scale-95 border ${
+                                  user.isActive
+                                    ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
+                                    : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
+                                }`}
+                              >
+                                {user.isActive ? (
+                                  <Trash2 className="w-4 h-4" />
+                                ) : (
+                                  <UserCheck className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Modales */}

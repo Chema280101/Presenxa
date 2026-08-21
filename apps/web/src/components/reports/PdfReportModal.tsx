@@ -344,7 +344,7 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
                 <p className="italic text-slate-600 font-medium">{orgSettings.footerText}</p>
               )}
               <p>
-                Documento oficial generado a través de la plataforma <strong>Presenxa</strong> · Control Biométrico & Georreferenciado
+                Documento oficial generado a través de la plataforma <strong>Presenxa</strong> · Sistema Digital de Control de Asistencia
               </p>
             </div>
           </div>

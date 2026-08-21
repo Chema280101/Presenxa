@@ -7,10 +7,6 @@ const LocationSchema = z.object({
   name: z.string().min(1, "El nombre de la sede es obligatorio"),
   address: z.string().optional().nullable(),
   timezone: z.string().default("America/Lima"),
-  geofenceRadius: z.number().positive("El radio debe ser positivo").default(100),
-  geofenceLat: z.number().min(-90).max(90),
-  geofenceLng: z.number().min(-180).max(180),
-  geofencePolygon: z.any().optional().nullable(),
 });
 
 // GET /api/locations
@@ -70,10 +66,6 @@ export async function POST(req: Request) {
         name: data.name,
         address: data.address || null,
         timezone: data.timezone,
-        geofenceRadius: data.geofenceRadius,
-        geofenceLat: data.geofenceLat,
-        geofenceLng: data.geofenceLng,
-        geofencePolygon: data.geofencePolygon || null,
         isActive: true,
       },
     });

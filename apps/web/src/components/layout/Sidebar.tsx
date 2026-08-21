@@ -15,6 +15,7 @@ import {
   Smartphone,
   Tablet,
   Settings,
+  X,
 } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -72,7 +73,12 @@ const NAV_ITEMS = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const [orgData, setOrgData] = useState<{ name: string; logoUrl?: string | null } | null>(null);
 
@@ -95,31 +101,35 @@ export function Sidebar() {
     return pathname.startsWith(href);
   };
 
-  return (
-    <aside
-      className="w-60 flex-shrink-0 flex flex-col h-full"
+  const renderSidebarContent = (isMobile = false) => (
+    <div
+      className="flex flex-col h-full w-full"
       style={{
         background: "#0a1b2c",
-        borderRight: "1px solid rgba(163, 230, 53, 0.12)",
+        borderRight: isMobile ? "none" : "1px solid rgba(163, 230, 53, 0.12)",
       }}
     >
-      {/* Logo */}
+      {/* Logo y Botón de cierre en móviles */}
       <div
-        className="px-5 py-5"
+        className="px-5 py-4 flex items-center justify-between"
         style={{ borderBottom: "1px solid rgba(163, 230, 53, 0.1)" }}
       >
-        <Link href="/" className="flex items-center gap-3 group">
+        <Link
+          href="/"
+          onClick={() => isMobile && onMobileClose?.()}
+          className="flex items-center gap-3 group min-w-0"
+        >
           {orgData?.logoUrl ? (
             <img
               src={orgData.logoUrl}
               alt={orgData.name || "Logo"}
-              className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform bg-black/20"
+              className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform bg-black/20 flex-shrink-0"
             />
           ) : (
             <img
               src="/brand/isotipo-secundario.svg"
               alt="Presenxa"
-              className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform"
+              className="w-9 h-9 rounded-xl object-contain shadow-lg ring-1 ring-lime-400/20 group-hover:scale-105 transition-transform flex-shrink-0"
             />
           )}
           <div className="overflow-hidden">
@@ -137,11 +147,22 @@ export function Sidebar() {
             <p className="text-[11px] text-slate-400 font-medium truncate">Panel Admin</p>
           </div>
         </Link>
+
+        {isMobile && onMobileClose && (
+          <button
+            type="button"
+            onClick={onMobileClose}
+            aria-label="Cerrar navegación"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Navegación */}
       <nav
-        className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto"
+        className="flex-1 px-3 py-4 space-y-1 overflow-y-auto"
         aria-label="Navegación principal"
       >
         {NAV_ITEMS.map((item) => {
@@ -150,11 +171,12 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => isMobile && onMobileClose?.()}
               className={clsx(
-                "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group cursor-pointer",
+                "relative flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-200 group cursor-pointer min-h-[44px]",
                 active
-                  ? "text-white"
-                  : "text-slate-500 hover:text-slate-200 hover:bg-white/[0.04]"
+                  ? "text-white font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
               )}
               style={
                 active
@@ -175,7 +197,7 @@ export function Sidebar() {
                     : "text-slate-500 group-hover:text-slate-300"
                 )}
               />
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1 truncate">{item.label}</span>
               {active && (
                 <span className="w-1.5 h-1.5 rounded-full bg-primary-400 flex-shrink-0" />
               )}
@@ -191,9 +213,41 @@ export function Sidebar() {
       >
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse-dot flex-shrink-0" />
-          <p className="text-xs text-slate-600 font-medium">v1.0.0 · Live</p>
+          <p className="text-xs text-slate-500 font-medium">v1.0.0 · Live</p>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* ── 1. Desktop Sidebar (Fijo para md y superior) ── */}
+      <aside className="hidden md:flex md:w-60 md:flex-shrink-0 md:flex-col md:h-full">
+        {renderSidebarContent(false)}
+      </aside>
+
+      {/* ── 2. Mobile Sidebar Drawer (Deslizable para < md) ── */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop con Blur */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-md transition-opacity animate-fade-in-up"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+
+          {/* Drawer deslizable */}
+          <aside
+            className="fixed inset-y-0 left-0 w-72 max-w-[85vw] flex flex-col h-[100dvh] shadow-2xl shadow-black z-10 animate-slide-right"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menú de navegación"
+          >
+            {renderSidebarContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
+

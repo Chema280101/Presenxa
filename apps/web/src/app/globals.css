@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 @theme {
   /* ── Paleta primaria — Presenxa Lime Green (#A3E635) ─── */
@@ -194,6 +193,11 @@ body {
   to   { opacity: 1; transform: translateY(0);   }
 }
 
+@keyframes slide-right {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0);     }
+}
+
 .animate-pulse-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
@@ -205,3 +209,8 @@ body {
 .animate-scale-up {
   animation: scale-up 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+.animate-slide-right {
+  animation: slide-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+

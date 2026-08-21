@@ -27,10 +27,6 @@ export async function GET() {
             id: true,
             name: true,
             address: true,
-            geofenceLat: true,
-            geofenceLng: true,
-            geofenceRadius: true,
-            geofencePolygon: true,
           },
         },
         userSchedules: {

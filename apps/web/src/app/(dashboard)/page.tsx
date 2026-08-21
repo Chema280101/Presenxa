@@ -29,7 +29,7 @@ function avatarUrl(name: string) {
 const quickLinks = [
   { href: "/asistencias", label: "Registro de Asistencias", icon: Clock, desc: "Aperturas, cierres y justificantes" },
   { href: "/usuarios",    label: "Gestionar Usuarios",     icon: Users, desc: "Altas, roles y credenciales QR" },
-  { href: "/sedes",       label: "Configurar Sedes",       icon: MapPin, desc: "Geocercas GPS y perímetros" },
+  { href: "/sedes",       label: "Configurar Sedes",       icon: MapPin, desc: "Sucursales y oficinas" },
   { href: "/reportes",    label: "Métricas y Reportes",    icon: BarChart3, desc: "Exportar Excel / CSV y KPIs" },
   { href: "/kiosks",      label: "Dispositivos Kiosk",     icon: QrCode, desc: "Totems y tokens de emparejamiento" },
 ];

@@ -10,7 +10,7 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   directUrl  = env("DIRECT_URL")
-  extensions = [postgis, uuidOssp(map: "uuid-ossp")]
+  extensions = [uuidOssp(map: "uuid-ossp")]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -25,9 +25,7 @@ model Organization {
   logoUrl   String?
   // Configuración JSON de la organización. Estructura esperada:
   // {
-  //   "grace_period_minutes": 10,   ← Minutos antes de marcar ABANDONO_PUESTO (default: 10)
-  //   "timezone": "America/Lima",   ← Zona horaria para reportes y logs
-  //   "ping_interval_seconds": 60   ← Frecuencia de geo-pings desde la app
+  //   "timezone": "America/Lima"   ← Zona horaria para reportes y logs
   // }
   settings  Json     @default("{}")
   createdAt DateTime @default(now())
@@ -47,7 +45,7 @@ enum OrgType {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  SEDE / UBICACIÓN (con geocerca)
+//  SEDE / UBICACIÓN
 // ─────────────────────────────────────────────────────────────
 
 model Location {
@@ -57,14 +55,6 @@ model Location {
   name           String
   address        String?
   timezone       String       @default("America/Lima")
-
-  // Geocerca circular (radio + centro)
-  geofenceRadius Float?  // Metros
-  geofenceLat    Float?
-  geofenceLng    Float?
-
-  // Geocerca poligonal (GeoJSON Polygon)
-  geofencePolygon Json?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -111,7 +101,6 @@ model User {
   updatedAt DateTime @updatedAt
 
   attendances       Attendance[]
-  geoPings          GeoPing[]
   userSchedules     UserSchedule[]
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
@@ -239,12 +228,13 @@ model Attendance {
   // Auditoría de cambios de estado
   notes           String?
   statusChangedAt DateTime?
-  statusChangedBy String? // UUID del admin o literal "SISTEMA_GEO" / "CRON_EOD"
+  statusChangedBy String? // UUID del admin o literal "SISTEMA" / "CRON_EOD"
+
+  // Modo Ultra-Offline (Kiosk)
+  isOfflineSync   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  geoPings GeoPing[]
 
   // Un solo registro por usuario por día
   @@unique([userId, date])
@@ -259,41 +249,11 @@ enum AttendanceStatus {
   PRESENTE        // Entró y salió correctamente
   TARDE           // Llegó después del tiempo de tolerancia
   AUSENTE         // No marcó entrada (fin de jornada)
-  ABANDONO_PUESTO // Salió del perímetro sin marcar salida
+  ABANDONO_PUESTO // Marcado manualmente o por excepción
   INCOMPLETO      // Marcó entrada pero no salida al cierre del día
   JUSTIFICADO     // Falta con justificación aprobada por admin
   FERIADO         // Día no laborable
   PERMISO         // Permiso aprobado previamente
-}
-
-// ─────────────────────────────────────────────────────────────
-//  GEO PINGS — HISTORIAL DE UBICACIONES
-// ─────────────────────────────────────────────────────────────
-
-model GeoPing {
-  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String      @db.Uuid
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attendanceId String?     @db.Uuid
-  attendance   Attendance? @relation(fields: [attendanceId], references: [id])
-
-  latitude     Float
-  longitude    Float
-  accuracy     Float? // Precisión GPS en metros
-  isInsideZone Boolean // Resultado de la validación PostGIS
-  source       PingSource @default(APP) // APP | BACKGROUND_FETCH | MANUAL
-
-  timestamp DateTime @default(now())
-
-  @@index([userId, timestamp])
-  @@index([attendanceId])
-  @@map("geo_pings")
-}
-
-enum PingSource {
-  APP
-  BACKGROUND_FETCH
-  MANUAL
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -316,7 +276,6 @@ model Notification {
 }
 
 enum NotificationType {
-  SALIDA_PERIMETRO
   ABANDONO_REGISTRADO
   LLEGADA_TARDE
   RECORDATORIO_SALIDA
@@ -383,7 +342,6 @@ enum AuditAction {
   USER_CREATED
   USER_UPDATED
   USER_DEACTIVATED
-  GEOFENCE_UPDATED
   JOB_EXECUTED
 }
 

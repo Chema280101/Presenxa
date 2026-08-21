@@ -23,9 +23,6 @@ importers:
       '@asistencias/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@capacitor-community/background-geolocation':
-        specifier: ^1.2.26
-        version: 1.2.26(@capacitor/core@8.5.0)
       '@capacitor/android':
         specifier: ^8.5.0
         version: 8.5.0(@capacitor/core@8.5.0)
@@ -35,9 +32,6 @@ importers:
       '@capacitor/core':
         specifier: ^8.5.0
         version: 8.5.0
-      '@capacitor/geolocation':
-        specifier: ^8.2.2
-        version: 8.2.2(@capacitor/core@8.5.0)
       '@prisma/client':
         specifier: ^6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
@@ -59,9 +53,6 @@ importers:
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0
-      leaflet:
-        specifier: ^1.9.4
-        version: 1.9.4
       lucide-react:
         specifier: ^0.513.0
         version: 0.513.0(react@19.2.8)
@@ -80,9 +71,6 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.8(react@19.2.8)
-      react-leaflet:
-        specifier: ^4.2.1
-        version: 4.2.1(leaflet@1.9.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
@@ -99,9 +87,6 @@ importers:
       '@types/ioredis':
         specifier: ^5.0.0
         version: 5.0.0
-      '@types/leaflet':
-        specifier: ^1.9.17
-        version: 1.9.22
       '@types/node':
         specifier: ^22.15.31
         version: 22.20.1
@@ -178,11 +163,6 @@ packages:
       nodemailer:
         optional: true
 
-  '@capacitor-community/background-geolocation@1.2.26':
-    resolution: {integrity: sha512-kuva8VQ6zM+uIKgHUJTP87IYbmGKhX7DZw62JYfGZ888h4Xr5zeN+UTR6KBRHQVrGBpzSfbv+6/HQVuHYa7W5A==}
-    peerDependencies:
-      '@capacitor/core': '>=3.0.0'
-
   '@capacitor/android@8.5.0':
     resolution: {integrity: sha512-Rb3prJeQiTp0pQhSSOReJuG9VgibOGMG4ECs+UhMwr6TCCHZ3NCZO811bDA0HxD0xrT/gCrJAsY5yfEATu84JQ==}
     peerDependencies:
@@ -200,14 +180,6 @@ packages:
 
   '@capacitor/core@8.5.0':
     resolution: {integrity: sha512-Ca4krtqH1hothjtBIwf2J2TW7IhYq1ujp8QeItTiJohNsqij8ja2DYYH3DU0l8RmxCWaBAFTGA2TgOgOMCSNsQ==}
-
-  '@capacitor/geolocation@8.2.2':
-    resolution: {integrity: sha512-X8ryw6CfL4LspJnnfVL4++DUKKZVfdUIA9JljWVRljEDIQxZQZtz6xf7qstht+ymc+le6oa5EaUChVA6KsCYlA==}
-    peerDependencies:
-      '@capacitor/core': '>=8.0.0'
-
-  '@capacitor/synapse@1.0.4':
-    resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -786,13 +758,6 @@ packages:
   '@prisma/get-platform@6.19.3':
     resolution: {integrity: sha512-xFj1VcJ1N3MKooOQAGO0W5tsd0W2QzIvW7DD7c/8H14Zmp4jseeWAITm+w2LLoLrlhoHdPPh0NMZ8mfL6puoHA==}
 
-  '@react-leaflet/core@2.1.0':
-    resolution: {integrity: sha512-Qk7Pfu8BSarKGqILj4x7bCSZ1pjuAPZ+qmRwH5S7mDS91VSbVVsJSrW4qA+GPrro8t69gFYVMWb1Zc4yFmPiVg==}
-    peerDependencies:
-      leaflet: ^1.9.0
-      react: ^18.0.0
-      react-dom: ^18.0.0
-
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -924,15 +889,9 @@ packages:
   '@types/fs-extra@8.1.5':
     resolution: {integrity: sha512-0dzKcwO+S8s2kuF5Z9oUWatQJj5Uq/iqphEtE3GQJVRRYm/tD1LglU2UnXi2A8jLq5umkGouOXOR9y0n613ZwQ==}
 
-  '@types/geojson@7946.0.16':
-    resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
-
   '@types/ioredis@5.0.0':
     resolution: {integrity: sha512-zJbJ3FVE17CNl5KXzdeSPtdltc4tMT3TzC6fxQS0sQngkbFZ6h+0uTafsRqu+eSLIugf6Yb0Ea0SUuRr42Nk9g==}
     deprecated: This is a stub types definition. ioredis provides its own type definitions, so you do not need this installed.
-
-  '@types/leaflet@1.9.22':
-    resolution: {integrity: sha512-h3lhECYEKDasG7LFHu+GiHqAvsgLuQvlJvVZzJDGONo3sEL+wUOqSFLnwkZlK0qVxnxbuGFW8iBlJNYs5wgndA==}
 
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
@@ -1294,9 +1253,6 @@ packages:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
 
-  leaflet@1.9.4:
-    resolution: {integrity: sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==}
-
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
     engines: {node: '>= 12.0.0'}
@@ -1577,13 +1533,6 @@ packages:
     peerDependencies:
       react: ^19.2.8
 
-  react-leaflet@4.2.1:
-    resolution: {integrity: sha512-p9chkvhcKrWn/H/1FFeVSqLdReGwn2qmiobOQGO3BifX+/vV/39qhY8dGqbdcPh1e6jxh/QHriLXr7a4eLFK4Q==}
-    peerDependencies:
-      leaflet: ^1.9.0
-      react: ^18.0.0
-      react-dom: ^18.0.0
-
   react@19.2.8:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
@@ -1843,10 +1792,6 @@ snapshots:
       preact: 10.24.3
       preact-render-to-string: 6.5.11(preact@10.24.3)
 
-  '@capacitor-community/background-geolocation@1.2.26(@capacitor/core@8.5.0)':
-    dependencies:
-      '@capacitor/core': 8.5.0
-
   '@capacitor/android@8.5.0(@capacitor/core@8.5.0)':
     dependencies:
       '@capacitor/core': 8.5.0
@@ -1881,13 +1826,6 @@ snapshots:
   '@capacitor/core@8.5.0':
     dependencies:
       tslib: 2.8.1
-
-  '@capacitor/geolocation@8.2.2(@capacitor/core@8.5.0)':
-    dependencies:
-      '@capacitor/core': 8.5.0
-      '@capacitor/synapse': 1.0.4
-
-  '@capacitor/synapse@1.0.4': {}
 
   '@emnapi/runtime@1.11.3':
     dependencies:
@@ -2336,12 +2274,6 @@ snapshots:
     dependencies:
       '@prisma/debug': 6.19.3
 
-  '@react-leaflet/core@2.1.0(leaflet@1.9.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
-    dependencies:
-      leaflet: 1.9.4
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-
   '@standard-schema/spec@1.1.0': {}
 
   '@swc/helpers@0.5.15':
@@ -2443,17 +2375,11 @@ snapshots:
     dependencies:
       '@types/node': 22.20.1
 
-  '@types/geojson@7946.0.16': {}
-
   '@types/ioredis@5.0.0':
     dependencies:
       ioredis: 6.0.0
     transitivePeerDependencies:
       - supports-color
-
-  '@types/leaflet@1.9.22':
-    dependencies:
-      '@types/geojson': 7946.0.16
 
   '@types/node@22.20.1':
     dependencies:
@@ -2804,8 +2730,6 @@ snapshots:
 
   kleur@4.1.5: {}
 
-  leaflet@1.9.4: {}
-
   lightningcss-android-arm64@1.32.0:
     optional: true
 
@@ -3048,13 +2972,6 @@ snapshots:
     dependencies:
       react: 19.2.8
       scheduler: 0.27.0
-
-  react-leaflet@4.2.1(leaflet@1.9.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
-    dependencies:
-      '@react-leaflet/core': 2.1.0(leaflet@1.9.4)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      leaflet: 1.9.4
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
 
   react@19.2.8: {}
 

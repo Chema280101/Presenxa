@@ -44,9 +44,6 @@ async function main() {
   // 2. Datos de la Sede Principal
   const locationName = await ask("2. Nombre de la Sede Principal", "Sede Central");
   const locationAddress = await ask("Dirección de la Sede", "Av. Principal 123");
-  const latStr = await ask("Latitud GPS de la sede (ej: -12.0964)", "-12.0964");
-  const lngStr = await ask("Longitud GPS de la sede (ej: -77.0428)", "-77.0428");
-  const radiusStr = await ask("Radio de geocerca en metros", "150");
 
   // 3. Horario Estándar
   const entryHourStr = await ask("3. Hora de entrada laboral (formato 24h, ej: 8)", "8");
@@ -67,9 +64,7 @@ async function main() {
       type: orgType,
       slug: orgSlug,
       settings: {
-        grace_period_minutes: 10,
         timezone: "America/Lima",
-        ping_interval_seconds: 60,
       },
     },
   });
@@ -82,9 +77,6 @@ async function main() {
       name: locationName,
       address: locationAddress,
       timezone: "America/Lima",
-      geofenceLat: parseFloat(latStr) || -12.0964,
-      geofenceLng: parseFloat(lngStr) || -77.0428,
-      geofenceRadius: parseFloat(radiusStr) || 150,
     },
   });
   console.log(`✅ Sede creada: ${location.name}`);

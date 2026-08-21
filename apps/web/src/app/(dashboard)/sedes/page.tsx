@@ -9,16 +9,12 @@ import {
   Users,
   QrCode,
   Globe,
-  Sliders,
   Edit2,
   Trash2,
   CheckCircle2,
   RefreshCw,
   MapPinOff,
-  Navigation,
-  ShieldCheck,
 } from "lucide-react";
-import { GeofenceMap } from "@/components/locations/GeofenceMap";
 import {
   LocationFormModal,
   LocationFormData,
@@ -31,10 +27,6 @@ interface LocationItem {
   name: string;
   address?: string | null;
   timezone: string;
-  geofenceRadius?: number | null;
-  geofenceLat?: number | null;
-  geofenceLng?: number | null;
-  geofencePolygon?: any;
   isActive: boolean;
   _count?: {
     users: number;
@@ -102,14 +94,15 @@ export default function LocationsPage() {
   const stats = useMemo(() => {
     const total = locations.length;
     const active = locations.filter((l) => l.isActive).length;
-    const withGeofence = locations.filter(
-      (l) => l.geofenceLat && l.geofenceLng && l.geofenceRadius
-    ).length;
+    const totalKiosks = locations.reduce(
+      (acc, l) => acc + (l._count?.kiosks || 0),
+      0
+    );
     const totalUsers = locations.reduce(
       (acc, l) => acc + (l._count?.users || 0),
       0
     );
-    return { total, active, withGeofence, totalUsers };
+    return { total, active, totalKiosks, totalUsers };
   }, [locations]);
 
   const handleSaveLocation = async (
@@ -126,7 +119,7 @@ export default function LocationsPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al actualizar sede");
 
-        showToast("Sede y geocerca actualizadas con éxito");
+        showToast("Sede actualizada con éxito");
       } else {
         // Create location
         const res = await fetch("/api/locations", {
@@ -137,7 +130,7 @@ export default function LocationsPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al crear sede");
 
-        showToast("Nueva sede y geocerca registradas con éxito");
+        showToast("Nueva sede registrada con éxito");
       }
       await fetchLocations();
       return true;
@@ -182,14 +175,14 @@ export default function LocationsPage() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="gradient-brand w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-950/60 ring-1 ring-emerald-400/20">
-              <MapPin className="w-5 h-5 text-white" />
+              <Building className="w-5 h-5 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              Sedes y Geocercas Espaciales
+              Sedes de la Organización
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-400">
-            Define los perímetros geográficos de validación continua y control de abandono de puesto.
+            Administra las sucursales, oficinas y puntos de control de tu empresa.
           </p>
         </div>
 
@@ -210,15 +203,15 @@ export default function LocationsPage() {
         <StatCard
           label="Total Sedes"
           value={stats.total}
-          sub="Ubicaciones corporativas"
+          sub="Ubicaciones registradas"
           icon={Building}
           variant="primary"
         />
         <StatCard
-          label="Geocercas Activas"
-          value={stats.withGeofence}
-          sub="Con radio GPS configurado"
-          icon={ShieldCheck}
+          label="Sedes Operativas"
+          value={stats.active}
+          sub="En servicio activo"
+          icon={Globe}
           variant="success"
         />
         <StatCard
@@ -229,10 +222,10 @@ export default function LocationsPage() {
           variant="info"
         />
         <StatCard
-          label="Sedes Operativas"
-          value={stats.active}
-          sub="En monitoreo continuo"
-          icon={Globe}
+          label="Kiosks Emparejados"
+          value={stats.totalKiosks}
+          sub="Terminales de escaneo"
+          icon={QrCode}
           variant="default"
         />
       </div>
@@ -269,7 +262,7 @@ export default function LocationsPage() {
       {isLoading ? (
         <div className="py-16 text-center text-slate-400 card-surface">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-400" />
-          <p className="text-sm">Cargando sedes y geocercas...</p>
+          <p className="text-sm">Cargando sedes...</p>
         </div>
       ) : filteredLocations.length === 0 ? (
         <EmptyState
@@ -286,23 +279,18 @@ export default function LocationsPage() {
           }}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredLocations.map((loc) => {
-            const hasGeofence =
-              loc.geofenceLat !== null &&
-              loc.geofenceLng !== null &&
-              loc.geofenceRadius !== null;
-
             return (
               <div
                 key={loc.id}
-                className="card-surface-interactive overflow-hidden flex flex-col group"
+                className="card-surface-interactive overflow-hidden flex flex-col justify-between group p-6 space-y-4"
               >
                 {/* Header of card */}
-                <div className="p-6 border-b border-white/5 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white group-hover:text-emerald-300 transition-colors">
                         {loc.name}
                       </h3>
                       {loc.isActive ? (
@@ -319,6 +307,10 @@ export default function LocationsPage() {
                       <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                       <span>{loc.address || "Sin dirección especificada"}</span>
                     </p>
+                    <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
+                      <Globe className="w-3 h-3 text-slate-500 flex-shrink-0" />
+                      <span>{loc.timezone}</span>
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -329,14 +321,11 @@ export default function LocationsPage() {
                           name: loc.name,
                           address: loc.address || "",
                           timezone: loc.timezone,
-                          geofenceRadius: loc.geofenceRadius || 100,
-                          geofenceLat: loc.geofenceLat || -12.046374,
-                          geofenceLng: loc.geofenceLng || -77.042793,
                           isActive: loc.isActive,
                         });
                         setIsModalOpen(true);
                       }}
-                      title="Editar Geocerca"
+                      title="Editar Sede"
                       className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
                     >
                       <Edit2 className="w-4 h-4" />
@@ -356,54 +345,26 @@ export default function LocationsPage() {
                   </div>
                 </div>
 
-                {/* Map Preview */}
-                <div className="p-6 pt-4 flex-1 flex flex-col">
-                  {hasGeofence ? (
-                    <GeofenceMap
-                      lat={loc.geofenceLat!}
-                      lng={loc.geofenceLng!}
-                      radius={loc.geofenceRadius!}
-                      onChange={() => {}}
-                      interactive={false}
-                    />
-                  ) : (
-                    <div className="w-full h-80 rounded-2xl bg-black/40 border border-white/10 flex flex-col items-center justify-center text-slate-500 text-xs p-6">
-                      <MapPinOff className="w-8 h-8 mb-2 text-slate-600" />
-                      <span>Sin geocerca configurada</span>
-                    </div>
-                  )}
+                {/* Summary badges footer */}
+                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5 text-xs text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-400" />
+                    <span>
+                      <strong className="text-white font-mono">
+                        {loc._count?.users || 0}
+                      </strong>{" "}
+                      Empleados
+                    </span>
+                  </div>
 
-                  {/* Summary badges */}
-                  <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/5 text-xs text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-emerald-400" />
-                      <span>
-                        <strong className="text-white font-mono">
-                          {loc._count?.users || 0}
-                        </strong>{" "}
-                        Empleados
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-emerald-400" />
-                      <span>
-                        <strong className="text-white font-mono">
-                          {loc._count?.kiosks || 0}
-                        </strong>{" "}
-                        Kiosks
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Sliders className="w-4 h-4 text-emerald-400" />
-                      <span>
-                        Radio:{" "}
-                        <strong className="text-white font-mono">
-                          {loc.geofenceRadius || 0}m
-                        </strong>
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-emerald-400" />
+                    <span>
+                      <strong className="text-white font-mono">
+                        {loc._count?.kiosks || 0}
+                      </strong>{" "}
+                      Kiosks
+                    </span>
                   </div>
                 </div>
               </div>

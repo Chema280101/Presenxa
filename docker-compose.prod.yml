@@ -1,9 +1,9 @@
 version: "3.9"
 
 services:
-  # ── Base de Datos PostgreSQL con PostGIS ────────────────────
+  # ── Base de Datos PostgreSQL ─────────────────────────────────
   postgres:
-    image: postgis/postgis:16-3.4-alpine
+    image: postgres:16-alpine
     container_name: asistcontrol_postgres_prod
     restart: always
     environment:
@@ -26,7 +26,7 @@ services:
           cpus: "2.0"
           memory: 2048M
 
-  # ── Cache & Queue Redis ─────────────────────────────────────
+  # ── Cache & Rate Limit Redis ────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: asistcontrol_redis_prod
@@ -47,32 +47,6 @@ services:
           cpus: "1.0"
           memory: 512M
 
-  # ── Geo Worker (FastAPI + PostGIS) ──────────────────────────
-  geo-worker:
-    build:
-      context: ./packages/geo-worker
-      dockerfile: Dockerfile
-    container_name: asistcontrol_geoworker_prod
-    restart: always
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-asistencias}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
-      GEO_WORKER_SECRET: ${GEO_WORKER_SECRET}
-      NEXT_PUBLIC_API_URL: http://web:3000
-      PORT: 8000
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - asistcontrol_net
-    deploy:
-      resources:
-        limits:
-          cpus: "1.5"
-          memory: 1024M
-
   # ── Web App & PWA (Next.js 15 Standalone) ───────────────────
   web:
     build:
@@ -86,8 +60,7 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       QR_HMAC_SECRET: ${QR_HMAC_SECRET:-${NEXTAUTH_SECRET}}
-      GEO_WORKER_URL: http://geo-worker:8000
-      GEO_WORKER_SECRET: ${GEO_WORKER_SECRET}
+      CRON_SECRET: ${CRON_SECRET:-${NEXTAUTH_SECRET}}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
@@ -98,8 +71,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      geo-worker:
-        condition: service_started
     networks:
       - asistcontrol_net
     deploy:
@@ -121,7 +92,6 @@ services:
       - ./deploy/certs:/etc/nginx/certs:ro
     depends_on:
       - web
-      - geo-worker
     networks:
       - asistcontrol_net
 

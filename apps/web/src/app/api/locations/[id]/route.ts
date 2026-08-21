@@ -7,10 +7,6 @@ const UpdateLocationSchema = z.object({
   name: z.string().min(1, "El nombre de la sede es obligatorio").optional(),
   address: z.string().optional().nullable(),
   timezone: z.string().optional(),
-  geofenceRadius: z.number().positive().optional().nullable(),
-  geofenceLat: z.number().min(-90).max(90).optional().nullable(),
-  geofenceLng: z.number().min(-180).max(180).optional().nullable(),
-  geofencePolygon: z.any().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 

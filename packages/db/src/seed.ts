@@ -23,15 +23,13 @@ async function main() {
       type: OrgType.EMPRESA,
       slug: "empresa-demo",
       settings: {
-        grace_period_minutes: 5,
         timezone: "America/Lima",
-        ping_interval_seconds: 60,
       },
     },
   });
   console.log(`✅ Organización: ${org.name}`);
 
-  // ── Sede con geocerca ─────────────────────────────────────────
+  // ── Sede ──────────────────────────────────────────────────────
   const location = await prisma.location.upsert({
     where: { id: "00000000-0000-0000-0000-000000000001" },
     update: {},
@@ -41,10 +39,6 @@ async function main() {
       name: "Sede Central Lima",
       address: "Av. Javier Prado Este 123, San Isidro, Lima",
       timezone: "America/Lima",
-      // Geocerca circular: 150 metros de radio, centro en San Isidro
-      geofenceRadius: 150,
-      geofenceLat: -12.0964,
-      geofenceLng: -77.0428,
     },
   });
   console.log(`✅ Sede: ${location.name}`);

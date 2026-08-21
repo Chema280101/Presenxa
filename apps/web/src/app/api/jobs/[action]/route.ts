@@ -1,113 +1,97 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { runDailyStarter } from "@/lib/jobs/dailyStarter";
+import { runDailyCloser } from "@/lib/jobs/dailyCloser";
+import { runLateMonitor } from "@/lib/jobs/lateMonitor";
 
-const GEO_WORKER_URL = process.env.GEO_WORKER_URL || "http://localhost:8000";
-const GEO_WORKER_SECRET = process.env.GEO_WORKER_SECRET || "dev-worker-secret";
+const CRON_SECRET = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET || "dev-cron-secret";
+
+async function isAuthorized(request: Request): Promise<boolean> {
+  // 1. Verificar header de autorización (para llamadas desde Windows Scheduler / Linux Cron)
+  const authHeader = request.headers.get("authorization");
+  const secretHeader = request.headers.get("x-cron-secret") || request.headers.get("x-worker-secret");
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    if (token === CRON_SECRET) return true;
+  }
+  if (secretHeader && secretHeader === CRON_SECRET) {
+    return true;
+  }
+
+  // 2. Verificar sesión de usuario autenticado (Admin o Supervisor)
+  const session = await auth();
+  if (session?.user) {
+    const role = (session.user as any).role;
+    if (["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ action: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authorized = await isAuthorized(request);
+  if (!authorized) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const role = (session.user as any).role;
-  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
-    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   const { action } = await params;
 
   if (action === "status") {
-    try {
-      const res = await fetch(`${GEO_WORKER_URL}/api/jobs/status`, {
-        headers: {
-          "x-worker-secret": GEO_WORKER_SECRET,
-        },
-        cache: "no-store",
-      });
-
-      if (!res.ok) {
-        return NextResponse.json({
-          online: false,
-          status: "standby",
-          message: `Geo-worker en reposo (${res.statusText})`,
-          sodCount: 0,
-          eodCount: 0,
-        });
-      }
-
-      const data = await res.json();
-      return NextResponse.json({ ...data, online: true });
-    } catch (error: any) {
-      // Graceful fallback when Geo Worker is offline in dev
-      return NextResponse.json({
-        online: false,
-        status: "offline",
-        message: "Geo-worker en reposo o no iniciado",
-        sodCount: 0,
-        eodCount: 0,
-      });
-    }
+    return NextResponse.json({
+      online: true,
+      status: "active",
+      message: "Motor de automatizaciones nativo activo",
+      schedulerRunning: true,
+      timestamp: new Date().toISOString(),
+    });
   }
 
-  return NextResponse.json({ error: "Acción no soportada" }, { status: 400 });
+  return NextResponse.json({ error: "Acción GET no soportada" }, { status: 400 });
 }
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ action: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
+  const authorized = await isAuthorized(request);
+  if (!authorized) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const role = (session.user as any).role;
-  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
-    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
-  }
-
   const { action } = await params;
-  const validActions = ["daily-start", "daily-close", "check-late", "cleanup-pings"];
 
-  if (!validActions.includes(action)) {
-    return NextResponse.json({ error: "Acción de automatización no válida" }, { status: 400 });
-  }
-
-  let body = {};
+  let body: any = {};
   try {
     body = await request.json();
   } catch {
     // Body opcional
   }
 
-  try {
-    const res = await fetch(`${GEO_WORKER_URL}/api/jobs/${action}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-worker-secret": GEO_WORKER_SECRET,
-      },
-      body: JSON.stringify(body),
-    });
+  const targetDate = body?.date ? new Date(body.date) : undefined;
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: errData.detail || `Error en worker: ${res.statusText}` },
-        { status: res.status }
-      );
+  switch (action) {
+    case "daily-start": {
+      const result = await runDailyStarter(targetDate);
+      return NextResponse.json(result);
     }
-
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "No se pudo comunicar con el Geo Worker / Scheduler", detail: error.message },
-      { status: 503 }
-    );
+    case "daily-close": {
+      const result = await runDailyCloser(targetDate);
+      return NextResponse.json(result);
+    }
+    case "check-late": {
+      const result = await runLateMonitor(targetDate);
+      return NextResponse.json(result);
+    }
+    default:
+      return NextResponse.json(
+        { error: `Acción '${action}' no válida. Use: daily-start, daily-close, check-late` },
+        { status: 400 }
+      );
   }
 }

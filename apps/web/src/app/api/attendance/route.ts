@@ -107,55 +107,10 @@ export async function GET(req: Request) {
             name: true,
           },
         },
-        geoPings: {
-          take: 1,
-          orderBy: { timestamp: "desc" },
-          select: {
-            timestamp: true,
-            latitude: true,
-            longitude: true,
-            isInsideZone: true,
-          },
-        },
       },
     });
 
-    const now = new Date();
-
-    // Map attendances to include GPS signal health status
-    const formattedAttendances = attendances.map((att) => {
-      const isShift1Active = Boolean(att.entryTime && !att.exitTime);
-      const isShift2Active = Boolean(att.entryTime2 && !att.exitTime2);
-      const isShiftActive = isShift1Active || isShift2Active;
-      const lastPing = att.geoPings[0] || null;
-      const lastPingAt = lastPing ? lastPing.timestamp : null;
-
-      let gpsSignalStatus: "ONLINE" | "WARNING" | "LOST_SIGNAL" | "NO_SIGNAL" | "NOT_ACTIVE" | "TAMPERED" = "NOT_ACTIVE";
-
-      if (att.notes?.includes("ALERTA_SEGURIDAD_GPS")) {
-        gpsSignalStatus = "TAMPERED";
-      } else if (isShiftActive) {
-        if (!lastPingAt) {
-          gpsSignalStatus = "NO_SIGNAL";
-        } else {
-          const diffMinutes = Math.floor((now.getTime() - new Date(lastPingAt).getTime()) / (1000 * 60));
-          if (diffMinutes <= 5) {
-            gpsSignalStatus = "ONLINE";
-          } else if (diffMinutes <= 15) {
-            gpsSignalStatus = "WARNING";
-          } else {
-            gpsSignalStatus = "LOST_SIGNAL";
-          }
-        }
-      }
-
-      return {
-        ...att,
-        lastPingAt,
-        isInsideZone: lastPing ? lastPing.isInsideZone : null,
-        gpsSignalStatus,
-      };
-    });
+    const formattedAttendances = attendances;
 
     // Summary statistics for the filtered date
     const summary = {

@@ -1,9 +1,0 @@
-{
-  "venvPath": "packages/geo-worker",
-  "venv": ".venv",
-  "extraPaths": [
-    "packages/geo-worker",
-    "packages/geo-worker/app"
-  ],
-  "reportMissingImports": "warning"
-}

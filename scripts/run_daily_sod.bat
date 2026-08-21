@@ -1,15 +1,20 @@
 @echo off
 REM ============================================================================
-REM AsistControl — Apertura Automática de Jornada (SOD)
-REM Ejecuta el job daily_starter.py para generar asistencias PENDIENTE
+REM AsistControl / Presenxa — Apertura Automática de Jornada (SOD)
+REM Ejecuta el job de Apertura para generar asistencias PENDIENTE del día
 REM ============================================================================
 
-cd /d "%~dp0\..\packages\geo-worker"
+set API_URL=%APP_URL%
+if "%API_URL%"=="" set API_URL=http://localhost:3000
 
-IF EXIST ".venv\Scripts\python.exe" (
-    ".venv\Scripts\python.exe" -m app.jobs.daily_starter
-) ELSE (
-    python -m app.jobs.daily_starter
-)
+set SECRET=%CRON_SECRET%
+if "%SECRET%"=="" set SECRET=dev-cron-secret
 
+echo [SOD] Ejecutando apertura de jornada en %API_URL%/api/jobs/daily-start ...
+
+curl -s -X POST "%API_URL%/api/jobs/daily-start" ^
+     -H "Content-Type: application/json" ^
+     -H "x-cron-secret: %SECRET%"
+
+echo.
 exit /b %ERRORLEVEL%

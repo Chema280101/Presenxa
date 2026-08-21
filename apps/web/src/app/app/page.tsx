@@ -1,40 +1,27 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import QRCode from "qrcode";
 import {
   QrCode,
-  MapPin,
   Calendar,
   Clock,
   ShieldCheck,
-  AlertTriangle,
   RefreshCw,
-  Navigation,
   LogOut,
   Sparkles,
   CheckCircle2,
-  XCircle,
-  Building2,
-  Sun,
-  Flame,
-  Radio,
-  History,
-  TrendingUp,
-  AlertOctagon,
   Wifi,
   WifiOff,
   Download,
-  Database,
-  ArrowUpRight,
   Bell,
   BellRing,
   ZoomIn,
-  Maximize2,
+  Sun,
   X,
+  History,
 } from "lucide-react";
-import { useGeofencing } from "@/hooks/useGeofencing";
 import { Capacitor } from "@capacitor/core";
 
 interface UserProfile {
@@ -58,10 +45,6 @@ interface UserProfile {
     id: string;
     name: string;
     address: string;
-    geofenceLat: number | null;
-    geofenceLng: number | null;
-    geofenceRadius: number | null;
-    geofencePolygon?: any;
   } | null;
   schedule?: {
     id: string;
@@ -116,7 +99,7 @@ interface HistoryMetrics {
 
 export default function EmployeeAppPage() {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<"qr" | "geo" | "history">("qr");
+  const [activeTab, setActiveTab] = useState<"qr" | "history">("qr");
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [todayAttendance, setTodayAttendance] = useState<TodayAttendance | null>(null);
@@ -126,6 +109,7 @@ export default function EmployeeAppPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
   const [qrSuccessToast, setQrSuccessToast] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
   // History state
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
@@ -136,46 +120,37 @@ export default function EmployeeAppPage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
 
+  // Push notification state
+  const [pushPermission, setPushPermission] = useState<string>("default");
+  const [isSubscribingPush, setIsSubscribingPush] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+
+  // Dynamic QR auto-rotation state (30s timer)
+  const [qrSecondsLeft, setQrSecondsLeft] = useState(30);
+
   // Mounted flag to avoid SSR hydration mismatches
   const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
     setMounted(true);
-  }, []);
-  const geofenceTarget = useMemo(() => {
-    if (!profile?.location?.geofenceLat || !profile?.location?.geofenceLng) return null;
-    return {
-      lat: profile.location.geofenceLat,
-      lng: profile.location.geofenceLng,
-      radius: profile.location.geofenceRadius || 100,
-    };
-  }, [
-    profile?.location?.geofenceLat,
-    profile?.location?.geofenceLng,
-    profile?.location?.geofenceRadius,
-  ]);
-
-  // El rastreo solo se activa durante la jornada laboral activa (en Tramo 1 o Tramo 2, pausado en receso)
-  const isShift1Active = Boolean(todayAttendance?.entryTime && !todayAttendance?.exitTime);
-  const isShift2Active = Boolean(todayAttendance?.entryTime2 && !todayAttendance?.exitTime2);
-  const isShiftActive = isShift1Active || isShift2Active;
-
-  const geo = useGeofencing(geofenceTarget, {
-    enabled: Boolean(profile?.location && isShiftActive),
-    pingIntervalMs: 45000,
-  });
-
-  // Register Service Worker & capture install prompt
-  useEffect(() => {
     if (typeof window !== "undefined") {
+      setIsOnline(navigator.onLine);
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+
+      if ("Notification" in window) {
+        setPushPermission(Notification.permission);
+        if (Notification.permission === "granted") {
+          setPushSubscribed(true);
+        }
+      }
+
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker
           .register("/sw.js")
-          .then((reg) => {
-            console.log("[PWA] Service Worker registrado:", reg.scope);
-          })
-          .catch((err) => {
-            console.warn("[PWA] Error al registrar Service Worker:", err);
-          });
+          .catch((err) => console.warn("[PWA] Error SW:", err));
       }
 
       window.addEventListener("beforeinstallprompt", (e) => {
@@ -183,28 +158,13 @@ export default function EmployeeAppPage() {
         setDeferredPrompt(e);
         setIsInstallable(true);
       });
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+      };
     }
   }, []);
-
-  // Push notification state
-  const [pushPermission, setPushPermission] = useState<string>("default");
-  const [isSubscribingPush, setIsSubscribingPush] = useState(false);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-
-  // Helper to convert base64 VAPID key
-  const urlBase64ToUint8Array = (base64String: string) => {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-  };
-
-  // Dynamic QR auto-rotation state (30s timer)
-  const [qrSecondsLeft, setQrSecondsLeft] = useState(30);
 
   // Dynamic QR auto-rotation effect every 30 seconds
   useEffect(() => {
@@ -229,6 +189,18 @@ export default function EmployeeAppPage() {
 
     return () => clearInterval(timer);
   }, [profile?.qrToken]);
+
+  // Helper to convert base64 VAPID key
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
 
   const handleSubscribePush = async () => {
     if (Capacitor.isNativePlatform()) {
@@ -255,7 +227,6 @@ export default function EmployeeAppPage() {
         return;
       }
 
-      // Get VAPID public key
       const keyRes = await fetch("/api/notifications/subscribe");
       const { publicKey } = await keyRes.json();
       if (!publicKey) throw new Error("No se pudo obtener la clave VAPID");
@@ -266,7 +237,6 @@ export default function EmployeeAppPage() {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
 
-      // Send to server
       const res = await fetch("/api/notifications/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -278,7 +248,6 @@ export default function EmployeeAppPage() {
 
       if (res.ok) {
         setPushSubscribed(true);
-        // Send a test welcome push notification
         if (profile?.id) {
           fetch("/api/notifications/send", {
             method: "POST",
@@ -287,7 +256,7 @@ export default function EmployeeAppPage() {
               userId: profile.id,
               type: "BIENVENIDA",
               title: "🔔 Notificaciones Push Activas",
-              body: "Recibirás alertas inmediatas de geocerca y recordatorios de asistencia.",
+              body: "Recibirás avisos y recordatorios de asistencia en tiempo real.",
             }),
           }).catch(() => {});
         }
@@ -338,12 +307,12 @@ export default function EmployeeAppPage() {
       if (res.ok) {
         const data = await res.json();
         const newAttendance = data.todayAttendance;
-        
-        // Si antes no teníamos turno y ahora sí tenemos (detectó entrada por Kiosk)
-        if (!isShiftActive && newAttendance && (newAttendance.entryTime || newAttendance.entryTime2)) {
-          setTodayAttendance(newAttendance);
-          setQrSuccessToast("¡Asistencia registrada exitosamente! GPS activado.");
-          setTimeout(() => setQrSuccessToast(null), 4000);
+        if (newAttendance && (newAttendance.entryTime || newAttendance.entryTime2)) {
+          if (!todayAttendance?.entryTime && newAttendance.entryTime) {
+            setTodayAttendance(newAttendance);
+            setQrSuccessToast("¡Asistencia registrada exitosamente en el Kiosk!");
+            setTimeout(() => setQrSuccessToast(null), 4000);
+          }
         }
       }
     } catch (e) {
@@ -424,15 +393,15 @@ export default function EmployeeAppPage() {
     }
   }, [activeTab]);
 
-  // Sondeo inteligente: Si está en la pestaña QR y NO está en turno, consultar cada 3 segundos
+  // Sondeo inteligente: Si está en la pestaña QR y no tiene salida marcada, consultar cada 4 segundos
   useEffect(() => {
-    if (activeTab === "qr" && !isShiftActive) {
+    if (activeTab === "qr") {
       const timer = setInterval(() => {
         silentCheckAttendance();
-      }, 3000);
+      }, 4000);
       return () => clearInterval(timer);
     }
-  }, [activeTab, isShiftActive]);
+  }, [activeTab, todayAttendance]);
 
   return (
     <div
@@ -443,8 +412,8 @@ export default function EmployeeAppPage() {
       {/* Background ambient lighting */}
       {!maxBrightness && (
         <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-15%] left-[20%] w-[500px] h-[500px] rounded-full bg-indigo-600/15 blur-[120px]" />
-          <div className="absolute bottom-[-10%] right-[10%] w-[400px] h-[400px] rounded-full bg-pink-600/10 blur-[120px]" />
+          <div className="absolute top-[-15%] left-[20%] w-[500px] h-[500px] rounded-full bg-emerald-600/15 blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[10%] w-[400px] h-[400px] rounded-full bg-indigo-600/10 blur-[120px]" />
         </div>
       )}
 
@@ -460,28 +429,24 @@ export default function EmployeeAppPage() {
       <header className="sticky top-0 z-40 backdrop-blur-xl border-b border-white/10 px-4 py-3 bg-slate-950/80">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/25">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/25">
               {profile?.firstName?.[0] || session?.user?.name?.[0] || "U"}
             </div>
             <div>
               <h1 className="text-sm font-bold text-white leading-tight">
                 {profile ? `${profile.firstName} ${profile.lastName}` : "Cargando..."}
               </h1>
-              <div className="flex items-center gap-1.5 text-[11px] text-indigo-300/80 font-medium">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
                 <span>{profile?.role || "EMPLEADO"}</span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
-                  {mounted && geo.isOnline ? (
+                  {mounted && isOnline ? (
                     <span className="text-emerald-400 flex items-center gap-0.5">
                       <Wifi className="w-3 h-3" /> Online
                     </span>
-                  ) : mounted && !geo.isOnline ? (
+                  ) : (
                     <span className="text-amber-400 flex items-center gap-0.5 font-bold animate-pulse">
                       <WifiOff className="w-3 h-3" /> Offline
-                    </span>
-                  ) : (
-                    <span className="text-emerald-400/70 flex items-center gap-0.5">
-                      <Wifi className="w-3 h-3" /> Online
                     </span>
                   )}
                 </span>
@@ -490,35 +455,6 @@ export default function EmployeeAppPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* GPS Pulse */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-                mounted && geo.isInside === true
-                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                  : mounted && geo.isInside === false
-                  ? "bg-rose-500/15 text-rose-400 border-rose-500/30"
-                  : "bg-slate-800 text-slate-400 border-slate-700"
-              }`}
-              title="Estado de Geocerca"
-            >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  mounted && geo.isInside === true
-                    ? "bg-emerald-400 animate-pulse"
-                    : mounted && geo.isInside === false
-                    ? "bg-rose-400 animate-ping"
-                    : "bg-slate-500"
-                }`}
-              />
-              <span>
-                {mounted && geo.isInside === true
-                  ? "En Sede"
-                  : mounted && geo.isInside === false
-                  ? "Fuera"
-                  : "GPS..."}
-              </span>
-            </div>
-
             {/* Logout */}
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
@@ -531,30 +467,6 @@ export default function EmployeeAppPage() {
         </div>
       </header>
 
-      {/* Offline Sync Banner if pending pings exist */}
-      {geo.pendingOfflinePings > 0 && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 text-xs text-amber-200 z-30">
-          <div className="max-w-md mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>
-                <strong>{geo.pendingOfflinePings}</strong> pings GPS en cola local (IndexedDB)
-              </span>
-            </div>
-            {geo.isOnline && (
-              <button
-                onClick={() => geo.flushOfflinePings()}
-                disabled={geo.isFlushingOfflineQueue}
-                className="px-2 py-0.5 rounded-lg bg-amber-500/30 hover:bg-amber-500/40 text-amber-100 font-bold border border-amber-500/40 flex items-center gap-1 transition-all cursor-pointer"
-              >
-                <RefreshCw className={`w-3 h-3 ${geo.isFlushingOfflineQueue ? "animate-spin" : ""}`} />
-                <span>Sincronizar</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* PWA Install Banner */}
       {isInstallable && (
         <div
@@ -566,12 +478,12 @@ export default function EmployeeAppPage() {
         >
           <div className="max-w-md mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-lime-400 shrink-0" />
+              <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
               <span>Instala Presenxa en tu pantalla de inicio</span>
             </div>
             <button
               onClick={handleInstallPwa}
-              className="px-3 py-1 rounded-xl gradient-brand text-slate-950 font-bold text-[11px] shadow-lg shadow-lime-950/40 flex items-center gap-1.5 transition-all cursor-pointer"
+              className="px-3 py-1 rounded-xl gradient-brand text-slate-950 font-bold text-[11px] shadow-lg shadow-emerald-950/40 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Instalar PWA</span>
@@ -629,81 +541,53 @@ export default function EmployeeAppPage() {
               className="p-3.5 rounded-2xl border backdrop-blur-md flex items-center justify-between"
               style={{
                 background: "rgba(16, 42, 67, 0.85)",
-                borderColor: "rgba(163, 230, 53, 0.15)",
+                borderColor: "rgba(34, 197, 94, 0.15)",
               }}
             >
               <div className="flex items-center gap-2.5">
                 <div
                   className={`p-2 rounded-xl ${
-                    geo.isNative || pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
-                      ? "bg-lime-400/20 text-lime-400 border border-lime-400/30"
+                    pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
+                      ? "bg-emerald-400/20 text-emerald-400 border border-emerald-400/30"
                       : "bg-white/10 text-slate-400"
                   }`}
                 >
-                  {geo.isNative || pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
-                    <BellRing className="w-4 h-4 text-lime-400" />
+                  {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
+                    <BellRing className="w-4 h-4 text-emerald-400" />
                   ) : (
                     <Bell className="w-4 h-4 text-slate-400" />
                   )}
                 </div>
                 <div>
                   <span className="text-xs font-bold text-white block">
-                    {geo.isNative
-                      ? "Alertas Nativas Activas"
-                      : pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
+                    {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
                       ? "Alertas Push Activas"
                       : "Notificaciones Push"}
                   </span>
                   <span className="text-[10px] text-slate-300">
-                    {geo.isNative
-                      ? "Servicio de geocerca integrado en Android"
-                      : pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
-                      ? "Recibirás avisos de geocerca en tiempo real"
-                      : "Activa alertas de geocerca y recordatorios"}
+                    {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted")
+                      ? "Recibirás avisos y recordatorios al instante"
+                      : "Activa alertas de asistencia y recordatorios"}
                   </span>
                 </div>
               </div>
 
-              {geo.isNative || pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-lime-400/20 text-lime-300 border border-lime-400/30 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-lime-400" />
+              {pushSubscribed || (mounted && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") ? (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                   <span>Activo</span>
                 </span>
               ) : (
                 <button
                   onClick={handleSubscribePush}
                   disabled={isSubscribingPush}
-                  className="px-3 py-1.5 rounded-xl gradient-brand text-slate-950 font-bold text-xs shadow-lg shadow-lime-950/40 transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl gradient-brand text-slate-950 font-bold text-xs shadow-lg shadow-emerald-950/40 transition-all flex items-center gap-1 disabled:opacity-50 cursor-pointer"
                 >
                   <Bell className={`w-3.5 h-3.5 ${isSubscribingPush ? "animate-spin" : ""}`} />
                   <span>{isSubscribingPush ? "Activando..." : "Activar"}</span>
                 </button>
               )}
             </div>
-
-            {/* GPS Security Alert Banner */}
-            {isShiftActive && (geo.isGpsRevoked || geo.isGpsDisabled) && (
-              <div className="p-4 rounded-2xl border border-rose-500/40 bg-rose-950/40 text-rose-200 backdrop-blur-md animate-pulse">
-                <div className="flex items-start gap-3">
-                  <AlertOctagon className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                      {geo.isGpsRevoked ? "⚠️ Permiso de Ubicación Desactivado" : "⚠️ Sensor GPS No Disponible"}
-                    </h4>
-                    <p className="text-[11px] text-rose-300 mt-1 leading-relaxed">
-                      Tu turno laboral está activo y requiere supervisión de geocerca continua. Se ha emitido un reporte de seguridad a tus supervisores. Reactiva la ubicación para mantener tu asistencia al día.
-                    </p>
-                    <button
-                      onClick={() => geo.sendManualPing()}
-                      className="mt-2.5 px-3 py-1 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Reintentar Conexión GPS</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* QR Card */}
             <div
@@ -947,155 +831,7 @@ export default function EmployeeAppPage() {
           </div>
         )}
 
-        {/* TAB 2: LIVE GEOFENCING & GPS RADAR */}
-        {activeTab === "geo" && (
-          <div className="space-y-4">
-            {/* Status Radar Card */}
-            <div
-              className={`p-6 rounded-3xl border relative overflow-hidden backdrop-blur-xl transition-all ${
-                geo.isInside === true
-                  ? "bg-emerald-950/30 border-emerald-500/30"
-                  : geo.isInside === false
-                  ? "bg-rose-950/40 border-rose-500/40 shadow-rose-900/20 shadow-2xl"
-                  : "bg-slate-900/60 border-white/10"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={`p-2.5 rounded-2xl ${
-                      geo.isInside === true
-                        ? "bg-emerald-500/20 text-emerald-400"
-                        : geo.isInside === false
-                        ? "bg-rose-500/20 text-rose-400 animate-pulse"
-                        : "bg-slate-800 text-slate-400"
-                    }`}
-                  >
-                    <Radio className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-white">Monitoreo Satelital en Vivo</h2>
-                    <p className="text-[11px] text-slate-400">Validación con PostGIS y GPS</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => geo.sendManualPing()}
-                  disabled={geo.isSendingPing}
-                  className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Enviar ping manual"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${geo.isSendingPing ? "animate-spin" : ""}`} />
-                  <span>Ping GPS</span>
-                </button>
-              </div>
-
-              {/* Status Banner */}
-              <div
-                className={`p-4 rounded-2xl border flex items-center gap-3 my-3 ${
-                  geo.isInside === true
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
-                    : geo.isInside === false
-                    ? "bg-rose-500/20 border-rose-500/40 text-rose-200"
-                    : "bg-slate-800/60 border-slate-700 text-slate-300"
-                }`}
-              >
-                {geo.isInside === true ? (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-                ) : geo.isInside === false ? (
-                  <AlertOctagon className="w-6 h-6 text-rose-400 shrink-0 animate-bounce" />
-                ) : (
-                  <Navigation className="w-6 h-6 text-slate-400 shrink-0 animate-spin" />
-                )}
-
-                <div>
-                  <h3 className="text-sm font-bold">
-                    {geo.isInside === true
-                      ? "Dentro del Perímetro Autorizado"
-                      : geo.isInside === false
-                      ? "Fuera del Perímetro Asignado"
-                      : "Obteniendo Coordenadas GPS..."}
-                  </h3>
-                  <p className="text-[11px] opacity-80 leading-snug">
-                    {geo.isInside === true
-                      ? "Tu presencia en la sede está confirmada y activa."
-                      : geo.isInside === false
-                      ? "Regresa al perímetro de la sede para evitar registro de abandono."
-                      : "Asegúrate de conceder permisos de ubicación."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Grace Period Countdown Box */}
-              {geo.gracePeriodSecondsRemaining !== null && geo.gracePeriodSecondsRemaining > 0 && (
-                <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 mt-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-rose-300">
-                    <span className="flex items-center gap-1.5">
-                      <Flame className="w-4 h-4 text-rose-400 animate-pulse" />
-                      Tiempo de Tolerancia (Grace Period):
-                    </span>
-                    <span className="font-mono text-base font-extrabold text-white">
-                      {Math.floor(geo.gracePeriodSecondsRemaining / 60)}:
-                      {String(geo.gracePeriodSecondsRemaining % 60).padStart(2, "0")} min
-                    </span>
-                  </div>
-                  <div className="w-full bg-rose-950/80 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-amber-400 to-rose-500 h-full transition-all duration-1000"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (geo.gracePeriodSecondsRemaining / (10 * 60)) * 100
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Telemetry Metrics Grid */}
-              <div className="grid grid-cols-2 gap-2.5 mt-4 text-xs">
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-medium block">Distancia a la Sede</span>
-                  <span className="text-sm font-bold text-white font-mono">
-                    {geo.distanceToVenue !== null ? `${geo.distanceToVenue} metros` : "Calculando..."}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-medium block">Radio Geocerca</span>
-                  <span className="text-sm font-bold text-emerald-300 font-mono">
-                    {profile?.location?.geofenceRadius || 150} m
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-medium block">Precisión GPS</span>
-                  <span className="text-sm font-bold text-slate-200 font-mono">
-                    {geo.accuracy ? `±${Math.round(geo.accuracy)} m` : "Normal"}
-                  </span>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-medium block">Último Ping</span>
-                  <span className="text-sm font-bold text-slate-200 font-mono">
-                    {geo.lastPingTime || "Esperando..."}
-                  </span>
-                </div>
-              </div>
-
-              {/* Sede Info */}
-              <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-2 text-xs text-slate-400">
-                <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="truncate">
-                  {profile?.location?.name}: {profile?.location?.address}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: ATTENDANCE HISTORY & STATS */}
+        {/* TAB 2: ATTENDANCE HISTORY & STATS */}
         {activeTab === "history" && (
           <div className="space-y-4">
             {/* KPI Metrics */}
@@ -1228,7 +964,7 @@ export default function EmployeeAppPage() {
           borderTop: "1px solid rgba(22, 163, 74, 0.12)",
         }}
       >
-        <div className="max-w-md mx-auto grid grid-cols-3 gap-2">
+        <div className="max-w-md mx-auto grid grid-cols-2 gap-2">
           <button
             onClick={() => setActiveTab("qr")}
             className={`py-2 px-3 rounded-2xl flex flex-col items-center gap-1 transition-all cursor-pointer ${
@@ -1239,18 +975,6 @@ export default function EmployeeAppPage() {
           >
             <QrCode className="w-5 h-5" />
             <span className="text-[10px]">Mi QR</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("geo")}
-            className={`py-2 px-3 rounded-2xl flex flex-col items-center gap-1 transition-all cursor-pointer ${
-              activeTab === "geo"
-                ? "bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 shadow-sm"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <MapPin className="w-5 h-5" />
-            <span className="text-[10px]">Geocerca</span>
           </button>
 
           <button

@@ -3,7 +3,7 @@
 import { Session } from "next-auth";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
-import { LogOut, ChevronDown, Building2 } from "lucide-react";
+import { LogOut, ChevronDown, Building2, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 
@@ -16,13 +16,16 @@ const ROUTE_TITLES: Record<string, string> = {
   "/horarios":    "Horarios",
   "/kiosks":      "Dispositivos Kiosk",
   "/reportes":    "Reportes",
+  "/configuracion":"Configuración",
 };
 
 interface TopbarProps {
   session: Session;
+  onMenuToggle?: () => void;
+  isMenuOpen?: boolean;
 }
 
-export function Topbar({ session }: TopbarProps) {
+export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -47,21 +50,34 @@ export function Topbar({ session }: TopbarProps) {
 
   return (
     <header
-      className="relative z-40 flex items-center justify-between px-6 py-3.5 flex-shrink-0"
+      className="relative z-40 flex items-center justify-between px-4 sm:px-6 py-3.5 flex-shrink-0"
       style={{
         background: "rgba(5, 10, 6, 0.85)",
         backdropFilter: "blur(14px)",
         borderBottom: "1px solid rgba(22, 163, 74, 0.08)",
       }}
     >
+      {/* Botón hamburguesa móvil + Título de la sección */}
+      <div className="flex items-center gap-3 min-w-0">
+        {onMenuToggle && (
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            aria-label="Abrir menú de navegación"
+            aria-expanded={isMenuOpen}
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400/50"
+          >
+            <Menu className="w-5 h-5 text-lime-400" />
+          </button>
+        )}
 
-      {/* Título de la sección */}
-      <div>
-        <h2 className="text-base font-semibold text-white">{pageTitle}</h2>
-        <p className="text-xs text-slate-600 flex items-center gap-1.5 mt-0.5">
-          <Building2 className="w-3 h-3" />
-          {session.user.organizationName}
-        </p>
+        <div className="min-w-0">
+          <h2 className="text-sm sm:text-base font-semibold text-white truncate">{pageTitle}</h2>
+          <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
+            <Building2 className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{session.user.organizationName}</span>
+          </p>
+        </div>
       </div>
 
       {/* Acciones del header */}

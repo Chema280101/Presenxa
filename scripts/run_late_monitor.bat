@@ -1,15 +1,20 @@
 @echo off
 REM ============================================================================
-REM AsistControl — Monitor de Tardanzas y Ausencias
-REM Ejecuta el job late_monitor.py y despacha notificaciones push
+REM AsistControl / Presenxa — Monitoreo de Tardanzas
+REM Ejecuta el job para detectar usuarios sin entrada que superaron la tolerancia
 REM ============================================================================
 
-cd /d "%~dp0\..\packages\geo-worker"
+set API_URL=%APP_URL%
+if "%API_URL%"=="" set API_URL=http://localhost:3000
 
-IF EXIST ".venv\Scripts\python.exe" (
-    ".venv\Scripts\python.exe" -m app.jobs.late_monitor
-) ELSE (
-    python -m app.jobs.late_monitor
-)
+set SECRET=%CRON_SECRET%
+if "%SECRET%"=="" set SECRET=dev-cron-secret
 
+echo [LATE_MONITOR] Verificando tardanzas en %API_URL%/api/jobs/check-late ...
+
+curl -s -X POST "%API_URL%/api/jobs/check-late" ^
+     -H "Content-Type: application/json" ^
+     -H "x-cron-secret: %SECRET%"
+
+echo.
 exit /b %ERRORLEVEL%

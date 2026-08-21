@@ -87,8 +87,6 @@ interface AttendanceRecord {
     id: string;
     name: string;
   };
-  lastPingAt?: string | null;
-  gpsSignalStatus?: "ONLINE" | "WARNING" | "LOST_SIGNAL" | "NO_SIGNAL" | "NOT_ACTIVE" | "TAMPERED";
 }
 
 export default function AttendancePage() {
@@ -343,71 +341,78 @@ export default function AttendancePage() {
         </div>
 
         {/* Date Selector, Automation & Export Actions */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Day Stepper */}
-          <div className="flex items-center rounded-2xl card-surface p-1">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-wrap">
+          {/* Day Stepper & Hoy */}
+          <div className="flex items-center justify-between sm:justify-start gap-2">
+            <div className="flex items-center rounded-2xl card-surface p-1 flex-1 sm:flex-initial justify-between">
+              <button
+                onClick={handlePrevDay}
+                title="Día anterior"
+                aria-label="Día anterior"
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors min-w-[38px] min-h-[38px] flex items-center justify-center"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent text-white text-xs font-mono px-2 py-1 outline-none cursor-pointer text-center"
+              />
+              <button
+                onClick={handleNextDay}
+                title="Día siguiente"
+                aria-label="Día siguiente"
+                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors min-w-[38px] min-h-[38px] flex items-center justify-center"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
             <button
-              onClick={handlePrevDay}
-              title="Día anterior"
-              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all min-h-[38px] ${
+                isToday(parseISO(selectedDate))
+                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-lg shadow-emerald-950/40"
+                  : "card-surface text-slate-400 hover:text-white"
+              }`}
             >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-white text-xs font-mono px-2 py-1 outline-none cursor-pointer"
-            />
-            <button
-              onClick={handleNextDay}
-              title="Día siguiente"
-              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
+              Hoy
             </button>
           </div>
 
-          <button
-            onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-              isToday(parseISO(selectedDate))
-                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-lg shadow-emerald-950/40"
-                : "card-surface text-slate-400 hover:text-white"
-            }`}
-          >
-            Hoy
-          </button>
+          {/* Action Buttons: Automation, Refresh, Export */}
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              onClick={() => setShowAutomation(!showAutomation)}
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold border transition-all shadow-md active:scale-95 min-h-[40px] ${
+                showAutomation
+                  ? "gradient-brand text-white border-emerald-400 shadow-emerald-950/50"
+                  : "card-surface text-emerald-300 border-emerald-500/30 hover:border-emerald-400"
+              }`}
+            >
+              <Bot className="w-4 h-4 text-emerald-300 flex-shrink-0" />
+              <span>Tareas</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+            </button>
 
-          {/* Toggle Automation Toolbar Button */}
-          <button
-            onClick={() => setShowAutomation(!showAutomation)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shadow-md active:scale-95 ${
-              showAutomation
-                ? "gradient-brand text-white border-emerald-400 shadow-emerald-950/50"
-                : "card-surface text-emerald-300 border-emerald-500/30 hover:border-emerald-400"
-            }`}
-          >
-            <Bot className="w-4 h-4 text-emerald-300" />
-            <span>Automatizaciones</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
-          </button>
+            <button
+              onClick={fetchAttendance}
+              title="Refrescar datos"
+              aria-label="Refrescar datos"
+              className="p-2.5 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95 min-w-[40px] min-h-[40px] flex items-center justify-center"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : ""}`} />
+            </button>
 
-          <button
-            onClick={fetchAttendance}
-            title="Refrescar datos"
-            className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : ""}`} />
-          </button>
-
-          <button
-            onClick={handleExportCsv}
-            className="gradient-brand flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-lg shadow-emerald-950/40 hover:opacity-90 transition-opacity"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Exportar CSV
-          </button>
+            <button
+              onClick={handleExportCsv}
+              className="gradient-brand flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 rounded-xl text-white text-xs font-semibold shadow-lg shadow-emerald-950/40 hover:opacity-90 transition-opacity min-h-[40px] flex-1 sm:flex-initial"
+            >
+              <Download className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>Exportar CSV</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -622,303 +627,469 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Attendance Table */}
-      <div className="card-surface overflow-hidden shadow-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/[0.02] text-xs font-semibold text-slate-400">
-                <th className="py-4 px-5">Colaborador</th>
-                <th className="py-4 px-4">Sede / Kiosco</th>
-                <th className="py-4 px-4">Entrada</th>
-                <th className="py-4 px-4">Salida</th>
-                <th className="py-4 px-4">Estado</th>
-                <th className="py-4 px-4">Auditoría / Notas</th>
-                <th className="py-4 px-5 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5 text-sm">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
-                    Cargando registros de asistencia...
-                  </td>
-                </tr>
-              ) : attendances.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-8">
-                    <EmptyState
-                      icon={UserX}
-                      title="Sin registros para esta fecha"
-                      description="No se encontraron marcaciones que coincidan con la fecha o filtros seleccionados."
-                    />
-                  </td>
-                </tr>
-              ) : (
-                attendances.map((record) => {
-                  const hasShift2 = Boolean(record.entryTime2 || record.exitTime2);
-                  const isSplitSchedule = Boolean(record.user?.userSchedules?.[0]?.schedule?.isSplit);
+      {/* Attendance Records Display (Mobile Cards + Desktop Table) */}
+      <div>
+        {isLoading ? (
+          <div className="card-surface p-12 text-center text-slate-400">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-emerald-400" />
+            Cargando registros de asistencia...
+          </div>
+        ) : attendances.length === 0 ? (
+          <div className="card-surface p-8">
+            <EmptyState
+              icon={UserX}
+              title="Sin registros para esta fecha"
+              description="No se encontraron marcaciones que coincidan con la fecha o filtros seleccionados."
+            />
+          </div>
+        ) : (
+          <>
+            {/* ── 1. Mobile Cards View (md:hidden) ── */}
+            <div className="md:hidden space-y-3">
+              {attendances.map((record) => {
+                const hasShift2 = Boolean(record.entryTime2 || record.exitTime2);
+                const isSplitSchedule = Boolean(record.user?.userSchedules?.[0]?.schedule?.isSplit);
 
-                  const entryFormatted = record.entryTime
-                    ? format(new Date(record.entryTime), "HH:mm:ss")
-                    : "—";
-                  const exitFormatted = record.exitTime
-                    ? format(new Date(record.exitTime), "HH:mm:ss")
-                    : "—";
+                const entryFormatted = record.entryTime
+                  ? format(new Date(record.entryTime), "HH:mm:ss")
+                  : "—";
+                const exitFormatted = record.exitTime
+                  ? format(new Date(record.exitTime), "HH:mm:ss")
+                  : "—";
 
-                  const entry2Formatted = record.entryTime2
-                    ? format(new Date(record.entryTime2), "HH:mm:ss")
-                    : "—";
-                  const exit2Formatted = record.exitTime2
-                    ? format(new Date(record.exitTime2), "HH:mm:ss")
-                    : "—";
+                const entry2Formatted = record.entryTime2
+                  ? format(new Date(record.entryTime2), "HH:mm:ss")
+                  : "—";
+                const exit2Formatted = record.exitTime2
+                  ? format(new Date(record.exitTime2), "HH:mm:ss")
+                  : "—";
 
-                  const isPendingDni = record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
+                const isPendingDni = record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
 
-                  return (
-                    <tr
-                      key={record.id}
-                      className={`hover:bg-white/[0.02] transition-colors group ${
-                        isPendingDni ? "bg-amber-950/15 border-l-2 border-amber-400" : ""
-                      }`}
-                    >
-                      {/* Empleado info */}
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-                              `${record.user.firstName} ${record.user.lastName}`
-                            )}&backgroundColor=16a34a&textColor=ffffff`}
-                            alt={record.user.firstName}
-                            className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
-                                {record.user.firstName} {record.user.lastName}
-                              </p>
-                              {isSplitSchedule && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                  Partido
-                                </span>
-                              )}
-                              {isPendingDni && (
-                                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 animate-pulse">
-                                  DNI por Validar
-                                </span>
-                              )}
-                              {record.gpsSignalStatus === "ONLINE" && (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                  GPS En línea
-                                </span>
-                              )}
-                              {record.gpsSignalStatus === "WARNING" && (
-                                <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                  GPS Intermitente
-                                </span>
-                              )}
-                              {(record.gpsSignalStatus === "LOST_SIGNAL" || record.gpsSignalStatus === "NO_SIGNAL") && (
-                                <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 text-[10px] font-bold border border-rose-500/30 flex items-center gap-1 animate-pulse">
-                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
-                                  Sin Señal GPS
-                                </span>
-                              )}
-                              {record.gpsSignalStatus === "TAMPERED" && (
-                                <span className="px-2 py-0.5 rounded-full bg-rose-950/80 text-rose-200 text-[10px] font-bold border border-rose-500 flex items-center gap-1 animate-pulse">
-                                  <AlertTriangle className="w-3 h-3 text-rose-400" />
-                                  Alerta GPS
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-400">
-                              {record.user.documentId ? `DNI: ${record.user.documentId} · ` : ""}
-                              {record.user.email}
-                            </p>
-                          </div>
+                return (
+                  <div
+                    key={record.id}
+                    className={`card-surface p-4 rounded-2xl border space-y-3 shadow-lg ${
+                      isPendingDni ? "bg-amber-950/10 border-amber-500/40" : "border-white/10"
+                    }`}
+                  >
+                    {/* Header: User Avatar + Name + StatusBadge */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+                            `${record.user.firstName} ${record.user.lastName}`
+                          )}&backgroundColor=16a34a&textColor=ffffff`}
+                          alt={record.user.firstName}
+                          className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-white text-sm truncate">
+                            {record.user.firstName} {record.user.lastName}
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate">
+                            {record.user.documentId ? `DNI: ${record.user.documentId}` : record.user.email}
+                          </p>
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Sede / Kiosco */}
-                      <td className="py-3.5 px-4 text-xs text-slate-300">
-                        <div className="flex items-center gap-1.5">
-                          <Building className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                          <span>{record.location?.name || "Sin sede"}</span>
-                        </div>
-                        {record.kiosk && (
-                          <span className="text-[11px] text-slate-500 font-mono">
-                            {record.kiosk.name}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Hora Entrada */}
-                      <td className="py-3.5 px-4">
-                        {isSplitSchedule || hasShift2 ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">T1</span>
-                              <span className="font-mono text-xs text-white">{entryFormatted}</span>
-                            </div>
-                            {(record.entryTime2 || isSplitSchedule) && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">T2</span>
-                                <span className="font-mono text-xs text-slate-300">{entry2Formatted}</span>
-                              </div>
-                            )}
-                            {record.lateMinutes && record.lateMinutes > 0 ? (
-                              <p className="text-[10px] text-amber-400 font-mono">
-                                +{record.lateMinutes}m tarde
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <>
-                            <span className="font-mono text-xs text-white">
-                              {entryFormatted}
-                            </span>
-                            {record.lateMinutes && record.lateMinutes > 0 ? (
-                              <p className="text-[11px] text-amber-400 font-mono">
-                                +{record.lateMinutes} min tarde
-                              </p>
-                            ) : null}
-                          </>
-                        )}
-                      </td>
-
-                      {/* Hora Salida */}
-                      <td className="py-3.5 px-4 font-mono text-xs text-slate-300">
-                        {isSplitSchedule || hasShift2 ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">S1</span>
-                              <span>{exitFormatted}</span>
-                            </div>
-                            {(record.exitTime2 || isSplitSchedule) && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">S2</span>
-                                <span>{exit2Formatted}</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span>{exitFormatted}</span>
-                        )}
-                      </td>
-
-                      {/* Estado */}
-                      <td className="py-3.5 px-4">
+                      <div className="flex-shrink-0">
                         <StatusBadge
                           status={record.status}
                           lateMinutes={record.lateMinutes}
                           hasExit={Boolean(record.exitTime2 || record.exitTime)}
-                          gpsSignalStatus={record.gpsSignalStatus}
                           size="sm"
                         />
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Notas / Auditoría */}
-                      <td className="py-3.5 px-4 max-w-xs">
-                        {record.notes ? (
-                          <p className="text-xs text-slate-300 truncate" title={record.notes}>
-                            {record.notes}
-                          </p>
-                        ) : (
-                          <span className="text-xs text-slate-600">—</span>
+                    {/* Split or DNI Badges if applicable */}
+                    {(isSplitSchedule || isPendingDni) && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isSplitSchedule && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            Horario Partido (2 Turnos)
+                          </span>
                         )}
-                        {record.statusChangedBy && (
-                          <p className="text-[10px] text-slate-500">
-                            Por: {record.statusChangedBy}
-                          </p>
+                        {isPendingDni && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 animate-pulse">
+                            DNI por Validar
+                          </span>
                         )}
-                      </td>
+                      </div>
+                    )}
 
-                      {/* Acciones */}
-                      <td className="py-3.5 px-5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Quick DNI Approval Buttons */}
-                          {isPendingDni && (
-                            <>
-                              <button
-                                onClick={() =>
-                                  handleVerifyDni(
-                                    record.id,
-                                    "APPROVE",
-                                    `${record.user.firstName} ${record.user.lastName}`
-                                  )
-                                }
-                                title="Aprobar Marcación por DNI"
-                                className="px-2 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-emerald-950/40 transition-all active:scale-95 cursor-pointer"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Aprobar</span>
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleVerifyDni(
-                                    record.id,
-                                    "REJECT",
-                                    `${record.user.firstName} ${record.user.lastName}`
-                                  )
-                                }
-                                title="Rechazar y Anular Marcación"
-                                className="px-2 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Rechazar</span>
-                              </button>
-                            </>
+                    {/* Details Grid: Sede, Entradas y Salidas */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-black/20 p-2.5 rounded-xl border border-white/5 font-mono">
+                      <div>
+                        <span className="text-slate-500 text-[10px] font-sans block">Sede / Kiosco</span>
+                        <span className="text-slate-300 truncate block">
+                          {record.location?.name || "Sin sede"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 text-[10px] font-sans block">Entrada</span>
+                        <div className="text-white flex items-center gap-1">
+                          {isSplitSchedule ? (
+                            <span>T1: {entryFormatted} {entry2Formatted !== "—" ? `| T2: ${entry2Formatted}` : ""}</span>
+                          ) : (
+                            <span>{entryFormatted}</span>
                           )}
-
-                          {/* Justificar Button */}
-                          <button
-                            onClick={() =>
-                              setSelectedForJustify({
-                                id: record.id,
-                                userName: `${record.user.firstName} ${record.user.lastName}`,
-                                date: record.date,
-                                currentStatus: record.status,
-                              })
-                            }
-                            title="Justificar Inasistencia o Tardanza"
-                            className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                          >
-                            <ShieldCheck className="w-4 h-4" />
-                          </button>
-
-                          {/* Ajustar Registro Button */}
-                          <button
-                            onClick={() =>
-                              setSelectedForEdit({
-                                id: record.id,
-                                userName: `${record.user.firstName} ${record.user.lastName}`,
-                                date: record.date,
-                                status: record.status,
-                                entryTime: record.entryTime,
-                                exitTime: record.exitTime,
-                                entryTime2: record.entryTime2,
-                                exitTime2: record.exitTime2,
-                                notes: record.notes,
-                                lateMinutes: record.lateMinutes,
-                                lateMinutes2: record.lateMinutes2,
-                              })
-                            }
-                            title="Ajustar Horas y Estado"
-                            className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
                         </div>
-                      </td>
+                        {record.lateMinutes && record.lateMinutes > 0 ? (
+                          <span className="text-[10px] text-amber-400 font-sans block">+{record.lateMinutes}m tarde</span>
+                        ) : null}
+                      </div>
+
+                      <div className="col-span-2 pt-1 border-t border-white/5 flex justify-between items-center">
+                        <span className="text-slate-500 text-[10px] font-sans">Salida:</span>
+                        <span className="text-slate-300">
+                          {isSplitSchedule
+                            ? `S1: ${exitFormatted} ${exit2Formatted !== "—" ? `| S2: ${exit2Formatted}` : ""}`
+                            : exitFormatted}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Notas si existen */}
+                    {record.notes && (
+                      <p className="text-xs text-slate-400 bg-white/[0.02] p-2 rounded-lg border border-white/5 italic">
+                        {record.notes}
+                      </p>
+                    )}
+
+                    {/* Touch Action Buttons */}
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                      {isPendingDni && (
+                        <>
+                          <button
+                            onClick={() =>
+                              handleVerifyDni(
+                                record.id,
+                                "APPROVE",
+                                `${record.user.firstName} ${record.user.lastName}`
+                              )
+                            }
+                            className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/40 active:scale-95 transition-all min-h-[44px]"
+                          >
+                            <Check className="w-4 h-4" />
+                            <span>Aprobar DNI</span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleVerifyDni(
+                                record.id,
+                                "REJECT",
+                                `${record.user.firstName} ${record.user.lastName}`
+                              )
+                            }
+                            className="flex-1 py-2.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[44px]"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>Rechazar</span>
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        onClick={() =>
+                          setSelectedForJustify({
+                            id: record.id,
+                            userName: `${record.user.firstName} ${record.user.lastName}`,
+                            date: record.date,
+                            currentStatus: record.status,
+                          })
+                        }
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[44px]"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Justificar</span>
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          setSelectedForEdit({
+                            id: record.id,
+                            userName: `${record.user.firstName} ${record.user.lastName}`,
+                            date: record.date,
+                            status: record.status,
+                            entryTime: record.entryTime,
+                            exitTime: record.exitTime,
+                            entryTime2: record.entryTime2,
+                            exitTime2: record.exitTime2,
+                            notes: record.notes,
+                            lateMinutes: record.lateMinutes,
+                            lateMinutes2: record.lateMinutes2,
+                          })
+                        }
+                        className="flex-1 py-2.5 px-3 rounded-xl card-surface text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[44px]"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        <span>Ajustar</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── 2. Desktop Table View (hidden md:block) ── */}
+            <div className="hidden md:block card-surface overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/[0.02] text-xs font-semibold text-slate-400">
+                      <th className="py-4 px-5">Colaborador</th>
+                      <th className="py-4 px-4">Sede / Kiosco</th>
+                      <th className="py-4 px-4">Entrada</th>
+                      <th className="py-4 px-4">Salida</th>
+                      <th className="py-4 px-4">Estado</th>
+                      <th className="py-4 px-4">Auditoría / Notas</th>
+                      <th className="py-4 px-5 text-right">Acciones</th>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-sm">
+                    {attendances.map((record) => {
+                      const hasShift2 = Boolean(record.entryTime2 || record.exitTime2);
+                      const isSplitSchedule = Boolean(record.user?.userSchedules?.[0]?.schedule?.isSplit);
+
+                      const entryFormatted = record.entryTime
+                        ? format(new Date(record.entryTime), "HH:mm:ss")
+                        : "—";
+                      const exitFormatted = record.exitTime
+                        ? format(new Date(record.exitTime), "HH:mm:ss")
+                        : "—";
+
+                      const entry2Formatted = record.entryTime2
+                        ? format(new Date(record.entryTime2), "HH:mm:ss")
+                        : "—";
+                      const exit2Formatted = record.exitTime2
+                        ? format(new Date(record.exitTime2), "HH:mm:ss")
+                        : "—";
+
+                      const isPendingDni = record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
+
+                      return (
+                        <tr
+                          key={record.id}
+                          className={`hover:bg-white/[0.02] transition-colors group ${
+                            isPendingDni ? "bg-amber-950/15 border-l-2 border-amber-400" : ""
+                          }`}
+                        >
+                          {/* Empleado info */}
+                          <td className="py-3.5 px-5">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
+                                  `${record.user.firstName} ${record.user.lastName}`
+                                )}&backgroundColor=16a34a&textColor=ffffff`}
+                                alt={record.user.firstName}
+                                className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
+                              />
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                                    {record.user.firstName} {record.user.lastName}
+                                  </p>
+                                  {isSplitSchedule && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                      Partido
+                                    </span>
+                                  )}
+                                  {isPendingDni && (
+                                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40 animate-pulse">
+                                      DNI por Validar
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-400">
+                                  {record.user.documentId ? `DNI: ${record.user.documentId} · ` : ""}
+                                  {record.user.email}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Sede / Kiosco */}
+                          <td className="py-3.5 px-4 text-xs text-slate-300">
+                            <div className="flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                              <span>{record.location?.name || "Sin sede"}</span>
+                            </div>
+                            {record.kiosk && (
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                {record.kiosk.name}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Hora Entrada */}
+                          <td className="py-3.5 px-4">
+                            {isSplitSchedule || hasShift2 ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">T1</span>
+                                  <span className="font-mono text-xs text-white">{entryFormatted}</span>
+                                </div>
+                                {(record.entryTime2 || isSplitSchedule) && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">T2</span>
+                                    <span className="font-mono text-xs text-slate-300">{entry2Formatted}</span>
+                                  </div>
+                                )}
+                                {record.lateMinutes && record.lateMinutes > 0 ? (
+                                  <p className="text-[10px] text-amber-400 font-mono">
+                                    +{record.lateMinutes}m tarde
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <>
+                                <span className="font-mono text-xs text-white">
+                                  {entryFormatted}
+                                </span>
+                                {record.lateMinutes && record.lateMinutes > 0 ? (
+                                  <p className="text-[11px] text-amber-400 font-mono">
+                                    +{record.lateMinutes} min tarde
+                                  </p>
+                                ) : null}
+                              </>
+                            )}
+                          </td>
+
+                          {/* Hora Salida */}
+                          <td className="py-3.5 px-4 font-mono text-xs text-slate-300">
+                            {isSplitSchedule || hasShift2 ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1 py-0.5 rounded">S1</span>
+                                  <span>{exitFormatted}</span>
+                                </div>
+                                {(record.exitTime2 || isSplitSchedule) && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 px-1 py-0.5 rounded">S2</span>
+                                    <span>{exit2Formatted}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span>{exitFormatted}</span>
+                            )}
+                          </td>
+
+                          {/* Estado */}
+                          <td className="py-3.5 px-4">
+                            <StatusBadge
+                              status={record.status}
+                              lateMinutes={record.lateMinutes}
+                              hasExit={Boolean(record.exitTime2 || record.exitTime)}
+                              size="sm"
+                            />
+                          </td>
+
+                          {/* Notas / Auditoría */}
+                          <td className="py-3.5 px-4 max-w-xs">
+                            {record.notes ? (
+                              <p className="text-xs text-slate-300 truncate" title={record.notes}>
+                                {record.notes}
+                              </p>
+                            ) : (
+                              <span className="text-xs text-slate-600">—</span>
+                            )}
+                            {record.statusChangedBy && (
+                              <p className="text-[10px] text-slate-500">
+                                Por: {record.statusChangedBy}
+                              </p>
+                            )}
+                          </td>
+
+                          {/* Acciones */}
+                          <td className="py-3.5 px-5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Quick DNI Approval Buttons */}
+                              {isPendingDni && (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      handleVerifyDni(
+                                        record.id,
+                                        "APPROVE",
+                                        `${record.user.firstName} ${record.user.lastName}`
+                                      )
+                                    }
+                                    title="Aprobar Marcación por DNI"
+                                    className="px-2 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-bold flex items-center gap-1 shadow-md shadow-emerald-950/40 transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Aprobar</span>
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleVerifyDni(
+                                        record.id,
+                                        "REJECT",
+                                        `${record.user.firstName} ${record.user.lastName}`
+                                      )
+                                    }
+                                    title="Rechazar y Anular Marcación"
+                                    className="px-2 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Rechazar</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Justificar Button */}
+                              <button
+                                onClick={() =>
+                                  setSelectedForJustify({
+                                    id: record.id,
+                                    userName: `${record.user.firstName} ${record.user.lastName}`,
+                                    date: record.date,
+                                    currentStatus: record.status,
+                                  })
+                                }
+                                title="Justificar Inasistencia o Tardanza"
+                                className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                              >
+                                <ShieldCheck className="w-4 h-4" />
+                              </button>
+
+                              {/* Ajustar Registro Button */}
+                              <button
+                                onClick={() =>
+                                  setSelectedForEdit({
+                                    id: record.id,
+                                    userName: `${record.user.firstName} ${record.user.lastName}`,
+                                    date: record.date,
+                                    status: record.status,
+                                    entryTime: record.entryTime,
+                                    exitTime: record.exitTime,
+                                    entryTime2: record.entryTime2,
+                                    exitTime2: record.exitTime2,
+                                    notes: record.notes,
+                                    lateMinutes: record.lateMinutes,
+                                    lateMinutes2: record.lateMinutes2,
+                                  })
+                                }
+                                title="Ajustar Horas y Estado"
+                                className="p-2 rounded-xl card-surface text-slate-300 hover:text-white transition-all active:scale-95 cursor-pointer"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Modal de Resultados de Ejecución Automática */}

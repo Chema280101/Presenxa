@@ -22,7 +22,6 @@ async function safeDelete(name: string, deleteFn: () => Promise<{ count: number 
 async function main() {
   console.log("🧹 Iniciando purga total de datos en Supabase...");
 
-  await safeDelete("GeoPings", () => prisma.geoPing.deleteMany());
   await safeDelete("AuditLogs", () => prisma.auditLog.deleteMany());
   await safeDelete("Notificaciones", () => prisma.notification.deleteMany());
   await safeDelete("Suscripciones Push", () => prisma.pushSubscription.deleteMany());
