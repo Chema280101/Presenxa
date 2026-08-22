@@ -126,6 +126,7 @@ export async function POST(req: Request) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
       searchQrToken
     );
+    const cleanToken = searchQrToken.replace(/[:-\s]/g, "");
 
     const userWhere: any = {
       organizationId: kiosk.location.organizationId,
@@ -136,13 +137,16 @@ export async function POST(req: Request) {
       userWhere.id = verifiedUserId;
       userWhere.qrToken = searchQrToken;
       userWhere.qrInvalidatedAt = null;
-    } else if (isUuid) {
-      userWhere.OR = [
-        { qrToken: searchQrToken, qrInvalidatedAt: null },
-        { documentId: searchQrToken },
-      ];
     } else {
-      userWhere.documentId = searchQrToken;
+      const orConditions: any[] = [
+        { documentId: { equals: searchQrToken, mode: "insensitive" } },
+        { nfcCardUid: { equals: searchQrToken, mode: "insensitive" } },
+        { nfcCardUid: { equals: cleanToken, mode: "insensitive" } },
+      ];
+      if (isUuid) {
+        orConditions.unshift({ qrToken: searchQrToken, qrInvalidatedAt: null });
+      }
+      userWhere.OR = orConditions;
     }
 
     const user = await prisma.user.findFirst({
@@ -162,14 +166,22 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json(
         {
-          error: "Código QR no reconocido, revocado o usuario inactivo en esta organización",
+          error: "Credencial no reconocida (QR/NFC/DNI inválido o usuario inactivo)",
         },
         { status: 404 }
       );
     }
 
-    // ── 6. Control de Expiración por Tiempo (Máx 60 días sin renovar) ───────
-    if (user.qrGeneratedAt) {
+    const isSigned = isSignedQrPayload(rawToken);
+    const isQrTokenMatch = isUuid && user.qrToken && searchQrToken.toLowerCase() === user.qrToken.toLowerCase();
+    const isNfcScan = !isSigned && !isQrTokenMatch && !!user.nfcCardUid && (
+      user.nfcCardUid.toLowerCase() === searchQrToken.toLowerCase() ||
+      user.nfcCardUid.replace(/[:-\s]/g, "").toLowerCase() === cleanToken.toLowerCase()
+    );
+    const isDniScan = !isSigned && !isQrTokenMatch && !isNfcScan;
+
+    // ── 6. Control de Expiración por Tiempo para QR (Máx 60 días sin renovar) ───────
+    if ((isQrTokenMatch || isSigned) && user.qrGeneratedAt) {
       const daysSinceGenerated =
         (Date.now() - new Date(user.qrGeneratedAt).getTime()) / (1000 * 60 * 60 * 24);
       if (daysSinceGenerated > 60) {
@@ -181,10 +193,6 @@ export async function POST(req: Request) {
         );
       }
     }
-
-    const isSigned = isSignedQrPayload(rawToken);
-    const isQrTokenMatch = isUuid && user.qrToken && searchQrToken.toLowerCase() === user.qrToken.toLowerCase();
-    const isDniScan = !isSigned && !isQrTokenMatch;
 
     const timezone = kiosk.location.timezone || "America/Lima";
     const now = new Date();
@@ -620,6 +628,7 @@ export async function POST(req: Request) {
         lateMinutes: attendance.lateMinutes,
         lateMinutes2: attendance.lateMinutes2,
         isSigned: isSigned,
+        isNfcScan: isNfcScan,
         isDniScan,
         requiresVerification: isDniScan,
       },
@@ -630,6 +639,7 @@ export async function POST(req: Request) {
       success: true,
       scanType,
       message,
+      method: isNfcScan ? "NFC" : isSigned ? "QR_SECURE" : isDniScan ? "MANUAL_DNI" : "QR_STANDARD",
       requiresVerification: isDniScan,
       time: formatLocalTime(now, "HH:mm:ss", timezone),
       date: getLocalDateString(now, timezone),

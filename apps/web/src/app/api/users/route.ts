@@ -17,6 +17,7 @@ const CreateUserSchema = z.object({
   locationId: z.string().uuid().optional().nullable(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
   scheduleId: z.string().uuid().optional().nullable(),
+  nfcCardUid: z.string().optional().nullable(),
 });
 
 // GET /api/users
@@ -59,6 +60,7 @@ export async function GET(req: Request) {
       { lastName: { contains: search, mode: "insensitive" } },
       { email: { contains: search, mode: "insensitive" } },
       { documentId: { contains: search, mode: "insensitive" } },
+      { nfcCardUid: { contains: search, mode: "insensitive" } },
     ];
   }
 
@@ -154,6 +156,18 @@ export async function POST(req: Request) {
       );
     }
 
+    if (data.nfcCardUid && data.nfcCardUid.trim() !== "") {
+      const existingNfc = await prisma.user.findUnique({
+        where: { nfcCardUid: data.nfcCardUid.trim() },
+      });
+      if (existingNfc) {
+        return NextResponse.json(
+          { error: "Ya existe un usuario registrado con esta tarjeta NFC" },
+          { status: 409 }
+        );
+      }
+    }
+
     const passwordHash = data.password ? await bcrypt.hash(data.password, 12) : null;
     const qrToken = crypto.randomUUID();
 
@@ -170,6 +184,7 @@ export async function POST(req: Request) {
           locationId: data.locationId || null,
           passwordHash,
           qrToken,
+          nfcCardUid: data.nfcCardUid && data.nfcCardUid.trim() !== "" ? data.nfcCardUid.trim() : null,
           isActive: true,
         },
         include: {

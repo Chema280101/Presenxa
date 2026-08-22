@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, User, Mail, Phone, FileText, Lock, Building, Clock, ShieldCheck, Loader2 } from "lucide-react";
+import { X, User, Mail, Phone, FileText, Lock, Building, Clock, ShieldCheck, Loader2, CreditCard, Radio } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 
 interface LocationOption {
@@ -35,6 +35,7 @@ export interface UserFormData {
   locationId?: string;
   scheduleId?: string;
   password?: string;
+  nfcCardUid?: string;
   isActive?: boolean;
 }
 
@@ -68,9 +69,12 @@ export function UserFormModal({
     locationId: "",
     scheduleId: "",
     password: "",
+    nfcCardUid: "",
     isActive: true,
   });
 
+  const [isNfcScanning, setIsNfcScanning] = useState(false);
+  const [nfcScanSuccess, setNfcScanSuccess] = useState(false);
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -91,6 +95,7 @@ export function UserFormModal({
         locationId: initialData.locationId || "",
         scheduleId: initialData.scheduleId || "",
         password: "",
+        nfcCardUid: initialData.nfcCardUid || "",
         isActive: initialData.isActive !== undefined ? initialData.isActive : true,
       });
     } else {
@@ -104,10 +109,13 @@ export function UserFormModal({
         locationId: locations[0]?.id || "",
         scheduleId: schedules[0]?.id || "",
         password: "",
+        nfcCardUid: "",
         isActive: true,
       });
     }
     setError("");
+    setIsNfcScanning(false);
+    setNfcScanSuccess(false);
   }, [initialData, isOpen, locations, schedules]);
 
   // Handle escape key
@@ -126,6 +134,56 @@ export function UserFormModal({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOpen, onClose]);
+
+  // Escaneo NFC directo en Android / Chrome
+  const handleScanNfc = async () => {
+    if (typeof window === "undefined") return;
+
+    if (!("NDEFReader" in window)) {
+      // Si el navegador no soporta Web NFC (como desktop), enfocar el input para lector USB
+      const nfcInput = document.getElementById("nfc-card-input");
+      if (nfcInput) {
+        nfcInput.focus();
+      }
+      setError("Web NFC está disponible en Chrome para Android. En PC, puedes pasar la tarjeta por tu lector USB o escribir el UID manualmente.");
+      return;
+    }
+
+    try {
+      setIsNfcScanning(true);
+      setError("");
+      // @ts-ignore
+      const ndef = new window.NDEFReader();
+      await ndef.scan();
+
+      ndef.onreading = (event: any) => {
+        let cardId = event.serialNumber;
+        if (!cardId && event.message?.records?.length > 0) {
+          const textRecord = event.message.records.find((r: any) => r.recordType === "text");
+          if (textRecord) {
+            const textDecoder = new TextDecoder(textRecord.encoding || "utf-8");
+            cardId = textDecoder.decode(textRecord.data);
+          }
+        }
+
+        if (cardId) {
+          setFormData((prev) => ({ ...prev, nfcCardUid: cardId }));
+          setIsNfcScanning(false);
+          setNfcScanSuccess(true);
+          setTimeout(() => setNfcScanSuccess(false), 3000);
+        }
+      };
+
+      ndef.onreadingerror = () => {
+        setError("Error al leer la tarjeta. Intenta acercarla nuevamente.");
+        setIsNfcScanning(false);
+      };
+    } catch (err: any) {
+      console.warn("Error Web NFC:", err);
+      setIsNfcScanning(false);
+      setError(err.name === "NotAllowedError" ? "Permiso NFC no otorgado." : "No se pudo iniciar el lector NFC.");
+    }
+  };
 
   if (!isOpen || !mounted) return null;
 
@@ -354,7 +412,49 @@ export function UserFormModal({
               </div>
             </div>
 
-            {/* Fila 5: Contraseña de Acceso */}
+            {/* Fila 5: Tarjeta NFC y Contraseña de Acceso */}
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Tarjeta o Llavero NFC Físico (UID)
+                </label>
+                {nfcScanSuccess && (
+                  <span className="text-[11px] text-lime-400 font-bold flex items-center gap-1">
+                    ✓ ¡Tarjeta detectada!
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    id="nfc-card-input"
+                    type="text"
+                    placeholder="Ej: 04:A1:B2:C3:D4 (o acerca la tarjeta al lector)"
+                    value={formData.nfcCardUid || ""}
+                    onChange={(e) => setFormData({ ...formData, nfcCardUid: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm font-mono focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
+                  />
+                  <CreditCard className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleScanNfc}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all cursor-pointer ${
+                    isNfcScanning
+                      ? "bg-lime-400/20 text-lime-300 border-lime-400/40 animate-pulse"
+                      : "bg-white/5 hover:bg-white/10 text-slate-200 border-white/10 hover:border-lime-400/30"
+                  }`}
+                >
+                  <Radio className={`w-4 h-4 ${isNfcScanning ? "animate-spin text-lime-400" : "text-lime-400"}`} />
+                  <span>{isNfcScanning ? "Acerca la tarjeta..." : "Escanear NFC"}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Puedes tocar este celular con la tarjeta física, usar un lector USB o escribir su código único.
+              </p>
+            </div>
+
+            {/* Fila 6: Contraseña de Acceso */}
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 {isEditing ? "Nueva Contraseña (dejar en blanco para conservar la actual)" : "Contraseña de Acceso al Panel / App Web"}

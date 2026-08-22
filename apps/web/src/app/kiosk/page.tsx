@@ -27,6 +27,9 @@ import {
   ScanLine,
   ZoomIn,
   ZoomOut,
+  Radio,
+  CreditCard,
+  Smartphone,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -38,6 +41,7 @@ interface ScanResult {
   time: string;
   date: string;
   status: string;
+  method?: "NFC" | "QR_SECURE" | "MANUAL_DNI" | "QR_STANDARD" | string;
   requiresVerification?: boolean;
   lateMinutes?: number | null;
   workedMinutes?: number | null;
@@ -89,6 +93,12 @@ export default function KioskAppPage() {
   const scannerRef = useRef<any>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const apiKeyRef = useRef<string>(apiKey);
+
+  // ── Web NFC & USB Reader States ──────────────────────────────
+  const [nfcSupported, setNfcSupported] = useState(false);
+  const [nfcActive, setNfcActive] = useState(false);
+  const [nfcStatusMessage, setNfcStatusMessage] = useState("");
+  const nfcAbortCtrlRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     apiKeyRef.current = apiKey;
@@ -157,6 +167,105 @@ export default function KioskAppPage() {
       console.warn("Zoom constraint failed:", err);
     }
   };
+
+  // ── Start Web NFC Scanning (Chrome on Android) ────────────────
+  const startNfcScanning = async () => {
+    if (typeof window === "undefined") return;
+    if (!("NDEFReader" in window)) {
+      setNfcSupported(false);
+      return;
+    }
+    setNfcSupported(true);
+
+    try {
+      if (nfcAbortCtrlRef.current) {
+        nfcAbortCtrlRef.current.abort();
+      }
+      const abortCtrl = new AbortController();
+      nfcAbortCtrlRef.current = abortCtrl;
+
+      // @ts-ignore
+      const ndef = new window.NDEFReader();
+      await ndef.scan({ signal: abortCtrl.signal });
+
+      setNfcActive(true);
+      setNfcStatusMessage("Sensor NFC activo y escuchando");
+
+      ndef.onreading = (event: any) => {
+        let cardId = event.serialNumber;
+        if (!cardId && event.message?.records?.length > 0) {
+          const textRecord = event.message.records.find((r: any) => r.recordType === "text");
+          if (textRecord) {
+            const textDecoder = new TextDecoder(textRecord.encoding || "utf-8");
+            cardId = textDecoder.decode(textRecord.data);
+          }
+        }
+
+        if (cardId) {
+          console.log("[Presenxa Kiosk] Tarjeta NFC detectada:", cardId);
+          handleQrScanned(cardId);
+        }
+      };
+
+      ndef.onreadingerror = () => {
+        console.warn("[Presenxa Kiosk] Error o interferencia al leer tarjeta NFC.");
+      };
+    } catch (err: any) {
+      console.warn("[Presenxa Kiosk] Web NFC info:", err);
+      setNfcActive(false);
+      setNfcStatusMessage(err.name === "NotAllowedError" ? "Permiso NFC denegado" : "NFC no activado");
+    }
+  };
+
+  // Activar NFC al montar si el navegador lo permite
+  useEffect(() => {
+    if (!mounted) return;
+    if (typeof window !== "undefined" && "NDEFReader" in window) {
+      setNfcSupported(true);
+      startNfcScanning();
+    }
+    return () => {
+      if (nfcAbortCtrlRef.current) {
+        nfcAbortCtrlRef.current.abort();
+      }
+    };
+  }, [mounted]);
+
+  // ── USB / HID Keyboard RFID Reader Global Listener ──────────
+  useEffect(() => {
+    let buffer = "";
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastKeyTime > 200) {
+        buffer = "";
+      }
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        const token = buffer.trim();
+        if (token.length >= 3) {
+          console.log("[Presenxa Kiosk] Lector USB detectó entrada:", token);
+          handleQrScanned(token);
+          buffer = "";
+        }
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isProcessing, apiKey]);
 
   // Synthesize sound effects using Web Audio API
   const playSound = (type: "SUCCESS" | "WARNING" | "ERROR") => {
@@ -675,6 +784,22 @@ export default function KioskAppPage() {
             )}
           </div>
 
+          {/* NFC Status Indicator (Android Chrome) */}
+          {nfcSupported && (
+            <button
+              onClick={startNfcScanning}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                nfcActive
+                  ? "bg-lime-500/10 text-lime-400 border-lime-500/30"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse"
+              }`}
+              title={nfcActive ? "Sensor NFC escuchando en segundo plano" : "Toca para activar sensor NFC"}
+            >
+              <Radio className={`w-3.5 h-3.5 ${nfcActive ? "animate-pulse text-lime-400" : "text-amber-400"}`} />
+              <span>{nfcActive ? "NFC Listo" : "Activar NFC"}</span>
+            </button>
+          )}
+
           {/* Camera facing switcher */}
           <button
             onClick={toggleCameraFacing}
@@ -744,11 +869,10 @@ export default function KioskAppPage() {
               <div className="p-2 rounded-xl bg-primary-400/15 text-primary-300 border border-primary-400/25">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <span>Control de Asistencia Biométrico / QR</span>
+              <span>Control Biométrico, QR y Tarjetas NFC</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Muestra tu código QR personal frente a la cámara para marcar tu hora
-              oficial de ingreso o salida en tiempo real.
+              Muestra tu código QR frente a la cámara o acerca tu tarjeta/llavero NFC al dispositivo para marcar tu ingreso o salida al instante.
             </p>
 
             {/* Manual DNI button */}
@@ -801,9 +925,17 @@ export default function KioskAppPage() {
               <h2 className="text-2xl font-bold text-white mb-1">
                 {lastScanResult.user.firstName} {lastScanResult.user.lastName}
               </h2>
-              <p className="text-xs text-primary-300 font-semibold uppercase tracking-wider mb-4">
+              <p className="text-xs text-primary-300 font-semibold uppercase tracking-wider mb-2">
                 {lastScanResult.user.role} {lastScanResult.user.documentId ? `· DNI ${lastScanResult.user.documentId}` : ""}
               </p>
+
+              {/* Method badge */}
+              {lastScanResult.method === "NFC" && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30 text-xs font-bold mb-3 shadow-sm">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Marcación por Tarjeta NFC</span>
+                </div>
+              )}
 
               {/* Scan Type Badge */}
               <div
@@ -988,6 +1120,30 @@ export default function KioskAppPage() {
                   <SwitchCamera className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{cameraFacing === "environment" ? "Frontal" : "Trasera"}</span>
                 </button>
+              </div>
+
+              {/* NFC & USB Reader banner */}
+              <div className="w-full mt-3 p-3 rounded-2xl bg-surface-900/80 border border-lime-400/20 flex items-center justify-between text-xs text-slate-300 shadow-lg">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-lime-400 shrink-0" />
+                  <span className="text-[11px] sm:text-xs">
+                    {nfcSupported
+                      ? nfcActive
+                        ? "Sensor NFC activo: acerca tu tarjeta física"
+                        : "NFC detectado en este dispositivo"
+                      : "Lector USB / RFID activo: pasa tu tarjeta"}
+                  </span>
+                </div>
+                {nfcActive ? (
+                  <span className="w-2 h-2 rounded-full bg-lime-400 animate-ping shrink-0" />
+                ) : nfcSupported ? (
+                  <button
+                    onClick={startNfcScanning}
+                    className="px-2 py-0.5 rounded-lg bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 text-[10px] font-bold border border-lime-400/30 cursor-pointer"
+                  >
+                    Activar
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

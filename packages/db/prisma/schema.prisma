@@ -87,10 +87,11 @@ model User {
 
   role UserRole @default(EMPLEADO)
 
-  // ── Núcleo QR ──────────────────────────────────────────────
+  // ── Núcleo QR y NFC ─────────────────────────────────────────
   qrToken          String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   qrGeneratedAt    DateTime  @default(now())
   qrInvalidatedAt  DateTime? // Revocar QR sin borrar usuario
+  nfcCardUid       String?   @unique // UID de la tarjeta o llavero NFC físico
 
   // ── Acceso al sistema ──────────────────────────────────────
   passwordHash String?
@@ -107,6 +108,7 @@ model User {
   auditLogs         AuditLog[]
 
   @@index([qrToken])
+  @@index([nfcCardUid])
   @@index([organizationId])
   @@index([email])
   @@map("users")

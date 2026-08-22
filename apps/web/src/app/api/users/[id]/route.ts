@@ -15,6 +15,7 @@ const UpdateUserSchema = z.object({
   locationId: z.string().uuid().optional().nullable(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
   scheduleId: z.string().uuid().optional().nullable(),
+  nfcCardUid: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
@@ -114,6 +115,19 @@ export async function PUT(
       }
     }
 
+    // Verificar unicidad de tarjeta NFC si cambió
+    if (data.nfcCardUid && data.nfcCardUid.trim() !== "" && data.nfcCardUid.trim() !== existing.nfcCardUid) {
+      const nfcTaken = await prisma.user.findUnique({
+        where: { nfcCardUid: data.nfcCardUid.trim() },
+      });
+      if (nfcTaken && nfcTaken.id !== id) {
+        return NextResponse.json(
+          { error: "Ya existe otro usuario con esta tarjeta NFC asignada" },
+          { status: 409 }
+        );
+      }
+    }
+
     const updateData: any = {};
     if (data.firstName) updateData.firstName = data.firstName;
     if (data.lastName) updateData.lastName = data.lastName;
@@ -123,6 +137,9 @@ export async function PUT(
     if (data.role) updateData.role = data.role;
     if (data.locationId !== undefined) updateData.locationId = data.locationId;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.nfcCardUid !== undefined) {
+      updateData.nfcCardUid = data.nfcCardUid && data.nfcCardUid.trim() !== "" ? data.nfcCardUid.trim() : null;
+    }
 
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 12);

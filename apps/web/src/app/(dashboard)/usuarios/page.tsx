@@ -20,6 +20,7 @@ import {
   UserCheck,
   UserX,
   Sparkles,
+  CreditCard,
 } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 import { QrModal } from "@/components/users/QrModal";
@@ -40,6 +41,7 @@ interface UserItem {
   isActive: boolean;
   qrToken: string;
   qrGeneratedAt: string;
+  nfcCardUid?: string | null;
   location?: { id: string; name: string } | null;
   userSchedules?: Array<{
     schedule: {
@@ -126,8 +128,9 @@ export default function UsersPage() {
       const matchesSearch =
         !search ||
         fullName.includes(search.toLowerCase()) ||
-        u.email.toLowerCase().includes(search.toLowerCase()) ||
-        (u.documentId && u.documentId.toLowerCase().includes(search.toLowerCase()));
+        (u.phone && u.phone.toLowerCase().includes(search.toLowerCase())) ||
+        (u.documentId && u.documentId.toLowerCase().includes(search.toLowerCase())) ||
+        (u.nfcCardUid && u.nfcCardUid.toLowerCase().includes(search.toLowerCase()));
 
       const matchesRole = selectedRole === "ALL" || u.role === selectedRole;
       const matchesLoc = selectedLocation === "ALL" || u.location?.id === selectedLocation;
@@ -458,6 +461,20 @@ export default function UsersPage() {
                       </div>
                     </div>
 
+                    {/* Credenciales QR & NFC */}
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <span className="flex items-center gap-1 text-emerald-400">
+                        <QrCode className="w-3.5 h-3.5" />
+                        <span>QR Activo</span>
+                      </span>
+                      {user.nfcCardUid && (
+                        <span className="flex items-center gap-1 text-lime-400 bg-lime-500/10 px-2 py-0.5 rounded-md border border-lime-500/20 font-mono text-[10px]">
+                          <CreditCard className="w-3 h-3" />
+                          <span>{user.nfcCardUid}</span>
+                        </span>
+                      )}
+                    </div>
+
                     {/* Touch Action Buttons */}
                     <div className="flex items-center gap-2 pt-1">
                       {/* Ver QR */}
@@ -482,6 +499,7 @@ export default function UsersPage() {
                             role: user.role,
                             locationId: user.location?.id || "",
                             scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
+                            nfcCardUid: user.nfcCardUid || "",
                             isActive: user.isActive,
                           });
                           setIsFormModalOpen(true);
@@ -556,9 +574,15 @@ export default function UsersPage() {
                             </div>
                           </td>
 
-                          {/* Documento */}
+                          {/* Documento y NFC */}
                           <td className="py-3.5 px-4 font-mono text-xs text-slate-300">
-                            {user.documentId || "—"}
+                            <div>{user.documentId || "—"}</div>
+                            {user.nfcCardUid && (
+                              <div className="flex items-center gap-1 text-[10px] text-lime-400 font-mono mt-0.5" title={`Tarjeta NFC: ${user.nfcCardUid}`}>
+                                <CreditCard className="w-3 h-3 text-lime-400" />
+                                <span>{user.nfcCardUid}</span>
+                              </div>
+                            )}
                           </td>
 
                           {/* Rol */}
@@ -638,6 +662,7 @@ export default function UsersPage() {
                                     role: user.role,
                                     locationId: user.location?.id || "",
                                     scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
+                                    nfcCardUid: user.nfcCardUid || "",
                                     isActive: user.isActive,
                                   });
                                   setIsFormModalOpen(true);
