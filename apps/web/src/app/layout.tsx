@@ -31,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={plusJakartaSans.variable}>
-      <body className="antialiased">
+    <html lang="es" className={plusJakartaSans.variable} suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>

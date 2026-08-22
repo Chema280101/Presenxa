@@ -785,7 +785,7 @@ export default function KioskAppPage() {
           </div>
 
           {/* NFC Status Indicator (Android Chrome) */}
-          {nfcSupported && (
+          {mounted && nfcSupported && (
             <button
               onClick={startNfcScanning}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
@@ -1127,16 +1127,16 @@ export default function KioskAppPage() {
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-lime-400 shrink-0" />
                   <span className="text-[11px] sm:text-xs">
-                    {nfcSupported
+                    {mounted && nfcSupported
                       ? nfcActive
                         ? "Sensor NFC activo: acerca tu tarjeta física"
                         : "NFC detectado en este dispositivo"
                       : "Lector USB / RFID activo: pasa tu tarjeta"}
                   </span>
                 </div>
-                {nfcActive ? (
+                {mounted && nfcActive ? (
                   <span className="w-2 h-2 rounded-full bg-lime-400 animate-ping shrink-0" />
-                ) : nfcSupported ? (
+                ) : mounted && nfcSupported ? (
                   <button
                     onClick={startNfcScanning}
                     className="px-2 py-0.5 rounded-lg bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 text-[10px] font-bold border border-lime-400/30 cursor-pointer"
