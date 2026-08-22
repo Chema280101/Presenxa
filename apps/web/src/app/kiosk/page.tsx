@@ -192,6 +192,12 @@ export default function KioskAppPage() {
       setNfcStatusMessage("Sensor NFC activo y escuchando");
 
       ndef.onreading = (event: any) => {
+        try {
+          if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+            navigator.vibrate([80, 40, 80]);
+          }
+        } catch {}
+
         let cardId = event.serialNumber;
         if (!cardId && event.message?.records?.length > 0) {
           const textRecord = event.message.records.find((r: any) => r.recordType === "text");
@@ -204,11 +210,17 @@ export default function KioskAppPage() {
         if (cardId) {
           console.log("[Presenxa Kiosk] Tarjeta NFC detectada:", cardId);
           handleQrScanned(cardId);
+        } else {
+          setScanError("Tarjeta NFC leída pero no contiene UID ni registros legibles.");
+          setTimeout(() => setScanError(null), 3000);
         }
       };
 
-      ndef.onreadingerror = () => {
-        console.warn("[Presenxa Kiosk] Error o interferencia al leer tarjeta NFC.");
+      ndef.onreadingerror = (err: any) => {
+        console.warn("[Presenxa Kiosk] Error o interferencia al leer tarjeta NFC:", err);
+        setScanError("Tarjeta detectada, pero no tiene formato NDEF estándar. Si es una tarjeta virgen de fábrica, grábale un texto simple con la app NFC Tools.");
+        playSound("ERROR");
+        setTimeout(() => setScanError(null), 4500);
       };
     } catch (err: any) {
       console.warn("[Presenxa Kiosk] Web NFC info:", err);
