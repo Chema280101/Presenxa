@@ -245,9 +245,9 @@ export default function SchedulesPage() {
               setEditingSchedule(null);
               setIsModalOpen(true);
             }}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-brand hover:opacity-95 text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all active:scale-[0.98] cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-400 hover:bg-primary-300 text-surface-950 text-xs sm:text-sm font-bold shadow-lg shadow-primary-950/40 transition-all active:scale-[0.98] cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-surface-950" />
             <span>Crear Horario</span>
           </button>
         </div>

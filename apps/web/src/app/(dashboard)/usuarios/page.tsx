@@ -296,9 +296,9 @@ export default function UsersPage() {
               setEditingUserData(null);
               setIsFormModalOpen(true);
             }}
-            className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-primary-400 hover:bg-primary-300 text-surface-950 font-bold text-xs sm:text-sm shadow-lg shadow-primary-950/40 active:scale-[0.98] transition-all cursor-pointer"
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-4 h-4 text-surface-950" />
             <span>Nuevo Usuario</span>
           </button>
         </div>
