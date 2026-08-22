@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
 
+import { checkRateLimit } from "./lib/rateLimit";
+
 const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -25,6 +27,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const { email, password } = parsed.data;
         const normalizedEmail = email.toLowerCase().trim();
+
+        // Protección contra ataques de fuerza bruta (5 intentos en ventana de 5 minutos por email)
+        const rateResult = await checkRateLimit({
+          key: `login_attempt:${normalizedEmail}`,
+          limit: 5,
+          windowSeconds: 300,
+        });
+
+        if (!rateResult.success) {
+          console.warn(`[Auth RateLimit] Bloqueado intento excesivo para: ${normalizedEmail}`);
+          throw new Error("RATE_LIMIT_EXCEEDED");
+        }
 
         const user = await prisma.user.findFirst({
           where: {

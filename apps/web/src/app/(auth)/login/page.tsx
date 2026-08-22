@@ -33,7 +33,11 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        setError("Email o contraseña incorrectos.");
+        if (result.error.includes("RATE_LIMIT_EXCEEDED") || result.code === "RATE_LIMIT_EXCEEDED") {
+          setError("Demasiados intentos fallidos. Por seguridad, espera 5 minutos antes de volver a intentar.");
+        } else {
+          setError("Email o contraseña incorrectos.");
+        }
         return;
       }
 
