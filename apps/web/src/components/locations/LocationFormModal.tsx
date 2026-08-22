@@ -9,6 +9,8 @@ import {
   Globe,
   Loader2,
   CheckCircle2,
+  Check,
+  Plus,
 } from "lucide-react";
 
 export interface LocationFormData {
@@ -210,9 +212,10 @@ export function LocationFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
-            Cancelar
+            <X className="w-4 h-4 text-slate-400" />
+            <span>Cancelar</span>
           </button>
           <button
             type="submit"
@@ -223,12 +226,18 @@ export function LocationFormModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Guardando sede...
+                <span>Guardando sede...</span>
               </>
             ) : isEditing ? (
-              "Actualizar Sede"
+              <>
+                <Check className="w-4 h-4" />
+                <span>Actualizar Sede</span>
+              </>
             ) : (
-              "Crear Sede"
+              <>
+                <Plus className="w-4 h-4" />
+                <span>Crear Sede</span>
+              </>
             )}
           </button>
         </div>

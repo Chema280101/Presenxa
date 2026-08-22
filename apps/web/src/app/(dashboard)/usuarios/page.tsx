@@ -21,6 +21,7 @@ import {
   UserX,
   Sparkles,
   CreditCard,
+  Download,
 } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 import { QrModal } from "@/components/users/QrModal";
@@ -270,16 +271,37 @@ export default function UsersPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingUserData(null);
-            setIsFormModalOpen(true);
-          }}
-          className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all flex-shrink-0"
-        >
-          <UserPlus className="w-4 h-4" />
-          Nuevo Usuario
-        </button>
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          <button
+            onClick={fetchUsers}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            title="Recargar listado de usuarios"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : "text-slate-400"}`} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
+
+          <a
+            href="/api/reports/export"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all cursor-pointer"
+            title="Exportar base de datos a CSV"
+          >
+            <Download className="w-4 h-4 text-slate-400" />
+            <span className="hidden sm:inline">Exportar</span>
+          </a>
+
+          <button
+            onClick={() => {
+              setEditingUserData(null);
+              setIsFormModalOpen(true);
+            }}
+            className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Nuevo Usuario</span>
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -334,7 +356,7 @@ export default function UsersPage() {
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              className="w-full px-3 py-2.5 input-standard text-xs cursor-pointer"
+              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs cursor-pointer appearance-none"
             >
               <option value="ALL">Todos los roles</option>
               <option value={UserRole.EMPLEADO}>Empleados</option>
@@ -342,6 +364,7 @@ export default function UsersPage() {
               <option value={UserRole.SUPERVISOR}>Supervisores</option>
               <option value={UserRole.ADMIN}>Administradores</option>
             </select>
+            <Shield className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
           </div>
 
           {/* Location selector */}
@@ -349,7 +372,7 @@ export default function UsersPage() {
             <select
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
-              className="w-full px-3 py-2.5 input-standard text-xs cursor-pointer"
+              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs cursor-pointer appearance-none"
             >
               <option value="ALL">Todas las sedes</option>
               {locations.map((loc) => (
@@ -358,6 +381,7 @@ export default function UsersPage() {
                 </option>
               ))}
             </select>
+            <Building className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
           </div>
 
           {/* Status selector */}
@@ -365,14 +389,34 @@ export default function UsersPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2.5 input-standard text-xs cursor-pointer"
+              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs cursor-pointer appearance-none"
             >
               <option value="ALL">Todos los estados</option>
               <option value="ACTIVE">Solo Activos</option>
               <option value="INACTIVE">Solo Inactivos</option>
             </select>
+            <CheckCircle2 className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
           </div>
         </div>
+
+        {/* Clear filters pill if active */}
+        {(search || selectedRole !== "ALL" || selectedLocation !== "ALL" || selectedStatus !== "ALL") && (
+          <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs text-slate-400">
+            <span>Filtros activos aplicados</span>
+            <button
+              onClick={() => {
+                setSearch("");
+                setSelectedRole("ALL");
+                setSelectedLocation("ALL");
+                setSelectedStatus("ALL");
+              }}
+              className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>Limpiar filtros</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Users Display (Mobile Cards + Desktop Table) */}

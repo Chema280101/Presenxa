@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, FileText, CheckCircle2, ShieldAlert, Loader2 } from "lucide-react";
+import { X, FileText, CheckCircle2, ShieldAlert, Loader2, Check } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 
 interface JustifyModalProps {
@@ -188,9 +188,10 @@ export function JustifyModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
-            Cancelar
+            <X className="w-4 h-4 text-slate-400" />
+            <span>Cancelar</span>
           </button>
           <button
             type="submit"
@@ -201,10 +202,13 @@ export function JustifyModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Guardando...
+                <span>Guardando...</span>
               </>
             ) : (
-              "Aprobar Justificación"
+              <>
+                <Check className="w-4 h-4" />
+                <span>Guardar Justificación</span>
+              </>
             )}
           </button>
         </div>

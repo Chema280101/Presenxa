@@ -187,16 +187,28 @@ export default function LocationsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingLocation(null);
-            setIsModalOpen(true);
-          }}
-          className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all flex-shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Nueva Sede
-        </button>
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          <button
+            onClick={fetchLocations}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            title="Recargar listado de sedes"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : "text-slate-400"}`} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingLocation(null);
+              setIsModalOpen(true);
+            }}
+            className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nueva Sede</span>
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -249,12 +261,13 @@ export default function LocationsPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2.5 input-standard text-xs cursor-pointer"
+              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs cursor-pointer appearance-none"
             >
               <option value="ALL">Todas las sedes</option>
               <option value="ACTIVE">Solo Activas</option>
               <option value="INACTIVE">Solo Inactivas</option>
             </select>
+            <CheckCircle2 className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
           </div>
         </div>
       </div>

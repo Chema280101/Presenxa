@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Clock, Edit3, ShieldAlert, Loader2, Sun, Moon } from "lucide-react";
+import { X, Clock, Edit3, ShieldAlert, Loader2, Sun, Moon, Check } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 import { format } from "date-fns";
 
@@ -319,9 +319,10 @@ export function EditAttendanceModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
-            Cancelar
+            <X className="w-4 h-4 text-slate-400" />
+            <span>Cancelar</span>
           </button>
           <button
             type="submit"
@@ -332,10 +333,13 @@ export function EditAttendanceModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Guardando...
+                <span>Guardando...</span>
               </>
             ) : (
-              "Guardar Ajuste"
+              <>
+                <Check className="w-4 h-4" />
+                <span>Guardar Ajuste</span>
+              </>
             )}
           </button>
         </div>

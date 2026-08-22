@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, QrCode, Building, Loader2 } from "lucide-react";
+import { X, QrCode, Building, Loader2, Check, Sparkles } from "lucide-react";
 
 export interface KioskFormData {
   id?: string;
@@ -189,9 +189,10 @@ export function KioskFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
           >
-            Cancelar
+            <X className="w-4 h-4 text-slate-400" />
+            <span>Cancelar</span>
           </button>
           <button
             type="submit"
@@ -202,12 +203,18 @@ export function KioskFormModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Guardando...
+                <span>Guardando...</span>
               </>
             ) : isEditing ? (
-              "Actualizar Kiosk"
+              <>
+                <Check className="w-4 h-4" />
+                <span>Actualizar Kiosk</span>
+              </>
             ) : (
-              "Crear Kiosk y Generar API Key"
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>Crear Kiosk y Generar API Key</span>
+              </>
             )}
           </button>
         </div>

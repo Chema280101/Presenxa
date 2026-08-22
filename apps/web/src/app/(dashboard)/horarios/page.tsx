@@ -229,16 +229,28 @@ export default function SchedulesPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingSchedule(null);
-            setIsModalOpen(true);
-          }}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-brand hover:opacity-95 text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all active:scale-[0.98] cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Crear Horario</span>
-        </button>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto flex-shrink-0">
+          <button
+            onClick={fetchSchedules}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            title="Recargar listado de horarios"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : "text-slate-400"}`} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingSchedule(null);
+              setIsModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-brand hover:opacity-95 text-white text-sm font-semibold shadow-lg shadow-indigo-900/40 transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Crear Horario</span>
+          </button>
+        </div>
       </div>
 
       {/* Metric Stat Cards */}

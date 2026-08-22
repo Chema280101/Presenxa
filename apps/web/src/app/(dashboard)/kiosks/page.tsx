@@ -227,16 +227,28 @@ export default function KiosksPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setEditingKiosk(null);
-            setIsFormOpen(true);
-          }}
-          className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all flex-shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Nuevo Kiosk
-        </button>
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          <button
+            onClick={fetchKiosks}
+            disabled={isLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            title="Recargar terminales Kiosk"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : "text-slate-400"}`} />
+            <span className="hidden sm:inline">Actualizar</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setEditingKiosk(null);
+              setIsFormOpen(true);
+            }}
+            className="gradient-brand flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-white font-semibold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 hover:opacity-95 active:scale-[0.98] transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nuevo Kiosk</span>
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
