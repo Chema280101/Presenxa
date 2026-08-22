@@ -158,11 +158,29 @@ export function UserFormModal({
 
       ndef.onreading = (event: any) => {
         let cardId = event.serialNumber;
-        if (!cardId && event.message?.records?.length > 0) {
-          const textRecord = event.message.records.find((r: any) => r.recordType === "text");
-          if (textRecord) {
-            const textDecoder = new TextDecoder(textRecord.encoding || "utf-8");
-            cardId = textDecoder.decode(textRecord.data);
+        if (event.message?.records?.length > 0) {
+          for (const record of event.message.records) {
+            if (record.recordType === "text" && record.data) {
+              try {
+                const view = record.data instanceof DataView ? record.data : new DataView(record.data.buffer || record.data);
+                const statusByte = view.getUint8(0);
+                const langLength = statusByte & 0x3f;
+                const isUtf16 = (statusByte & 0x80) !== 0;
+                const encoding = isUtf16 ? "utf-16" : "utf-8";
+                const textBytes = new Uint8Array(view.buffer, view.byteOffset + 1 + langLength, view.byteLength - 1 - langLength);
+                const decodedText = new TextDecoder(encoding).decode(textBytes).trim();
+                if (decodedText) {
+                  if (!cardId || cardId === "") {
+                    cardId = decodedText;
+                  }
+                }
+              } catch {
+                const fallbackText = new TextDecoder().decode(record.data).trim();
+                if (fallbackText && (!cardId || cardId === "")) {
+                  cardId = fallbackText;
+                }
+              }
+            }
           }
         }
 
