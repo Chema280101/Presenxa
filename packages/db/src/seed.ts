@@ -146,6 +146,84 @@ async function main() {
     console.log(`✅ Usuario: ${user.firstName} ${user.lastName} | QR: ${user.qrToken}`);
   }
 
+  // ── Generar Asistencias de Prueba de los últimos 21 días ──
+  console.log("⏳ Generando histórico de asistencias para mapas de calor...");
+  const seededUsers = await prisma.user.findMany({
+    where: { organizationId: org.id },
+  });
+
+  const now = new Date();
+  for (let i = 21; i >= 0; i--) {
+    const targetDate = new Date(now);
+    targetDate.setDate(targetDate.getDate() - i);
+    const dayOfWeek = targetDate.getDay(); // 0: Dom, 6: Sab
+
+    // Omitir domingos para simular jornada laboral estándar
+    if (dayOfWeek === 0) continue;
+
+    for (const u of seededUsers) {
+      // 80% presentes a tiempo, 12% tardanzas, 8% ausencias
+      const rand = Math.random();
+      let status = "PRESENTE";
+      let entryHour = 8;
+      let entryMin = Math.floor(Math.random() * 8); // 08:00 - 08:08
+      let lateMinutes = 0;
+      let exitHour = 17;
+      let exitMin = Math.floor(Math.random() * 45) + 5; // 17:05 - 17:50
+
+      if (rand < 0.12) {
+        status = "TARDE";
+        entryHour = 8;
+        entryMin = Math.floor(Math.random() * 25) + 15; // 08:15 - 08:40
+        lateMinutes = entryMin - 10;
+      } else if (rand < 0.18) {
+        status = "AUSENTE";
+      }
+
+      const dateOnly = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      
+      const entryTime = status !== "AUSENTE"
+        ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), entryHour, entryMin, 0)
+        : null;
+
+      const exitTime = status !== "AUSENTE"
+        ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), exitHour, exitMin, 0)
+        : null;
+
+      const workedMinutes = entryTime && exitTime
+        ? Math.round((exitTime.getTime() - entryTime.getTime()) / 60000)
+        : null;
+
+      await prisma.attendance.upsert({
+        where: {
+          userId_date: {
+            userId: u.id,
+            date: dateOnly,
+          },
+        },
+        update: {
+          entryTime,
+          exitTime,
+          status: status as any,
+          lateMinutes: lateMinutes > 0 ? lateMinutes : null,
+          workedMinutes,
+        },
+        create: {
+          userId: u.id,
+          locationId: location.id,
+          kioskId: kiosk.id,
+          date: dateOnly,
+          entryTime,
+          exitTime,
+          status: status as any,
+          lateMinutes: lateMinutes > 0 ? lateMinutes : null,
+          workedMinutes,
+        },
+      });
+    }
+  }
+  console.log("✅ Histórico de asistencias generado correctamente.");
+
   console.log("\n🎉 Seed completado exitosamente.");
   console.log("\n📋 Credenciales de acceso:");
   console.log("   Admin: admin@demo.com / password123");
