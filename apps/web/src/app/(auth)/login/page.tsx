@@ -154,6 +154,46 @@ function LoginForm() {
             )}
           </button>
         </form>
+
+        {/* Demo Quick Access */}
+        <div className="mt-6 pt-4 border-t border-white/10 text-center space-y-2">
+          <span className="text-[11px] text-slate-400 font-medium">Accesos rápidos de prueba:</span>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("admin@demo.com");
+                setPassword("password123");
+                setError("");
+              }}
+              className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-lime-300 text-[11px] font-semibold border border-lime-400/20 transition-all cursor-pointer"
+            >
+              👑 Admin Demo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("carlos.mendoza@demo.com");
+                setPassword("password123");
+                setError("");
+              }}
+              className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-sky-300 text-[11px] font-semibold border border-sky-400/20 transition-all cursor-pointer"
+            >
+              👤 Empleado Demo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("luis.quispe@demo.com");
+                setPassword("password123");
+                setError("");
+              }}
+              className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-amber-300 text-[11px] font-semibold border border-amber-400/20 transition-all cursor-pointer"
+            >
+              🛡️ Supervisor
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Footer */}
