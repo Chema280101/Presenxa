@@ -84,6 +84,7 @@ model User {
   phone      String?
   photoUrl   String?
   documentId String? // DNI, carnet estudiantil, etc.
+  birthDate  DateTime? // Fecha de nacimiento para celebraciones de cumpleaños y recordatorios
 
   role UserRole @default(EMPLEADO)
 

@@ -27,6 +27,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PdfReportModal } from "@/components/reports/PdfReportModal";
 import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
+import { AttendanceHeatmap } from "@/components/reports/AttendanceHeatmap";
 
 interface DailyRecord {
   date: string;
@@ -70,6 +71,12 @@ export default function ReportsPage() {
   const [selectedRole, setSelectedRole] = useState<string>("ALL");
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
+  const [heatmapData, setHeatmapData] = useState<{
+    peakHoursMatrix: any[];
+    locationPatterns: any[];
+    rolePatterns: any[];
+    insights: any;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // PDF modal state
@@ -90,16 +97,54 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     try {
       setIsLoading(true);
-      const params = new URLSearchParams({ month: selectedMonth });
-      if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
 
-      const res = await fetch(`/api/reports/summary?${params.toString()}`);
-      if (!res.ok) {
-        throw new Error(`Error ${res.status}: ${res.statusText}`);
+      const summaryParams = new URLSearchParams();
+      const heatmapParams = new URLSearchParams();
+
+      if (periodType === "MONTH") {
+        summaryParams.append("month", selectedMonth);
+        heatmapParams.append("month", selectedMonth);
+      } else if (periodType === "CUSTOM") {
+        heatmapParams.append("startDate", customStartDate);
+        heatmapParams.append("endDate", customEndDate);
+      } else if (periodType === "TODAY") {
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        heatmapParams.append("startDate", todayStr);
+        heatmapParams.append("endDate", todayStr);
+      } else if (periodType === "WEEK") {
+        const now = new Date();
+        const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+        heatmapParams.append("startDate", weekStart);
+        heatmapParams.append("endDate", weekEnd);
       }
-      const data = await res.json();
-      if (data && Array.isArray(data.dailyBreakdown)) {
-        setSummary(data);
+
+      if (selectedLocation !== "ALL") {
+        summaryParams.append("locationId", selectedLocation);
+        heatmapParams.append("locationId", selectedLocation);
+      }
+      if (selectedRole !== "ALL") {
+        heatmapParams.append("role", selectedRole);
+      }
+
+      // Execute summary and heatmap requests in parallel
+      const [summaryRes, heatmapRes] = await Promise.all([
+        fetch(`/api/reports/summary?${summaryParams.toString()}`),
+        fetch(`/api/reports/heatmap?${heatmapParams.toString()}`),
+      ]);
+
+      if (summaryRes.ok) {
+        const data = await summaryRes.json();
+        if (data && Array.isArray(data.dailyBreakdown)) {
+          setSummary(data);
+        }
+      }
+
+      if (heatmapRes.ok) {
+        const hData = await heatmapRes.json();
+        if (hData && hData.peakHoursMatrix) {
+          setHeatmapData(hData);
+        }
       }
     } catch (err) {
       console.error("Error fetching reports:", err);
@@ -114,7 +159,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchReports();
-  }, [selectedMonth, selectedLocation]);
+  }, [selectedMonth, selectedLocation, selectedRole, periodType, customStartDate, customEndDate]);
 
   // Generar Reporte PDF
   const handleOpenPdfModal = async () => {
@@ -413,6 +458,17 @@ export default function ReportsPage() {
               variant={summary.abandonedCount > 0 ? "danger" : "default"}
             />
           </div>
+
+          {/* ── Visual Heatmaps & Peak Hours Analytics ──────────────── */}
+          {heatmapData && (
+            <AttendanceHeatmap
+              matrix={heatmapData.peakHoursMatrix}
+              locationPatterns={heatmapData.locationPatterns}
+              rolePatterns={heatmapData.rolePatterns}
+              insights={heatmapData.insights}
+              isLoading={isLoading}
+            />
+          )}
 
           {/* Breakdown & Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

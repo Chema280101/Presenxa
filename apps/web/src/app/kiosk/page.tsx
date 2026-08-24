@@ -34,27 +34,8 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { KioskConfigModal } from "@/components/kiosk/KioskConfigModal";
-
-interface ScanResult {
-  scanType: "ENTRY" | "EXIT" | "ALREADY_REGISTERED";
-  message: string;
-  time: string;
-  date: string;
-  status: string;
-  method?: "NFC" | "QR_SECURE" | "MANUAL_DNI" | "QR_STANDARD" | string;
-  requiresVerification?: boolean;
-  lateMinutes?: number | null;
-  workedMinutes?: number | null;
-  user: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    documentId?: string | null;
-    role: string;
-    photoUrl?: string | null;
-    locationName?: string;
-  };
-}
+import { ScanCelebrationCard, ScanCelebrationData } from "@/components/kiosk/ScanCelebrationCard";
+import { ConfettiCanvas } from "@/components/kiosk/ConfettiCanvas";
 
 export default function KioskAppPage() {
   const [mounted, setMounted] = useState(false);
@@ -82,9 +63,10 @@ export default function KioskAppPage() {
   // Scan states
   const [isScanning, setIsScanning] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<ScanCelebrationData | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(4);
+  const [totalDuration, setTotalDuration] = useState(4);
 
   // Manual DNI keypad modal
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -299,7 +281,7 @@ export default function KioskAppPage() {
   }, [isProcessing, apiKey]);
 
   // Synthesize sound effects using Web Audio API
-  const playSound = (type: "SUCCESS" | "WARNING" | "ERROR") => {
+  const playSound = (type: "CELEBRATION" | "SUCCESS" | "WARNING" | "ERROR") => {
     if (!soundEnabled) return;
     try {
       if (!audioCtxRef.current) {
@@ -308,6 +290,24 @@ export default function KioskAppPage() {
       const ctx = audioCtxRef.current;
       if (ctx.state === "suspended") {
         ctx.resume();
+      }
+
+      if (type === "CELEBRATION") {
+        // Cheerful major arpeggio fanfare (C5, E5, G5, C6)
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((freq, index) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + index * 0.1);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime + index * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + index * 0.1 + 0.5);
+          osc.start(ctx.currentTime + index * 0.1);
+          osc.stop(ctx.currentTime + index * 0.1 + 0.5);
+        });
+        return;
       }
 
       const osc = ctx.createOscillator();
@@ -345,6 +345,21 @@ export default function KioskAppPage() {
       }
     } catch (e) {
       console.warn("Audio playback not allowed yet:", e);
+    }
+  };
+
+  // Optional Voice Greeting using Web Speech API
+  const speakGreeting = (text: string) => {
+    if (!soundEnabled || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    try {
+      window.speechSynthesis.cancel(); // Cancel any previous speech
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "es-ES";
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("Speech synthesis error:", e);
     }
   };
 
@@ -570,7 +585,13 @@ export default function KioskAppPage() {
   useEffect(() => {
     if (!lastScanResult) return;
 
-    const initialSecs = lastScanResult.requiresVerification ? 6 : 4;
+    const initialSecs = lastScanResult.requiresVerification
+      ? 6
+      : lastScanResult.microInteraction?.isBirthday || lastScanResult.microInteraction?.notice
+      ? 5
+      : 4;
+
+    setTotalDuration(initialSecs);
     setCountdown(initialSecs);
 
     const timer = setInterval(() => {
@@ -588,9 +609,10 @@ export default function KioskAppPage() {
     return () => clearInterval(timer);
   }, [lastScanResult]);
 
-  // Handle scanned QR code
+  // Handle scanned QR code / NFC card / DNI
   const handleQrScanned = async (token: string) => {
-    if (isProcessing) return;
+    // If a request is actively in flight, debounce
+    if (isProcessing && !lastScanResult) return;
 
     // Check if scanned QR is a kiosk pairing payload
     try {
@@ -625,6 +647,9 @@ export default function KioskAppPage() {
       setIsConfigOpen(true);
       return;
     }
+
+    // Dismiss previous card immediately to process the next person without delay
+    setLastScanResult(null);
     setIsProcessing(true);
     setScanError(null);
 
@@ -650,7 +675,6 @@ export default function KioskAppPage() {
       if (!res.ok) {
         playSound("ERROR");
         setScanError(data.error || "No se pudo registrar la asistencia");
-        // Solo abrir configuración si realmente la clave no existe o es inválida
         if (res.status === 401 && (!activeKey || data.error?.includes("clave incorrecta") || data.error?.includes("Falta la clave"))) {
           setIsConfigOpen(true);
         }
@@ -666,13 +690,19 @@ export default function KioskAppPage() {
         return;
       }
 
-      // Success / Verification feedback sound
-      if (data.requiresVerification) {
+      // Success / Celebration / Verification feedback sound & voice
+      if (data.microInteraction?.celebrationType === "BIRTHDAY" || data.microInteraction?.isBirthday) {
+        playSound("CELEBRATION");
+        speakGreeting(`¡Feliz cumpleaños, ${data.user.firstName}!`);
+      } else if (data.requiresVerification) {
         playSound("WARNING");
       } else if (data.status === "TARDE") {
         playSound("WARNING");
       } else {
         playSound("SUCCESS");
+        if (data.microInteraction?.greeting) {
+          speakGreeting(`${data.microInteraction.greeting}, asistencia registrada.`);
+        }
       }
 
       setLastScanResult(data);
@@ -749,6 +779,12 @@ export default function KioskAppPage() {
       {/* Background ambient lighting */}
       <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-lime-400/10 blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-sky-600/10 blur-3xl pointer-events-none" />
+
+      {/* Confetti & Celebration Particles FX */}
+      <ConfettiCanvas
+        active={Boolean(lastScanResult?.microInteraction?.isBirthday || lastScanResult?.microInteraction?.celebrationType === "PUNCTUAL")}
+        type={lastScanResult?.microInteraction?.isBirthday ? "BIRTHDAY" : "PUNCTUAL"}
+      />
 
       {/* Topbar of Kiosk */}
       <header
@@ -922,121 +958,15 @@ export default function KioskAppPage() {
         {/* Right Side: Camera Viewfinder OR Result Confirmation Card */}
         <div className="w-full lg:w-1/2 flex flex-col items-center justify-center">
           {lastScanResult ? (
-            /* Result Feedback Card */
-            <div className="w-full max-w-md rounded-3xl p-8 glass-card border border-primary-400/30 shadow-2xl shadow-black/80 flex flex-col items-center text-center animate-scale-up">
-              {/* Status Icon */}
-              <div className="relative mb-4">
-                <img
-                  src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
-                    `${lastScanResult.user.firstName} ${lastScanResult.user.lastName}`
-                  )}&backgroundColor=a3e635&textColor=060e17`}
-                  alt="Avatar"
-                  className="w-24 h-24 rounded-3xl ring-4 ring-primary-400/40 shadow-2xl bg-surface-950"
-                />
-                <div
-                  className={`absolute -bottom-2 -right-2 p-2 rounded-2xl shadow-lg ${
-                    lastScanResult.requiresVerification
-                      ? "bg-amber-400 text-surface-950 animate-pulse ring-4 ring-amber-500/30"
-                      : lastScanResult.status === "TARDE"
-                      ? "bg-amber-400 text-surface-950"
-                      : "bg-primary-400 text-surface-950"
-                  }`}
-                >
-                  {lastScanResult.requiresVerification ? (
-                    <Clock className="w-5 h-5 font-bold" />
-                  ) : lastScanResult.status === "TARDE" ? (
-                    <Clock className="w-5 h-5 font-bold" />
-                  ) : (
-                    <CheckCircle2 className="w-5 h-5 font-bold" />
-                  )}
-                </div>
-              </div>
-
-              {/* User Name & Role */}
-              <h2 className="text-2xl font-bold text-white mb-1">
-                {lastScanResult.user.firstName} {lastScanResult.user.lastName}
-              </h2>
-              <p className="text-xs text-primary-300 font-semibold uppercase tracking-wider mb-2">
-                {lastScanResult.user.role} {lastScanResult.user.documentId ? `· DNI ${lastScanResult.user.documentId}` : ""}
-              </p>
-
-              {/* Method badge */}
-              {lastScanResult.method === "NFC" && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30 text-xs font-bold mb-3 shadow-sm">
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>Marcación por Tarjeta NFC</span>
-                </div>
-              )}
-
-              {/* Scan Type Badge */}
-              <div
-                className={`py-2 px-5 rounded-2xl text-xs sm:text-sm font-bold border mb-4 ${
-                  lastScanResult.requiresVerification
-                    ? "bg-amber-500/20 text-amber-200 border-amber-500/40 animate-pulse"
-                    : lastScanResult.scanType === "ENTRY"
-                    ? "bg-primary-400/20 text-primary-200 border-primary-400/40"
-                    : lastScanResult.scanType === "EXIT"
-                    ? "bg-sky-500/20 text-sky-200 border-sky-500/40"
-                    : "bg-primary-400/20 text-primary-200 border-primary-400/40"
-                }`}
-              >
-                {lastScanResult.requiresVerification
-                  ? "⚠️ MARCACIÓN POR DNI — PENDIENTE DE VALIDACIÓN"
-                  : lastScanResult.scanType === "ENTRY"
-                  ? "✅ INGRESO REGISTRADO"
-                  : lastScanResult.scanType === "EXIT"
-                  ? "👋 SALIDA REGISTRADA"
-                  : "ℹ️ ASISTENCIA PREVIA"}
-              </div>
-
-              {/* Message */}
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-6">
-                {lastScanResult.message}
-              </p>
-
-              {/* Time & Late/Worked chip */}
-              <div className="w-full grid grid-cols-2 gap-2 text-xs font-mono p-3 rounded-2xl bg-surface-950/60 border border-white/10 mb-6">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">HORA CAPTURADA</span>
-                  <span className="text-white font-bold text-sm">
-                    {lastScanResult.time}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">ESTADO</span>
-                  <span
-                    className={`font-bold text-sm ${
-                      lastScanResult.requiresVerification
-                        ? "text-amber-400"
-                        : lastScanResult.status === "TARDE"
-                        ? "text-amber-400"
-                        : "text-primary-400"
-                    }`}
-                  >
-                    {lastScanResult.requiresVerification ? "POR CONFIRMAR" : lastScanResult.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Countdown return & Quick dismiss */}
-              <div className="flex items-center justify-between w-full pt-2 border-t border-white/10">
-                <div className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <span>Siguiente escaneo en</span>
-                  <strong className="text-primary-400 font-mono text-sm">{countdown}s</strong>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLastScanResult(null);
-                    setIsProcessing(false);
-                  }}
-                  className="px-4 py-1.5 rounded-xl bg-primary-400/20 hover:bg-primary-400/30 text-primary-300 hover:text-white text-xs font-bold border border-primary-400/30 transition-all cursor-pointer flex items-center gap-1"
-                >
-                  <span>Siguiente</span>
-                  <span>➔</span>
-                </button>
-              </div>
-            </div>
+            <ScanCelebrationCard
+              data={lastScanResult}
+              countdown={countdown}
+              totalDuration={totalDuration}
+              onDismiss={() => {
+                setLastScanResult(null);
+                setIsProcessing(false);
+              }}
+            />
           ) : scanError ? (
             /* Error Card */
             <div className="w-full max-w-md rounded-3xl p-8 glass-card border border-rose-500/30 bg-rose-500/5 shadow-2xl flex flex-col items-center text-center animate-[shake_0.3s_ease-in-out]">

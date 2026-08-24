@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { isSignedQrPayload, verifySignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
 import { getLocalDateString, getLocalTodayDate, getLocalTimeParts, formatLocalTime } from "@/lib/dateUtils";
+import { generateMicroInteraction } from "@/lib/microInteractions";
 
 const ScanSchema = z.object({
   qrToken: z.string().min(1, "El token QR o documento es requerido"),
@@ -635,6 +636,19 @@ export async function POST(req: Request) {
       req,
     });
 
+    // ── 10. Generar Micro-Interacciones Personalizadas ────────────────────
+    const microInteraction = await generateMicroInteraction({
+      user,
+      attendance,
+      scanType,
+      status: attendance.status,
+      lateMinutes: attendance.lateMinutes,
+      organizationName: kiosk.location.organization?.name || "Presenxa",
+      timezone,
+      now,
+      isSplit,
+    });
+
     return NextResponse.json({
       success: true,
       scanType,
@@ -651,6 +665,7 @@ export async function POST(req: Request) {
       exitTime: attendance.exitTime,
       entryTime2: attendance.entryTime2,
       exitTime2: attendance.exitTime2,
+      microInteraction,
       user: {
         id: user.id,
         firstName: user.firstName,
