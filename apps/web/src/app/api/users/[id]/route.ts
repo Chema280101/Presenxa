@@ -11,6 +11,7 @@ const UpdateUserSchema = z.object({
   email: z.string().email("Correo electrónico inválido").optional(),
   phone: z.string().optional().nullable(),
   documentId: z.string().optional().nullable(),
+  birthDate: z.string().optional().nullable(),
   role: z.nativeEnum(UserRole).optional(),
   locationId: z.string().uuid().optional().nullable(),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
@@ -134,6 +135,9 @@ export async function PUT(
     if (data.email) updateData.email = data.email.toLowerCase();
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.documentId !== undefined) updateData.documentId = data.documentId;
+    if (data.birthDate !== undefined) {
+      updateData.birthDate = data.birthDate && data.birthDate.trim() !== "" ? new Date(data.birthDate) : null;
+    }
     if (data.role) updateData.role = data.role;
     if (data.locationId !== undefined) updateData.locationId = data.locationId;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;

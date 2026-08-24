@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, User, Mail, Phone, FileText, Lock, Building, Clock, ShieldCheck, Loader2, CreditCard, Radio, Check, Sparkles } from "lucide-react";
+import { X, User, Mail, Phone, FileText, Lock, Building, Clock, ShieldCheck, Loader2, CreditCard, Radio, Check, Sparkles, Cake } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 
 interface LocationOption {
@@ -31,6 +31,7 @@ export interface UserFormData {
   email: string;
   phone?: string;
   documentId?: string;
+  birthDate?: string;
   role: UserRole;
   locationId?: string;
   scheduleId?: string;
@@ -65,6 +66,7 @@ export function UserFormModal({
     email: "",
     phone: "",
     documentId: "",
+    birthDate: "",
     role: UserRole.EMPLEADO,
     locationId: "",
     scheduleId: "",
@@ -91,6 +93,7 @@ export function UserFormModal({
         email: initialData.email || "",
         phone: initialData.phone || "",
         documentId: initialData.documentId || "",
+        birthDate: (initialData as any).birthDate ? String((initialData as any).birthDate).split("T")[0] : "",
         role: initialData.role || UserRole.EMPLEADO,
         locationId: initialData.locationId || "",
         scheduleId: initialData.scheduleId || "",
@@ -105,6 +108,7 @@ export function UserFormModal({
         email: "",
         phone: "",
         documentId: "",
+        birthDate: "",
         role: UserRole.EMPLEADO,
         locationId: locations[0]?.id || "",
         scheduleId: schedules[0]?.id || "",
@@ -344,7 +348,7 @@ export function UserFormModal({
               </div>
             </div>
 
-            {/* Fila 3: Documento y Rol */}
+            {/* Fila 3: Documento y Fecha de Cumpleaños (Opcional) */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Documento de Identidad (DNI / Pasaporte / ID)
@@ -359,6 +363,25 @@ export function UserFormModal({
                 />
                 <FileText className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                <span>Fecha de Cumpleaños</span>
+                <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={formData.birthDate || ""}
+                  onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm font-mono focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard cursor-pointer"
+                />
+                <Cake className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Dejar vacío si el colaborador prefiere no compartir su cumpleaños.
+              </p>
             </div>
 
             <div>
