@@ -87,6 +87,12 @@ export async function GET(req: Request) {
 
     // Day by day aggregation
     const dayMap: Record<string, { date: string; present: number; late: number; absent: number; abandoned: number }> = {};
+    const lateSeverity = {
+      tolerance: 0, // 1-5 min
+      light: 0,     // 6-15 min
+      severe: 0,    // 16-30 min
+      critical: 0,  // > 30 min
+    };
 
     attendances.forEach((att) => {
       const dateKey = format(new Date(att.date), "yyyy-MM-dd");
@@ -101,7 +107,15 @@ export async function GET(req: Request) {
       }
 
       if (att.status === AttendanceStatus.PRESENTE) dayMap[dateKey].present++;
-      else if (att.status === AttendanceStatus.TARDE) dayMap[dateKey].late++;
+      else if (att.status === AttendanceStatus.TARDE) {
+        dayMap[dateKey].late++;
+        if (att.lateMinutes) {
+          if (att.lateMinutes <= 5) lateSeverity.tolerance++;
+          else if (att.lateMinutes <= 15) lateSeverity.light++;
+          else if (att.lateMinutes <= 30) lateSeverity.severe++;
+          else lateSeverity.critical++;
+        }
+      }
       else if (att.status === AttendanceStatus.AUSENTE) dayMap[dateKey].absent++;
       else if (att.status === AttendanceStatus.ABANDONO_PUESTO) dayMap[dateKey].abandoned++;
     });
@@ -121,6 +135,7 @@ export async function GET(req: Request) {
       punctualPercentage,
       attendanceRate,
       dailyBreakdown,
+      lateSeverity,
     });
   } catch (error: any) {
     console.error("Error al generar resumen de reportes:", error);

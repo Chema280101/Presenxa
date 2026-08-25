@@ -61,7 +61,7 @@ export default async function DashboardPage() {
   let totalEmpleados = 0;
 
   try {
-    const [statusCounts, rawList, tardanzasDetalle, countEmpleados] =
+    const [statusCounts, rawList, tardanzasDetalle, countEmpleados, topLatesList] =
       await Promise.all([
         prisma.attendance.groupBy({
           by: ["status"],
@@ -110,11 +110,26 @@ export default async function DashboardPage() {
             ...(organizationId ? { organizationId } : {}),
           },
         }),
+        prisma.attendance.findMany({
+          where: {
+            date: todayStart,
+            status: "TARDE",
+            lateMinutes: { gt: 0 },
+            ...(organizationId ? { user: { organizationId } } : {}),
+          },
+          orderBy: { lateMinutes: "desc" },
+          take: 3,
+          include: {
+            user: { select: { firstName: true, lastName: true, photoUrl: true } },
+          },
+        }),
       ]);
 
     const getStatusCount = (statusName: string) => {
       return statusCounts.find(s => s.status === statusName)?._count._all ?? 0;
     };
+
+    let topLatesRaw: any[] = [];
 
     presentes = getStatusCount("PRESENTE");
     tardes = getStatusCount("TARDE");
@@ -124,6 +139,7 @@ export default async function DashboardPage() {
     recentRaw = rawList;
     avgLate = Math.round(tardanzasDetalle._avg.lateMinutes ?? 0);
     totalEmpleados = countEmpleados;
+    topLatesRaw = topLatesList || [];
   } catch (error) {
     console.error("[DashboardPage] Error loading metrics from database:", error);
   }
@@ -419,6 +435,39 @@ export default async function DashboardPage() {
         {/* Accesos rápidos & Hardware Status */}
         <div className="card-surface p-6 flex flex-col justify-between space-y-6">
           <div>
+            {topLatesRaw.length > 0 && (
+              <div className="mb-6">
+                <div className="mb-3">
+                  <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    Mayores Demoras Hoy
+                  </h2>
+                </div>
+                <div className="space-y-2">
+                  {topLatesRaw.map((att: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-amber-400/5 border border-amber-400/10">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Image
+                          src={att.user.photoUrl ?? avatarUrl(`${att.user.firstName} ${att.user.lastName}`)}
+                          alt={att.user.firstName}
+                          width={28}
+                          height={28}
+                          className="w-7 h-7 rounded-lg ring-1 ring-amber-400/20 object-cover flex-shrink-0"
+                          unoptimized={!att.user.photoUrl}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-200 truncate">{att.user.firstName} {att.user.lastName}</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
+                        +{att.lateMinutes}m
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mb-4">
               <h2 className="text-base font-bold text-white tracking-tight">Accesos Rápidos</h2>
               <p className="text-xs text-slate-400 mt-0.5">Módulos principales de administración</p>

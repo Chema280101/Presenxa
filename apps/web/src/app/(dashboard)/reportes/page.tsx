@@ -28,6 +28,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PdfReportModal } from "@/components/reports/PdfReportModal";
 import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
 import { AttendanceHeatmap } from "@/components/reports/AttendanceHeatmap";
+import { DailyTrendChart } from "@/components/reports/DailyTrendChart";
+import { LateSeverityChart } from "@/components/reports/LateSeverityChart";
 
 interface DailyRecord {
   date: string;
@@ -50,6 +52,12 @@ interface ReportSummary {
   punctualPercentage: number;
   attendanceRate: number;
   dailyBreakdown: DailyRecord[];
+  lateSeverity: {
+    tolerance: number;
+    light: number;
+    severe: number;
+    critical: number;
+  };
 }
 
 type PeriodType = "TODAY" | "WEEK" | "MONTH" | "CUSTOM";
@@ -584,7 +592,14 @@ export default function ReportsPage() {
                     />
                   </div>
                 </div>
+                </div>
               </div>
+
+              {summary.lateSeverity && (
+                <div className="pt-2">
+                  <LateSeverityChart data={summary.lateSeverity} totalLates={summary.lateCount} />
+                </div>
+              )}
 
               <div className="pt-2 border-t border-white/5">
                 <button
@@ -597,56 +612,18 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Daily timeline table */}
-            <div className="card-surface p-6 lg:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-base font-bold text-white">Desglose Diario</h3>
-                  <p className="text-xs text-slate-400">
-                    Historial cronológico del periodo
-                  </p>
-                </div>
-              </div>
-
+            {/* Daily timeline trend */}
+            <div className="lg:col-span-2 flex flex-col">
               {(!summary.dailyBreakdown || summary.dailyBreakdown.length === 0) ? (
-                <EmptyState
-                  icon={BarChart3}
-                  title="Sin registros para este periodo"
-                  description="Aún no hay marcaciones o asistencias procesadas en este rango seleccionado."
-                />
-              ) : (
-                <div className="overflow-x-auto max-h-[340px] overflow-y-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-surface-600 text-slate-400 sticky top-0 bg-surface-800">
-                        <th className="pb-2.5">Fecha</th>
-                        <th className="pb-2.5 text-center">Presentes</th>
-                        <th className="pb-2.5 text-center">Tardanzas</th>
-                        <th className="pb-2.5 text-center">Ausentes</th>
-                        <th className="pb-2.5 text-center">Abandonos</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-surface-700/60 font-mono">
-                      {(summary.dailyBreakdown || []).map((row) => (
-                        <tr key={row.date} className="hover:bg-white/[0.02]">
-                          <td className="py-2 text-slate-200">{row.date}</td>
-                          <td className="py-2 text-center text-emerald-400">
-                            {row.present}
-                          </td>
-                          <td className="py-2 text-center text-amber-400">
-                            {row.late}
-                          </td>
-                          <td className="py-2 text-center text-rose-400">
-                            {row.absent}
-                          </td>
-                          <td className="py-2 text-center text-rose-600">
-                            {row.abandoned}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="card-surface p-6 h-full flex flex-col justify-center">
+                  <EmptyState
+                    icon={BarChart3}
+                    title="Sin registros para este periodo"
+                    description="Aún no hay marcaciones o asistencias procesadas en este rango seleccionado."
+                  />
                 </div>
+              ) : (
+                <DailyTrendChart data={summary.dailyBreakdown} />
               )}
             </div>
           </div>
