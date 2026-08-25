@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import useSWR from "swr";
+import Image from "next/image";
 import {
   Users,
   UserPlus,
@@ -62,10 +64,14 @@ interface UserItem {
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserItem[]>([]);
+  const fetcher = (url: string) => fetch(url).then((res) => res.json());
+  const { data: usersData, isLoading, mutate: mutateUsers } = useSWR('/api/users', fetcher, {
+    revalidateOnFocus: true,
+  });
+  const users: UserItem[] = usersData?.users || [];
+
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
   const [schedules, setSchedules] = useState<Array<any>>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -88,18 +94,7 @@ export default function UsersPage() {
   };
 
   const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch("/api/users");
-      const data = await res.json();
-      if (data.users) {
-        setUsers(data.users);
-      }
-    } catch (err) {
-      console.error("Error fetching users:", err);
-    } finally {
-      setIsLoading(false);
-    }
+    await mutateUsers();
   };
 
   const fetchLocationsAndSchedules = async () => {
@@ -118,7 +113,6 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
     fetchLocationsAndSchedules();
   }, []);
 
@@ -453,12 +447,15 @@ export default function UsersPage() {
                     {/* Header: Avatar + User Info + Role/Status */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <img
+                        <Image
                           src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
                             `${user.firstName} ${user.lastName}`
                           )}&backgroundColor=16a34a&textColor=ffffff`}
                           alt={user.firstName}
+                          width={44}
+                          height={44}
                           className="w-11 h-11 rounded-2xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
+                          unoptimized
                         />
                         <div className="min-w-0">
                           <p className="font-bold text-white text-sm truncate">
@@ -602,12 +599,15 @@ export default function UsersPage() {
                           {/* Usuario info & avatar */}
                           <td className="py-3.5 px-5">
                             <div className="flex items-center gap-3">
-                              <img
+                              <Image
                                 src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(
                                   `${user.firstName} ${user.lastName}`
                                 )}&backgroundColor=16a34a&textColor=ffffff`}
                                 alt={user.firstName}
+                                width={40}
+                                height={40}
                                 className="w-10 h-10 rounded-xl ring-1 ring-emerald-500/20 flex-shrink-0 object-cover"
+                                unoptimized
                               />
                               <div>
                                 <p className="font-semibold text-white group-hover:text-emerald-300 transition-colors">

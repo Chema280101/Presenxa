@@ -77,7 +77,18 @@ export async function GET(req: Request) {
     const users = await prisma.user.findMany({
       where,
       orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        documentId: true,
+        role: true,
+        isActive: true,
+        qrToken: true,
+        qrGeneratedAt: true,
+        nfcCardUid: true,
         location: {
           select: { id: true, name: true },
         },
@@ -111,9 +122,8 @@ export async function GET(req: Request) {
     });
 
     const usersWithSignedQr = users.map((u) => {
-      const { passwordHash, ...safeUser } = u;
       return {
-        ...safeUser,
+        ...u,
         signedQrPayload: generateSignedQrPayload(u.id, u.qrToken),
       };
     });

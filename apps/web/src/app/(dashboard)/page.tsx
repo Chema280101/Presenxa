@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Users,
   MapPin,
@@ -60,42 +61,15 @@ export default async function DashboardPage() {
   let totalEmpleados = 0;
 
   try {
-    const [cPresentes, cTardes, cAusentes, cAbandonos, cJustificados, rawList, tardanzasDetalle, countEmpleados] =
+    const [statusCounts, rawList, tardanzasDetalle, countEmpleados] =
       await Promise.all([
-        prisma.attendance.count({
+        prisma.attendance.groupBy({
+          by: ["status"],
           where: {
             date: todayStart,
-            status: "PRESENTE",
             ...(organizationId ? { user: { organizationId } } : {}),
           },
-        }),
-        prisma.attendance.count({
-          where: {
-            date: todayStart,
-            status: "TARDE",
-            ...(organizationId ? { user: { organizationId } } : {}),
-          },
-        }),
-        prisma.attendance.count({
-          where: {
-            date: todayStart,
-            status: "AUSENTE",
-            ...(organizationId ? { user: { organizationId } } : {}),
-          },
-        }),
-        prisma.attendance.count({
-          where: {
-            date: todayStart,
-            status: "ABANDONO_PUESTO",
-            ...(organizationId ? { user: { organizationId } } : {}),
-          },
-        }),
-        prisma.attendance.count({
-          where: {
-            date: todayStart,
-            status: "JUSTIFICADO",
-            ...(organizationId ? { user: { organizationId } } : {}),
-          },
+          _count: { _all: true },
         }),
         prisma.attendance.findMany({
           where: {
@@ -138,11 +112,15 @@ export default async function DashboardPage() {
         }),
       ]);
 
-    presentes = cPresentes;
-    tardes = cTardes;
-    ausentes = cAusentes;
-    abandonos = cAbandonos;
-    justificados = cJustificados;
+    const getStatusCount = (statusName: string) => {
+      return statusCounts.find(s => s.status === statusName)?._count._all ?? 0;
+    };
+
+    presentes = getStatusCount("PRESENTE");
+    tardes = getStatusCount("TARDE");
+    ausentes = getStatusCount("AUSENTE");
+    abandonos = getStatusCount("ABANDONO_PUESTO");
+    justificados = getStatusCount("JUSTIFICADO");
     recentRaw = rawList;
     avgLate = Math.round(tardanzasDetalle._avg.lateMinutes ?? 0);
     totalEmpleados = countEmpleados;
@@ -398,12 +376,13 @@ export default async function DashboardPage() {
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       {/* Avatar */}
-                      <img
+                      <Image
                         src={item.photoUrl ?? avatarUrl(item.name)}
                         alt={item.name}
                         width={36}
                         height={36}
                         className="w-9 h-9 rounded-xl ring-1 ring-primary-400/30 object-cover flex-shrink-0 bg-surface-950"
+                        unoptimized={item.photoUrl ? false : true}
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white tracking-tight truncate">{item.name}</p>

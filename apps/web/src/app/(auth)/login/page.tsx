@@ -3,7 +3,8 @@
 import { useState, useTransition, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ShieldCheck, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import Image from "next/image";
 
 function LoginForm() {
   const router = useRouter();
@@ -12,7 +13,6 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -65,9 +65,11 @@ function LoginForm() {
       >
         {/* Logo y título */}
         <div className="flex flex-col items-center mb-8">
-          <img
+          <Image
             src="/brand/isotipo-secundario.svg"
             alt="Presenxa"
+            width={64}
+            height={64}
             className="w-16 h-16 rounded-2xl object-contain mb-3 shadow-lg shadow-black/50 ring-1 ring-lime-400/30"
           />
           <h1 className="text-2xl font-extrabold text-white tracking-tight mb-1">
