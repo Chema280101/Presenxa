@@ -592,7 +592,6 @@ export default function ReportsPage() {
                     />
                   </div>
                 </div>
-                </div>
               </div>
 
               {summary.lateSeverity && (

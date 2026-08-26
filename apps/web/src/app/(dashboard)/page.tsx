@@ -59,6 +59,7 @@ export default async function DashboardPage() {
   let recentRaw: any[] = [];
   let avgLate = 0;
   let totalEmpleados = 0;
+  let topLatesRaw: any[] = [];
 
   try {
     const [statusCounts, rawList, tardanzasDetalle, countEmpleados, topLatesList] =
@@ -128,8 +129,6 @@ export default async function DashboardPage() {
     const getStatusCount = (statusName: string) => {
       return statusCounts.find(s => s.status === statusName)?._count._all ?? 0;
     };
-
-    let topLatesRaw: any[] = [];
 
     presentes = getStatusCount("PRESENTE");
     tardes = getStatusCount("TARDE");
