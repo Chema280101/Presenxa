@@ -16,6 +16,8 @@ import {
   Sun,
   Moon,
   Sparkles,
+  MapPin,
+  ChevronDown,
 } from "lucide-react";
 import {
   ScheduleFormModal,
@@ -24,6 +26,8 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/providers/ToastProvider";
+import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
 interface ScheduleItem {
   id: string;
@@ -65,20 +69,17 @@ export default function SchedulesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
+
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleFormData | null>(
     null
   );
-
-  // Toast alert
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
 
   const fetchSchedules = async () => {
     try {
@@ -97,6 +98,12 @@ export default function SchedulesPage() {
 
   useEffect(() => {
     fetchSchedules();
+    fetch("/api/locations")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.locations) setLocations(data.locations);
+      })
+      .catch((err) => console.error("Error fetching locations:", err));
   }, []);
 
   const filteredSchedules = useMemo(() => {
@@ -109,9 +116,14 @@ export default function SchedulesPage() {
         (selectedStatus === "ACTIVE" && sch.isActive) ||
         (selectedStatus === "INACTIVE" && !sch.isActive);
 
-      return matchesSearch && matchesStatus;
+      const matchesLocation =
+        selectedLocation === "ALL" ||
+        (selectedLocation === "GLOBAL" && !sch.location) ||
+        sch.location?.id === selectedLocation;
+
+      return matchesSearch && matchesStatus && matchesLocation;
     });
-  }, [schedules, search, selectedStatus]);
+  }, [schedules, search, selectedStatus, selectedLocation]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -143,7 +155,7 @@ export default function SchedulesPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al actualizar horario");
 
-        showToast("Horario actualizado con éxito");
+        toast.success("Horario actualizado con éxito");
       } else {
         // Create
         const res = await fetch("/api/schedules", {
@@ -154,20 +166,25 @@ export default function SchedulesPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al crear horario");
 
-        showToast("Nuevo horario registrado con éxito");
+        toast.success("Nuevo horario registrado con éxito");
       }
       await fetchSchedules();
       return true;
     } catch (err: any) {
-      alert(err.message || "Error al guardar");
+      toast.error(err.message || "Error al guardar el horario");
       return false;
     }
   };
 
   const handleToggleStatus = async (sch: ScheduleItem) => {
     const actionName = sch.isActive ? "desactivar" : "activar";
-    if (!confirm(`¿Estás seguro de ${actionName} el horario "${sch.name}"?`))
-      return;
+    const ok = await confirm({
+      title: `¿${actionName.charAt(0).toUpperCase() + actionName.slice(1)} horario?`,
+      description: `¿Estás seguro de ${actionName} el horario "${sch.name}"? Los empleados con este turno ${sch.isActive ? "no tendrán un horario activo hasta que les asignes otro." : "volverán a operar con esta regla de marcación."}`,
+      confirmText: sch.isActive ? "Desactivar" : "Activar",
+      variant: sch.isActive ? "danger" : "primary",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/schedules/${sch.id}`, {
@@ -176,11 +193,12 @@ export default function SchedulesPage() {
         body: JSON.stringify({ isActive: !sch.isActive }),
       });
       if (res.ok) {
-        showToast(`Horario ${sch.isActive ? "desactivado" : "activado"} con éxito`);
+        toast.success(`Horario ${sch.isActive ? "desactivado" : "activado"} con éxito`);
         await fetchSchedules();
       }
     } catch (err) {
       console.error("Error toggling schedule status:", err);
+      toast.error("Error al cambiar el estado del horario");
     }
   };
 
@@ -213,13 +231,6 @@ export default function SchedulesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 font-medium text-sm shadow-2xl shadow-black/80 backdrop-blur-xl animate-scale-up">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -291,19 +302,21 @@ export default function SchedulesPage() {
 
       {/* Filter and Search Bar */}
       <div className="card-surface p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-          <div className="relative">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Search input */}
+          <div className="relative md:col-span-5">
             <input
               type="text"
               placeholder="Buscar horario por nombre..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-xs sm:text-sm focus:border-indigo-500 outline-none transition-colors"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-xs sm:text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400/40 outline-none transition-all"
             />
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>
 
-          <div className="flex gap-2">
+          {/* Status Pills */}
+          <div className="flex gap-1.5 md:col-span-4">
             {[
               { id: "ALL", label: "Todos" },
               { id: "ACTIVE", label: "Activos" },
@@ -314,13 +327,32 @@ export default function SchedulesPage() {
                 onClick={() => setSelectedStatus(f.id)}
                 className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
                   selectedStatus === f.id
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                    ? "bg-primary-400/20 text-primary-300 border-primary-400/40 shadow-sm"
                     : "bg-white/5 text-slate-400 border-white/5 hover:text-white"
                 }`}
               >
                 {f.label}
               </button>
             ))}
+          </div>
+
+          {/* Location Filter Dropdown */}
+          <div className="relative md:col-span-3">
+            <select
+              value={selectedLocation}
+              onChange={(e) => setSelectedLocation(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 text-xs font-medium rounded-xl bg-surface-950 border border-white/10 text-slate-200 focus:border-primary-400 focus:ring-1 focus:ring-primary-400/40 outline-none transition-all appearance-none cursor-pointer"
+            >
+              <option value="ALL" className="bg-slate-900 text-white">Todas las sedes</option>
+              <option value="GLOBAL" className="bg-slate-900 text-white">Solo Globales</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id} className="bg-slate-900 text-white">
+                  {loc.name}
+                </option>
+              ))}
+            </select>
+            <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
       </div>

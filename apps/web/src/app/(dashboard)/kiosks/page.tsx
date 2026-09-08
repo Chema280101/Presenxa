@@ -25,6 +25,8 @@ import { ApiKeyModal } from "@/components/kiosks/ApiKeyModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/providers/ToastProvider";
+import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
 interface KioskItem {
   id: string;
@@ -56,13 +58,8 @@ export default function KiosksPage() {
   const [selectedKiosk, setSelectedKiosk] = useState<KioskItem | null>(null);
   const [editingKiosk, setEditingKiosk] = useState<KioskFormData | null>(null);
 
-  // Toast alert
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const fetchLocations = async () => {
     try {
@@ -139,7 +136,7 @@ export default function KiosksPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al actualizar kiosk");
 
-        showToast("Kiosk actualizado con éxito");
+        toast.success("Kiosk actualizado con éxito");
       } else {
         const res = await fetch("/api/kiosks", {
           method: "POST",
@@ -149,14 +146,14 @@ export default function KiosksPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al registrar kiosk");
 
-        showToast("Terminal Kiosk registrado con éxito");
+        toast.success("Terminal Kiosk registrado con éxito");
         setSelectedKiosk(resData.kiosk);
         setIsKeyModalOpen(true);
       }
       await fetchKiosks();
       return true;
     } catch (err: any) {
-      alert(err.message || "Error al guardar");
+      toast.error(err.message || "Error al guardar el kiosk");
       return false;
     }
   };
@@ -169,7 +166,7 @@ export default function KiosksPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al regenerar clave");
 
-      showToast("Nueva API Key generada con éxito");
+      toast.success("Nueva API Key generada con éxito");
       await fetchKiosks();
 
       if (selectedKiosk && selectedKiosk.id === kioskId) {
@@ -177,14 +174,20 @@ export default function KiosksPage() {
       }
       return data.kiosk.apiKey;
     } catch (err: any) {
-      alert(err.message || "Error");
+      toast.error(err.message || "Error al regenerar clave");
       return null;
     }
   };
 
   const handleToggleStatus = async (k: KioskItem) => {
     const actionName = k.isActive ? "desactivar" : "reactivar";
-    if (!confirm(`¿Estás seguro de ${actionName} el kiosk "${k.name}"?`)) return;
+    const ok = await confirm({
+      title: `¿${actionName.charAt(0).toUpperCase() + actionName.slice(1)} terminal Kiosk?`,
+      description: `¿Estás seguro de ${actionName} el kiosk "${k.name}"? ${k.isActive ? "El dispositivo físico no podrá sincronizar ni registrar asistencias de colaboradores." : "El dispositivo volverá a admitir escaneo de asistencias con normalidad."}`,
+      confirmText: k.isActive ? "Desactivar" : "Reactivar",
+      variant: k.isActive ? "danger" : "primary",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/kiosks/${k.id}`, {
@@ -193,23 +196,17 @@ export default function KiosksPage() {
         body: JSON.stringify({ isActive: !k.isActive }),
       });
       if (res.ok) {
-        showToast(`Kiosk ${k.isActive ? "desactivado" : "reactivado"} con éxito`);
+        toast.success(`Kiosk ${k.isActive ? "desactivado" : "reactivado"} con éxito`);
         await fetchKiosks();
       }
     } catch (err) {
       console.error("Error toggling kiosk status:", err);
+      toast.error("Error al cambiar el estado del kiosk");
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 font-medium text-sm shadow-2xl shadow-black/80 backdrop-blur-xl animate-scale-up">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

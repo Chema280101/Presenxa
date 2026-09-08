@@ -16,6 +16,8 @@ import {
   Info,
   Check,
   Plus,
+  MapPin,
+  ChevronDown,
 } from "lucide-react";
 
 export interface ScheduleFormData {
@@ -291,7 +293,11 @@ export function ScheduleFormModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} id="schedule-form" className="p-6 sm:p-8 space-y-6 overflow-y-auto">
           {error && (
-            <div className="px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2"
+            >
               <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -317,18 +323,22 @@ export function ScheduleFormModal({
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Sede (Opcional)
             </label>
-            <select
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer"
-            >
-              <option value="">Aplicar a todas las sedes (Global)</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id} className="bg-slate-900 text-white">
-                  {loc.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer"
+              >
+                <option value="" className="bg-slate-900 text-white">Aplicar a todas las sedes (Global)</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id} className="bg-slate-900 text-white">
+                    {loc.name}
+                  </option>
+                ))}
+              </select>
+              <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+            </div>
           </div>
 
           {/* Selector de Modalidad: Continua vs Partida */}

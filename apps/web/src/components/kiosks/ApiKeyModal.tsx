@@ -14,6 +14,7 @@ import {
   QrCode,
 } from "lucide-react";
 import QRCode from "qrcode";
+import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export function ApiKeyModal({
   const [copied, setCopied] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [pairingQrUrl, setPairingQrUrl] = useState<string>("");
+  const { confirm } = useConfirm();
 
   const currentKey = kiosk?.apiKey || "";
 
@@ -88,12 +90,14 @@ export function ApiKeyModal({
   };
 
   const handleRotate = async () => {
-    if (
-      !confirm(
-        "¿Estás seguro de rotar la API Key? El dispositivo Kiosk físico desconectará su sesión hasta que ingreses la nueva clave."
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: "¿Rotar API Key del Kiosk?",
+      description:
+        "¿Estás seguro de rotar la clave de este Kiosk? El dispositivo físico desconectará su sesión de inmediato hasta que ingreses o escanees la nueva clave.",
+      confirmText: "Rotar Clave",
+      variant: "warning",
+    });
+    if (!ok) return;
 
     setIsRotating(true);
     try {

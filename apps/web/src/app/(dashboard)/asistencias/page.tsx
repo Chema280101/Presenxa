@@ -38,6 +38,7 @@ import { es } from "date-fns/locale";
 import { JustifyModal } from "@/components/attendance/JustifyModal";
 import { EditAttendanceModal } from "@/components/attendance/EditAttendanceModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { useToast } from "@/providers/ToastProvider";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ModalShell } from "@/components/ui/ModalShell";
@@ -116,8 +117,7 @@ export default function AttendancePage() {
   // Modals state
   const [selectedForJustify, setSelectedForJustify] = useState<any | null>(null);
   const [selectedForEdit, setSelectedForEdit] = useState<any | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const { toast } = useToast();
 
   // Automation Panel State
   const [showAutomation, setShowAutomation] = useState(false);
@@ -127,12 +127,6 @@ export default function AttendancePage() {
     title: string;
     details: any;
   } | null>(null);
-
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToastMessage(msg);
-    setToastType(type);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
 
   const fetchLocations = async () => {
     try {
@@ -219,18 +213,17 @@ export default function AttendancePage() {
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(
-          action === "APPROVE"
-            ? `Marcación por DNI de ${userName} aprobada con éxito.`
-            : `Marcación por DNI de ${userName} rechazada y anulada.`,
-          "success"
-        );
+        if (action === "APPROVE") {
+          toast.success(`Marcación por DNI de ${userName} aprobada con éxito.`);
+        } else {
+          toast.success(`Marcación por DNI de ${userName} rechazada y anulada.`);
+        }
         fetchAttendance();
       } else {
-        showToast(data.error || "Error al verificar DNI", "error");
+        toast.error(data.error || "Error al verificar DNI");
       }
     } catch (err) {
-      showToast("Error de conexión con el servidor", "error");
+      toast.error("Error de conexión con el servidor");
     }
   };
 
@@ -246,12 +239,12 @@ export default function AttendancePage() {
 
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || "Error al ejecutar tarea automática", "error");
+        toast.error(data.error || "Error al ejecutar tarea automática");
         return;
       }
 
       if (action === "daily-start") {
-        showToast(`🌅 Apertura completada: ${data.created} asistencias PENDIENTE generadas.`);
+        toast.success(`🌅 Apertura completada: ${data.created} asistencias PENDIENTE generadas.`);
         setJobResultModal({
           title: "🌅 Apertura de Jornada (SOD)",
           details: {
@@ -262,7 +255,7 @@ export default function AttendancePage() {
           },
         });
       } else if (action === "daily-close") {
-        showToast(`🌙 Cierre de día completado: ${data.ausentes} ausentes, ${data.incompletos} incompletos.`);
+        toast.success(`🌙 Cierre de día completado: ${data.ausentes} ausentes, ${data.incompletos} incompletos.`);
         setJobResultModal({
           title: "🌙 Cierre de Fin de Día (EOD)",
           details: {
@@ -274,7 +267,7 @@ export default function AttendancePage() {
           },
         });
       } else if (action === "check-late") {
-        showToast(`🔍 Monitor de tardanzas: ${data.alertsCreated} alertas generadas.`);
+        toast.success(`🔍 Monitor de tardanzas: ${data.alertsCreated} alertas generadas.`);
         setJobResultModal({
           title: "🔍 Monitor de Tardanzas y Ausencias",
           details: {
@@ -290,7 +283,7 @@ export default function AttendancePage() {
       fetchAttendance();
       fetchSchedulerStatus();
     } catch (err: any) {
-      showToast("Fallo al conectar con el servidor de tareas", "error");
+      toast.error("Fallo al conectar con el servidor de tareas");
     } finally {
       setIsTriggeringJob(null);
     }
@@ -307,23 +300,6 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div
-          className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-white font-medium text-sm shadow-2xl shadow-black/80 backdrop-blur-xl animate-scale-up ${
-            toastType === "error"
-              ? "bg-rose-950/90 border border-rose-500/40 text-rose-200"
-              : "bg-emerald-950/90 border border-emerald-500/40 text-emerald-200"
-          }`}
-        >
-          {toastType === "error" ? (
-            <AlertCircle className="w-5 h-5 text-rose-400" />
-          ) : (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          )}
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Header section with Date Navigation and Automation Launcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1131,7 +1107,7 @@ export default function AttendancePage() {
         onClose={() => setSelectedForJustify(null)}
         attendance={selectedForJustify}
         onSuccess={() => {
-          showToast("Asistencia justificada correctamente");
+          toast.success("Asistencia justificada correctamente");
           fetchAttendance();
         }}
       />
@@ -1141,7 +1117,7 @@ export default function AttendancePage() {
         onClose={() => setSelectedForEdit(null)}
         attendance={selectedForEdit}
         onSuccess={() => {
-          showToast("Registro actualizado correctamente");
+          toast.success("Registro actualizado correctamente");
           fetchAttendance();
         }}
       />

@@ -271,7 +271,11 @@ export function UserFormModal({
         {/* Form Body - Scrollable */}
         <form onSubmit={handleSubmit} id="user-form" className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5">
           {error && (
-            <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake"
+            >
               <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0 animate-ping" />
               <span>{error}</span>
             </div>

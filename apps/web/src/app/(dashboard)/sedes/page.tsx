@@ -22,6 +22,8 @@ import {
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/providers/ToastProvider";
+import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
 interface LocationItem {
   id: string;
@@ -42,19 +44,14 @@ export default function LocationsPage() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
 
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
+
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<LocationFormData | null>(
     null
   );
-
-  // Toast alert
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
 
   const fetchLocations = async () => {
     try {
@@ -120,7 +117,7 @@ export default function LocationsPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al actualizar sede");
 
-        showToast("Sede actualizada con éxito");
+        toast.success("Sede actualizada con éxito");
       } else {
         // Create location
         const res = await fetch("/api/locations", {
@@ -131,20 +128,25 @@ export default function LocationsPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al crear sede");
 
-        showToast("Nueva sede registrada con éxito");
+        toast.success("Nueva sede registrada con éxito");
       }
       await fetchLocations();
       return true;
     } catch (err: any) {
-      alert(err.message || "Error al guardar");
+      toast.error(err.message || "Error al guardar la sede");
       return false;
     }
   };
 
   const handleToggleStatus = async (loc: LocationItem) => {
     const actionName = loc.isActive ? "desactivar" : "activar";
-    if (!confirm(`¿Estás seguro de ${actionName} la sede "${loc.name}"?`))
-      return;
+    const ok = await confirm({
+      title: `¿${actionName.charAt(0).toUpperCase() + actionName.slice(1)} sede?`,
+      description: `¿Estás seguro de ${actionName} la sede "${loc.name}"? Los colaboradores y kiosks asignados a esta sede ${loc.isActive ? "quedarán sin operaciones activas." : "volverán a estar operativos."}`,
+      confirmText: loc.isActive ? "Desactivar" : "Activar",
+      variant: loc.isActive ? "danger" : "primary",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/locations/${loc.id}`, {
@@ -153,23 +155,17 @@ export default function LocationsPage() {
         body: JSON.stringify({ isActive: !loc.isActive }),
       });
       if (res.ok) {
-        showToast(`Sede ${loc.isActive ? "desactivada" : "activada"} con éxito`);
+        toast.success(`Sede ${loc.isActive ? "desactivada" : "activada"} con éxito`);
         await fetchLocations();
       }
     } catch (err) {
       console.error("Error toggling location status:", err);
+      toast.error("Error al cambiar el estado de la sede");
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 font-medium text-sm shadow-2xl shadow-black/80 backdrop-blur-xl animate-scale-up">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

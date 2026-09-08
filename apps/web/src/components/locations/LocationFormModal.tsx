@@ -144,7 +144,11 @@ export function LocationFormModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} id="location-form" className="p-6 sm:p-8 space-y-5 flex-1 overflow-y-auto">
           {error && (
-            <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake"
+            >
               <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0 animate-ping" />
               <span>{error}</span>
             </div>

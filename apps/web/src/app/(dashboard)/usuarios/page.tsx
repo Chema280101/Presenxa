@@ -34,6 +34,8 @@ import { StatCard } from "@/components/ui/StatCard";
 import { RoleBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonTable } from "@/components/ui/Skeleton";
+import { useToast } from "@/providers/ToastProvider";
+import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
 interface UserItem {
   id: string;
@@ -89,13 +91,8 @@ export default function UsersPage() {
   const [selectedUserForOverride, setSelectedUserForOverride] = useState<any | null>(null);
   const [editingUserData, setEditingUserData] = useState<UserFormData | null>(null);
 
-  // Toast / notification message
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const fetchUsers = async () => {
     await mutateUsers();
@@ -164,7 +161,7 @@ export default function UsersPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al actualizar usuario");
 
-        showToast("Usuario actualizado con éxito");
+        toast.success("Usuario actualizado con éxito");
       } else {
         // Create user
         const res = await fetch("/api/users", {
@@ -175,12 +172,12 @@ export default function UsersPage() {
         const resData = await res.json();
         if (!res.ok) throw new Error(resData.error || "Error al crear usuario");
 
-        showToast("Usuario creado y QR generado exitosamente");
+        toast.success("Usuario creado y QR generado exitosamente");
       }
       await fetchUsers();
       return true;
     } catch (err: any) {
-      alert(err.message || "Error al guardar");
+      toast.error(err.message || "Error al guardar el usuario");
       return false;
     }
   };
@@ -207,7 +204,7 @@ export default function UsersPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al regenerar QR");
 
-      showToast("Nuevo código QR generado");
+      toast.success("Nuevo código QR generado");
       await fetchUsers();
 
       if (selectedUserForQr && selectedUserForQr.id === userId) {
@@ -218,7 +215,7 @@ export default function UsersPage() {
       }
       return data.user.qrToken;
     } catch (err: any) {
-      alert(err.message || "Error");
+      toast.error(err.message || "Error al regenerar código QR");
       return null;
     }
   };
@@ -226,7 +223,13 @@ export default function UsersPage() {
   // Handle Toggle Active/Inactive
   const handleToggleStatus = async (user: UserItem) => {
     const actionName = user.isActive ? "desactivar" : "activar";
-    if (!confirm(`¿Estás seguro de ${actionName} a ${user.firstName} ${user.lastName}?`)) return;
+    const ok = await confirm({
+      title: `¿${actionName.charAt(0).toUpperCase() + actionName.slice(1)} usuario?`,
+      description: `¿Estás seguro de ${actionName} a ${user.firstName} ${user.lastName}? ${user.isActive ? "El colaborador no podrá registrar asistencias ni ingresar al sistema mientras esté inactivo." : "El colaborador volverá a tener acceso y registrar asistencia con normalidad."}`,
+      confirmText: user.isActive ? "Desactivar" : "Activar",
+      variant: user.isActive ? "danger" : "primary",
+    });
+    if (!ok) return;
 
     try {
       const res = await fetch(`/api/users/${user.id}`, {
@@ -235,23 +238,17 @@ export default function UsersPage() {
         body: JSON.stringify({ isActive: !user.isActive }),
       });
       if (res.ok) {
-        showToast(`Usuario ${user.isActive ? "desactivado" : "activado"} correctamente`);
+        toast.success(`Usuario ${user.isActive ? "desactivado" : "activado"} correctamente`);
         await fetchUsers();
       }
     } catch (err) {
       console.error("Error toggling status:", err);
+      toast.error("Error al cambiar estado del usuario");
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in-up">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 font-medium text-sm shadow-2xl shadow-black/80 backdrop-blur-xl animate-scale-up">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
 
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -790,7 +787,7 @@ export default function UsersPage() {
           userName={selectedUserForOverride.name}
           schedules={schedules}
           onSuccess={() => {
-            showToast("Excepción programada correctamente");
+            toast.success("Excepción programada correctamente");
             fetchUsers();
           }}
         />

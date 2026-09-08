@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
+import { useToast } from "@/providers/ToastProvider";
 
 interface OrganizationData {
   id: string;
@@ -49,7 +50,7 @@ export default function ConfiguracionPage() {
   const [org, setOrg] = useState<OrganizationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const { toast } = useToast();
 
   // Form states
   const [name, setName] = useState("");
@@ -101,8 +102,11 @@ export default function ConfiguracionPage() {
   }, []);
 
   const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
+    if (type === "error") {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
   };
 
   // Manejador de subida de archivo de logo con redimensionamiento automático
@@ -213,24 +217,6 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-16">
-      {/* Toast Alert */}
-      {toast && (
-        <div
-          className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-4 ${
-            toast.type === "success"
-              ? "bg-emerald-950/80 border-emerald-500/40 text-emerald-200"
-              : "bg-rose-950/80 border-rose-500/40 text-rose-200"
-          }`}
-        >
-          {toast.type === "success" ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
-          )}
-          <span className="text-sm font-medium">{toast.message}</span>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/5 pb-6">
         <div>

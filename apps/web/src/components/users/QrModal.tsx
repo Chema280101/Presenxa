@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { QrCode, Download, RefreshCw, X, Copy, Check, Printer, Shield, Sparkles } from "lucide-react";
+import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
 interface QrModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface QrModalProps {
 }
 
 export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps) {
+  const { confirm } = useConfirm();
   const [dataUrl, setDataUrl] = useState<string>("");
   const [isCopied, setIsCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -126,9 +128,15 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
   };
 
   const handleRegenerate = async () => {
-    if (!confirm("¿Estás seguro de regenerar el código QR? El código anterior dejará de funcionar de inmediato.")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "¿Regenerar código QR?",
+      description:
+        "¿Estás seguro de generar un nuevo código QR? El código QR anterior del colaborador dejará de funcionar de inmediato.",
+      confirmText: "Regenerar QR",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     setIsRegenerating(true);
     try {
       await onRegenerateQr(user.id);

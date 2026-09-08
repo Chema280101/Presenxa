@@ -288,3 +288,28 @@ a:active {
   animation: shimmer 1.8s ease-in-out infinite;
 }
 
+/* ── Accessible Focus Rings (WCAG 2.1 AA) ────────── */
+:focus-visible {
+  outline: 2px solid var(--color-primary-400);
+  outline-offset: 2px;
+}
+
+/* Dark mode select options across all operating systems */
+select option {
+  background-color: #060e17;
+  color: #f1f5f9;
+}
+
+/* ── Accessible Motion (WCAG 2.1 AAA) ────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+

@@ -3,7 +3,7 @@
 import { useState, useTransition, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Crown, User, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 
 function LoginForm() {
@@ -168,9 +168,10 @@ function LoginForm() {
                 setPassword("password123");
                 setError("");
               }}
-              className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-lime-300 text-[11px] font-semibold border border-lime-400/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-lime-300 text-[11px] font-semibold border border-lime-400/20 transition-all cursor-pointer"
             >
-              👑 Admin Demo
+              <Crown className="w-3.5 h-3.5" />
+              <span>Admin Demo</span>
             </button>
             <button
               type="button"
@@ -179,9 +180,10 @@ function LoginForm() {
                 setPassword("password123");
                 setError("");
               }}
-              className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-sky-300 text-[11px] font-semibold border border-sky-400/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-sky-300 text-[11px] font-semibold border border-sky-400/20 transition-all cursor-pointer"
             >
-              👤 Empleado Demo
+              <User className="w-3.5 h-3.5" />
+              <span>Empleado Demo</span>
             </button>
             <button
               type="button"
@@ -190,9 +192,10 @@ function LoginForm() {
                 setPassword("password123");
                 setError("");
               }}
-              className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-amber-300 text-[11px] font-semibold border border-amber-400/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-amber-300 text-[11px] font-semibold border border-amber-400/20 transition-all cursor-pointer"
             >
-              🛡️ Supervisor
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Supervisor</span>
             </button>
           </div>
         </div>
