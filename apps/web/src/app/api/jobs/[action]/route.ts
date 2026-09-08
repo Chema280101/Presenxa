@@ -31,6 +31,48 @@ async function isAuthorized(request: Request): Promise<boolean> {
   return false;
 }
 
+function resolveTargetDate(request: Request, body?: any): Date | undefined {
+  const url = new URL(request.url);
+  const dateParam = url.searchParams.get("date");
+  const targetParam = url.searchParams.get("target");
+
+  if (body?.target === "yesterday" || targetParam === "yesterday") {
+    return new Date(Date.now() - 24 * 60 * 60 * 1000);
+  }
+
+  if (body?.date) {
+    return new Date(body.date);
+  }
+
+  if (dateParam) {
+    return new Date(dateParam);
+  }
+
+  return undefined;
+}
+
+async function handleAction(action: string, targetDate?: Date) {
+  switch (action) {
+    case "daily-start": {
+      const result = await runDailyStarter(targetDate);
+      return NextResponse.json(result);
+    }
+    case "daily-close": {
+      const result = await runDailyCloser(targetDate);
+      return NextResponse.json(result);
+    }
+    case "check-late": {
+      const result = await runLateMonitor(targetDate);
+      return NextResponse.json(result);
+    }
+    default:
+      return NextResponse.json(
+        { error: `Acción '${action}' no válida. Use: daily-start, daily-close, check-late` },
+        { status: 400 }
+      );
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ action: string }> }
@@ -50,6 +92,11 @@ export async function GET(
       schedulerRunning: true,
       timestamp: new Date().toISOString(),
     });
+  }
+
+  if (["daily-start", "daily-close", "check-late"].includes(action)) {
+    const targetDate = resolveTargetDate(request);
+    return handleAction(action, targetDate);
   }
 
   return NextResponse.json({ error: "Acción GET no soportada" }, { status: 400 });
@@ -73,25 +120,6 @@ export async function POST(
     // Body opcional
   }
 
-  const targetDate = body?.date ? new Date(body.date) : undefined;
-
-  switch (action) {
-    case "daily-start": {
-      const result = await runDailyStarter(targetDate);
-      return NextResponse.json(result);
-    }
-    case "daily-close": {
-      const result = await runDailyCloser(targetDate);
-      return NextResponse.json(result);
-    }
-    case "check-late": {
-      const result = await runLateMonitor(targetDate);
-      return NextResponse.json(result);
-    }
-    default:
-      return NextResponse.json(
-        { error: `Acción '${action}' no válida. Use: daily-start, daily-close, check-late` },
-        { status: 400 }
-      );
-  }
+  const targetDate = resolveTargetDate(request, body);
+  return handleAction(action, targetDate);
 }

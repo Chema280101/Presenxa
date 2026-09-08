@@ -1,10 +1,11 @@
 import { prisma } from "@asistencias/db";
-import { format } from "date-fns";
+import { getLocalDateString, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
 
 export interface JobResult {
   success: boolean;
   action: string;
   date: string;
+  dayName?: string;
   totalEligible: number;
   created: number;
   message?: string;
@@ -19,11 +20,13 @@ export interface JobResult {
  */
 export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
   const dateObj = targetDate || new Date();
-  const dateStr = format(dateObj, "yyyy-MM-dd");
+  const dateStr = getLocalDateString(dateObj, DEFAULT_TIMEZONE);
 
   // En JS: Sunday=0, Monday=1, ... Saturday=6
   // Convertimos a bitmask del sistema: Lun=1, Mar=2, Mié=4, Jue=8, Vie=16, Sáb=32, Dom=64
-  const jsDay = dateObj.getDay();
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const localDate = new Date(year, month - 1, day);
+  const jsDay = localDate.getDay();
   const systemDayIndex = jsDay === 0 ? 6 : jsDay - 1; // 0 para Lun, 6 para Dom
   const dayBit = 1 << systemDayIndex;
 
@@ -107,6 +110,7 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
       success: true,
       action: "daily-start",
       date: dateStr,
+      dayName,
       totalEligible: eligibleUsers.length,
       created: createdCount,
       message: `Apertura completada: ${createdCount} registros creados de ${eligibleUsers.length} usuarios programados.`,

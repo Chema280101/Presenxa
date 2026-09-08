@@ -216,6 +216,60 @@ export async function POST(req: Request) {
     let lateMinutes = attendance?.lateMinutes || 0;
     let workedMinutes = attendance?.workedMinutes || 0;
 
+    // ── 7.1. Detección de Turnos Nocturnos y Prevención de Re-escaneo ──────────
+    // A. Re-escaneo accidental reciente (< 2 min): si ya registró salida hace poco
+    if (mode !== "ENTRY") {
+      const recentExit = await prisma.attendance.findFirst({
+        where: {
+          userId: user.id,
+          OR: [
+            { exitTime: { gte: new Date(now.getTime() - 2 * 60 * 1000) } },
+            { exitTime2: { gte: new Date(now.getTime() - 2 * 60 * 1000) } },
+          ],
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+
+      if (recentExit) {
+        attendance = recentExit;
+        scanType = "ALREADY_REGISTERED";
+        const lastExitDate =
+          recentExit.exitTime2 && recentExit.exitTime && recentExit.exitTime2 >= recentExit.exitTime
+            ? recentExit.exitTime2
+            : recentExit.exitTime2 || recentExit.exitTime;
+        message = `Tu salida ya fue registrada a las ${formatLocalTime(
+          lastExitDate || now,
+          "HH:mm",
+          timezone
+        )}. ¡Que tengas buen descanso!`;
+      }
+    }
+
+    // B. Soporte para Turnos Nocturnos 24/7 (Cruce de medianoche, ej: 22:00 a 06:00):
+    // Si no es un re-escaneo y hoy aún no hay entrada registrada, buscamos si el colaborador
+    // tiene un turno abierto previo (iniciado en las últimas 16 horas) pendiente de registrar salida.
+    if (scanType !== "ALREADY_REGISTERED" && mode !== "ENTRY" && (!attendance || !attendance.entryTime)) {
+      const sixteenHoursAgo = new Date(now.getTime() - 16 * 60 * 60 * 1000);
+      const openPreviousShift = await prisma.attendance.findFirst({
+        where: {
+          userId: user.id,
+          entryTime: { gte: sixteenHoursAgo },
+          OR: [
+            { exitTime: null },
+            { entryTime2: { not: null }, exitTime2: null },
+          ],
+        },
+        orderBy: { entryTime: "desc" },
+      });
+
+      if (openPreviousShift) {
+        attendance = openPreviousShift;
+        status = openPreviousShift.status;
+        lateMinutes = openPreviousShift.lateMinutes || 0;
+        workedMinutes = openPreviousShift.workedMinutes || 0;
+      }
+    }
+
     const isSplit = Boolean(schedule?.isSplit);
     const localTimeFormatted = formatLocalTime(now, "HH:mm", timezone);
     const { hour: localHour, minute: localMinute } = getLocalTimeParts(now, timezone);
@@ -225,6 +279,7 @@ export async function POST(req: Request) {
       ? `[PENDIENTE_VALIDACION_DNI] Marcación manual por DNI (${user.documentId || searchQrToken}) en ${kiosk.name} a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
       : null;
 
+    if (scanType !== "ALREADY_REGISTERED") {
     if (isSplit) {
       // ══════════════════════════════════════════════════════════════════════
       //  MODALIDAD: HORARIO PARTIDO (DOBLE TURNO / 4 MARCACIONES)
@@ -558,6 +613,14 @@ export async function POST(req: Request) {
           message = `Salida actualizada a las ${formatLocalTime(now, "HH:mm", timezone)}. ¡Buen descanso!`;
         }
       }
+    }
+    }
+
+    if (!attendance) {
+      return NextResponse.json(
+        { error: "No se pudo determinar el registro de asistencia" },
+        { status: 500 }
+      );
     }
 
     // ── 8. Notificar a Supervisores si la marcación fue por DNI ─────────────

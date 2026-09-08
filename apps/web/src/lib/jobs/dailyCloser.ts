@@ -1,5 +1,5 @@
 import { prisma, AttendanceStatus } from "@asistencias/db";
-import { format } from "date-fns";
+import { getLocalDateString, getLocalTimeParts, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
 
 export interface EodResult {
   success: boolean;
@@ -8,25 +8,31 @@ export interface EodResult {
   ausentes: number;
   incompletos: number;
   completados: number;
+  tardes_presentes?: number;
   minutosCalculados: number;
+  minutos_calculados?: number;
   message?: string;
   error?: string;
   timestamp: string;
 }
 
 /**
- * Cierre de Jornada (EOD - End Of Day):
- * Procesa todos los registros de asistencia del día laboral:
+ * Cierre de Jornada (EOD - End Of Day / Auditoría Hotelera):
+ * Si no se provee targetDate, por defecto procesa el día de ayer (now - 24h)
+ * para permitir que los recepcionistas del turno nocturno (ej: 22:00 a 06:00)
+ * completen su marcación de salida antes del corte.
+ * 
  * 1. PENDIENTE sin entrada -> AUSENTE
  * 2. Entrada sin salida -> INCOMPLETO
  * 3. Entrada + Salida -> Calcula lateMinutes, workedMinutes y clasifica TARDE o PRESENTE.
  */
 export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
-  const dateObj = targetDate || new Date();
-  const dateStr = format(dateObj, "yyyy-MM-dd");
+  // Por defecto: evaluar el día anterior (auditoría hotelera post-turno nocturno)
+  const dateObj = targetDate || new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const dateStr = getLocalDateString(dateObj, DEFAULT_TIMEZONE);
   const targetDateDb = new Date(`${dateStr}T00:00:00.000Z`);
 
-  console.log(`[EOD] Iniciando cierre de jornada para ${dateStr}`);
+  console.log(`[EOD] Iniciando cierre de jornada/auditoría para ${dateStr}`);
 
   try {
     // 1. Marcar AUSENTE: usuarios con PENDIENTE que nunca registraron entrada
@@ -109,21 +115,21 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
 
       const schedule = att.user.userSchedules[0]?.schedule;
       let lateMinutes = att.lateMinutes ?? 0;
-      let newStatus: AttendanceStatus = "PRESENTE";
+      let newStatus: AttendanceStatus = att.status === "TARDE" ? "TARDE" : "PRESENTE";
 
-      if (schedule) {
-        // Horario esperado Tramo 1
-        const entryDate = new Date(att.entryTime);
+      // Si el estado aún era PENDIENTE y hay horario programado, calcular si fue tarde
+      if (schedule && att.status === "PENDIENTE") {
+        const { hour: entryHour, minute: entryMin } = getLocalTimeParts(att.entryTime, DEFAULT_TIMEZONE);
         const expectedEntryMinutes = schedule.entryHour * 60 + schedule.entryMinute;
-        const actualEntryMinutes = entryDate.getHours() * 60 + entryDate.getMinutes();
+        const actualEntryMinutes = entryHour * 60 + entryMin;
 
         const diffEntry = actualEntryMinutes - expectedEntryMinutes;
-        lateMinutes = Math.max(0, diffEntry - schedule.toleranceMinutes);
-
-        if (diffEntry > schedule.toleranceMinutes) {
+        if (diffEntry > (schedule.toleranceMinutes || 0)) {
           newStatus = "TARDE";
+          lateMinutes = Math.max(0, diffEntry);
         } else {
           newStatus = "PRESENTE";
+          lateMinutes = 0;
         }
       }
 
@@ -131,7 +137,7 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
         where: { id: att.id },
         data: {
           workedMinutes: att.workedMinutes ?? totalWorkedMinutes,
-          lateMinutes: schedule ? lateMinutes : att.lateMinutes,
+          lateMinutes: att.lateMinutes ?? (schedule ? lateMinutes : null),
           status: newStatus,
           statusChangedAt: new Date(),
           statusChangedBy: "CRON_EOD",
@@ -153,7 +159,9 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
       ausentes: resAusentes.count,
       incompletos: resIncompletos.count,
       completados: completadosCount,
+      tardes_presentes: completadosCount,
       minutosCalculados: minutosCalculadosCount,
+      minutos_calculados: minutosCalculadosCount,
       message: `Cierre completado: ${resAusentes.count} ausentes, ${resIncompletos.count} incompletos, ${completadosCount} asistencias calculadas.`,
       timestamp: new Date().toISOString(),
     };

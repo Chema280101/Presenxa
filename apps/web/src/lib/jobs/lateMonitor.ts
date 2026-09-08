@@ -1,5 +1,5 @@
 import { prisma } from "@asistencias/db";
-import { format } from "date-fns";
+import { getLocalDateString, getLocalTimeParts, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
 
 export interface LateMonitorResult {
   success: boolean;
@@ -7,6 +7,10 @@ export interface LateMonitorResult {
   date: string;
   checkedCount: number;
   lateDetectedCount: number;
+  currentTime?: string;
+  unmarkedCount?: number;
+  alertsCreated?: number;
+  supervisorsNotified?: number;
   message?: string;
   error?: string;
   timestamp: string;
@@ -20,14 +24,14 @@ export interface LateMonitorResult {
 export async function runLateMonitor(targetDate?: Date): Promise<LateMonitorResult> {
   const now = new Date();
   const dateObj = targetDate || now;
-  const dateStr = format(dateObj, "yyyy-MM-dd");
+  const dateStr = getLocalDateString(dateObj, DEFAULT_TIMEZONE);
   const targetDateDb = new Date(`${dateStr}T00:00:00.000Z`);
 
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
+  const { hour: currentHour, minute: currentMinute } = getLocalTimeParts(now, DEFAULT_TIMEZONE);
   const currentTotalMinutes = currentHour * 60 + currentMinute;
+  const currentTimeFormatted = `${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}`;
 
-  console.log(`[LATE_MONITOR] Verificando tardanzas a las ${currentHour}:${String(currentMinute).padStart(2, "0")}`);
+  console.log(`[LATE_MONITOR] Verificando tardanzas a las ${currentTimeFormatted} (${DEFAULT_TIMEZONE})`);
 
   try {
     // Buscar registros PENDIENTE del día de hoy
@@ -106,6 +110,10 @@ export async function runLateMonitor(targetDate?: Date): Promise<LateMonitorResu
       success: true,
       action: "check-late",
       date: dateStr,
+      currentTime: currentTimeFormatted,
+      unmarkedCount: pendingAttendances.length,
+      alertsCreated: lateDetectedCount,
+      supervisorsNotified: lateDetectedCount,
       checkedCount: pendingAttendances.length,
       lateDetectedCount,
       message: `Verificación completada: ${lateDetectedCount} usuarios fuera de tiempo detectados.`,
