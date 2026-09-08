@@ -24,6 +24,7 @@ import {
   Sparkles,
   CreditCard,
   Download,
+  Calendar,
 } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 import { QrModal } from "@/components/users/QrModal";

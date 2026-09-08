@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifySignature } from "@upstash/qstash/nextjs";
+import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import webpush from "web-push";
 // Asumo que tienes una exportación de prisma o db en algún lugar.
 // Ajusta esta importación a cómo lo estés usando en tu proyecto, por ejemplo:
@@ -86,5 +86,4 @@ async function handler(req: Request) {
   }
 }
 
-// Exportamos el manejador protegido por la firma de QStash
-export const POST = verifySignature(handler);
+export const POST = verifySignatureAppRouter(handler);
