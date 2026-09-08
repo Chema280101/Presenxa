@@ -33,6 +33,7 @@ export interface ScheduleFormData {
   exitHour2?: number | null;
   exitMinute2?: number | null;
   toleranceMinutes2?: number | null;
+  locationId?: string | null;
   isActive?: boolean;
 }
 
@@ -62,6 +63,8 @@ export function ScheduleFormModal({
   const isEditing = !!initialData?.id;
   const [mounted, setMounted] = useState(false);
 
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [locationId, setLocationId] = useState("");
   const [name, setName] = useState("");
   const [workdaysMask, setWorkdaysMask] = useState(31); // Default Lun-Vie (1+2+4+8+16)
   const [isSplit, setIsSplit] = useState(false);
@@ -118,6 +121,7 @@ export function ScheduleFormModal({
       }
 
       setToleranceMinutes2(initialData.toleranceMinutes2 ?? 10);
+      setLocationId(initialData.locationId || "");
     } else {
       setName("");
       setWorkdaysMask(31);
@@ -128,9 +132,21 @@ export function ScheduleFormModal({
       setEntryTime2("15:00");
       setExitTime2("19:00");
       setToleranceMinutes2(10);
+      setLocationId("");
     }
     setError("");
   }, [initialData, isOpen]);
+
+  useEffect(() => {
+    if (isOpen && locations.length === 0) {
+      fetch("/api/locations")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.locations) setLocations(data.locations);
+        })
+        .catch((err) => console.error("Error fetching locations:", err));
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     setMounted(true);
@@ -230,6 +246,7 @@ export function ScheduleFormModal({
         exitHour2: xH2,
         exitMinute2: xM2,
         toleranceMinutes2: isSplit ? Number(toleranceMinutes2) || 0 : null,
+        locationId: locationId || null,
       });
       if (success) {
         onClose();
@@ -293,6 +310,25 @@ export function ScheduleFormModal({
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
             />
+          </div>
+
+          {/* Sede */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Sede (Opcional)
+            </label>
+            <select
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer"
+            >
+              <option value="">Aplicar a todas las sedes (Global)</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id} className="bg-slate-900 text-white">
+                  {loc.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Selector de Modalidad: Continua vs Partida */}

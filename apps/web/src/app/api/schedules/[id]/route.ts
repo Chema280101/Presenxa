@@ -17,6 +17,7 @@ const UpdateScheduleSchema = z.object({
   exitHour2: z.number().int().min(0).max(23).optional().nullable(),
   exitMinute2: z.number().int().min(0).max(59).optional().nullable(),
   toleranceMinutes2: z.number().int().min(0).max(120).optional().nullable(),
+  locationId: z.string().uuid().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 

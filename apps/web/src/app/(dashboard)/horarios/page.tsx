@@ -41,6 +41,10 @@ interface ScheduleItem {
   exitMinute2?: number | null;
   toleranceMinutes2?: number | null;
   isActive: boolean;
+  location?: {
+    id: string;
+    name: string;
+  } | null;
   _count?: {
     userSchedules: number;
   };
@@ -421,7 +425,12 @@ export default function SchedulesPage() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {sch.location ? (
+                        <>Sede: <strong className="text-slate-300">{sch.location.name}</strong> • </>
+                      ) : (
+                        <>Sede: <strong className="text-slate-300">Global (Todas)</strong> • </>
+                      )}
                       Jornada neta de <strong className="text-slate-200">{duration}</strong>
                     </p>
                   </div>
@@ -444,6 +453,7 @@ export default function SchedulesPage() {
                           exitHour2: sch.exitHour2,
                           exitMinute2: sch.exitMinute2,
                           toleranceMinutes2: sch.toleranceMinutes2,
+                          locationId: sch.location?.id || null,
                           isActive: sch.isActive,
                         });
                         setIsModalOpen(true);

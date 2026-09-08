@@ -17,6 +17,7 @@ const ScheduleSchema = z.object({
   exitHour2: z.number().int().min(0).max(23).optional().nullable(),
   exitMinute2: z.number().int().min(0).max(59).optional().nullable(),
   toleranceMinutes2: z.number().int().min(0).max(120).optional().nullable(),
+  locationId: z.string().uuid().optional().nullable(),
 });
 
 // GET /api/schedules
@@ -33,6 +34,12 @@ export async function GET() {
       },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
       include: {
+        location: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             userSchedules: {
@@ -88,6 +95,7 @@ export async function POST(req: Request) {
         exitHour2: data.isSplit ? data.exitHour2 : null,
         exitMinute2: data.isSplit ? data.exitMinute2 : null,
         toleranceMinutes2: data.isSplit ? (data.toleranceMinutes2 ?? data.toleranceMinutes) : null,
+        locationId: data.locationId,
         isActive: true,
       },
     });
