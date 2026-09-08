@@ -28,6 +28,7 @@ import {
 import { UserRole } from "@asistencias/db";
 import { QrModal } from "@/components/users/QrModal";
 import { UserFormModal, UserFormData } from "@/components/users/UserFormModal";
+import { OverrideModal } from "@/components/users/OverrideModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { RoleBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -83,6 +84,8 @@ export default function UsersPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [selectedUserForQr, setSelectedUserForQr] = useState<any | null>(null);
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [selectedUserForOverride, setSelectedUserForOverride] = useState<any | null>(null);
   const [editingUserData, setEditingUserData] = useState<UserFormData | null>(null);
 
   // Toast / notification message
@@ -527,6 +530,18 @@ export default function UsersPage() {
                         <span>Ver QR</span>
                       </button>
 
+                      {/* Excepcion */}
+                      <button
+                        onClick={() => {
+                          setSelectedUserForOverride({ id: user.id, name: `${user.firstName} ${user.lastName}` });
+                          setIsOverrideModalOpen(true);
+                        }}
+                        className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-95 transition-all min-h-[44px]"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        <span>1 Día</span>
+                      </button>
+
                       {/* Editar */}
                       <button
                         onClick={() => {
@@ -693,6 +708,18 @@ export default function UsersPage() {
                                 <QrCode className="w-4 h-4" />
                               </button>
 
+                              {/* Excepcion Button */}
+                              <button
+                                onClick={() => {
+                                  setSelectedUserForOverride({ id: user.id, name: `${user.firstName} ${user.lastName}` });
+                                  setIsOverrideModalOpen(true);
+                                }}
+                                title="Excepción de 1 Día"
+                                className="p-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 transition-all active:scale-95"
+                              >
+                                <Calendar className="w-4 h-4" />
+                              </button>
+
                               {/* Editar Button */}
                               <button
                                 onClick={() => {
@@ -753,6 +780,20 @@ export default function UsersPage() {
         user={selectedUserForQr}
         onRegenerateQr={handleRegenerateQr}
       />
+
+      {selectedUserForOverride && (
+        <OverrideModal
+          isOpen={isOverrideModalOpen}
+          onClose={() => setIsOverrideModalOpen(false)}
+          userId={selectedUserForOverride.id}
+          userName={selectedUserForOverride.name}
+          schedules={schedules}
+          onSuccess={() => {
+            showToast("Excepción programada correctamente");
+            fetchUsers();
+          }}
+        />
+      )}
 
       <UserFormModal
         isOpen={isFormModalOpen}

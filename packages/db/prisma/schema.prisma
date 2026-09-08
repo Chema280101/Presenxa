@@ -63,6 +63,7 @@ model Location {
   kiosks      Kiosk[]
   users       User[]       @relation("UserLocation")
   attendances Attendance[]
+  schedules   Schedule[]
 
   @@map("locations")
 }
@@ -80,7 +81,7 @@ model User {
 
   firstName  String
   lastName   String
-  email      String  @unique
+  email      String    @unique
   phone      String?
   photoUrl   String?
   documentId String? // DNI, carnet estudiantil, etc.
@@ -89,14 +90,14 @@ model User {
   role UserRole @default(EMPLEADO)
 
   // ── Núcleo QR y NFC ─────────────────────────────────────────
-  qrToken          String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  qrGeneratedAt    DateTime  @default(now())
-  qrInvalidatedAt  DateTime? // Revocar QR sin borrar usuario
-  nfcCardUid       String?   @unique // UID de la tarjeta o llavero NFC físico
+  qrToken         String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  qrGeneratedAt   DateTime  @default(now())
+  qrInvalidatedAt DateTime? // Revocar QR sin borrar usuario
+  nfcCardUid      String?   @unique // UID de la tarjeta o llavero NFC físico
 
   // ── Acceso al sistema ──────────────────────────────────────
   passwordHash String?
-  isActive     Boolean  @default(true)
+  isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
 
   createdAt DateTime @default(now())
@@ -104,6 +105,7 @@ model User {
 
   attendances       Attendance[]
   userSchedules     UserSchedule[]
+  shiftOverrides    ShiftOverride[]
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   auditLogs         AuditLog[]
@@ -131,6 +133,8 @@ model Schedule {
   id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String       @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locationId     String?      @db.Uuid
+  location       Location?    @relation(fields: [locationId], references: [id], onDelete: Cascade)
   name           String
 
   // Días laborales (bitmask): Lu=1, Ma=2, Mi=4, Ju=8, Vi=16, Sa=32, Do=64
@@ -156,7 +160,8 @@ model Schedule {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  userSchedules UserSchedule[]
+  userSchedules  UserSchedule[]
+  shiftOverrides ShiftOverride[]
 
   @@map("schedules")
 }
@@ -174,6 +179,20 @@ model UserSchedule {
   @@map("user_schedules")
 }
 
+model ShiftOverride {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleId String   @db.Uuid
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@map("shift_overrides")
+}
+
 // ─────────────────────────────────────────────────────────────
 //  DISPOSITIVOS KIOSK
 // ─────────────────────────────────────────────────────────────
@@ -184,10 +203,10 @@ model Kiosk {
   location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   name       String
 
-  apiKey    String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  isActive  Boolean   @default(true)
+  apiKey     String    @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  isActive   Boolean   @default(true)
   lastSeenAt DateTime?
-  ipAddress String?
+  ipAddress  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -221,7 +240,8 @@ model Attendance {
   exitTime2  DateTime? // Hora exacta de salida Tramo 2 (fin de jornada)
 
   // Estado calculado
-  status AttendanceStatus @default(PENDIENTE)
+  status        AttendanceStatus @default(PENDIENTE)
+  wrongLocation Boolean          @default(false)
 
   // Métricas calculadas al cierre del día
   workedMinutes Int?
@@ -234,7 +254,7 @@ model Attendance {
   statusChangedBy String? // UUID del admin o literal "SISTEMA" / "CRON_EOD"
 
   // Modo Ultra-Offline (Kiosk)
-  isOfflineSync   Boolean @default(false)
+  isOfflineSync Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -248,15 +268,15 @@ model Attendance {
 }
 
 enum AttendanceStatus {
-  PENDIENTE       // Aún no termina el día laboral
-  PRESENTE        // Entró y salió correctamente
-  TARDE           // Llegó después del tiempo de tolerancia
-  AUSENTE         // No marcó entrada (fin de jornada)
+  PENDIENTE // Aún no termina el día laboral
+  PRESENTE // Entró y salió correctamente
+  TARDE // Llegó después del tiempo de tolerancia
+  AUSENTE // No marcó entrada (fin de jornada)
   ABANDONO_PUESTO // Marcado manualmente o por excepción
-  INCOMPLETO      // Marcó entrada pero no salida al cierre del día
-  JUSTIFICADO     // Falta con justificación aprobada por admin
-  FERIADO         // Día no laborable
-  PERMISO         // Permiso aprobado previamente
+  INCOMPLETO // Marcó entrada pero no salida al cierre del día
+  JUSTIFICADO // Falta con justificación aprobada por admin
+  FERIADO // Día no laborable
+  PERMISO // Permiso aprobado previamente
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -284,6 +304,7 @@ enum NotificationType {
   RECORDATORIO_SALIDA
   FALTA_REGISTRADA
   BIENVENIDA
+  CAMBIO_SEDE_HORARIO
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -347,5 +368,3 @@ enum AuditAction {
   USER_DEACTIVATED
   JOB_EXECUTED
 }
-
-
