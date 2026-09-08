@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
     if (subscriptions.length > 0) {
       // Configurar Web Push solo si hay suscripciones y keys disponibles
-      const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      const vapidPublic = process.env.VAPID_PUBLIC_KEY;
       const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
       const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@asistencias.com";
 
