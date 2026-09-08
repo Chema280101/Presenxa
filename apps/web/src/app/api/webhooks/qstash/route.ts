@@ -8,13 +8,6 @@ import { PrismaClient } from "@prisma/client";
 // Inicializar prisma localmente para el webhook (o usa tu instancia global)
 const prisma = new PrismaClient();
 
-// Configuración de Web Push
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || "mailto:admin@asistencias.com",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "",
-  process.env.VAPID_PRIVATE_KEY || ""
-);
-
 // El Payload que esperamos de Upstash
 interface QStashPayload {
   userId: string;
@@ -48,6 +41,19 @@ async function handler(req: Request) {
     const subscriptions = await prisma.pushSubscription.findMany({
       where: { userId },
     });
+
+    if (subscriptions.length > 0) {
+      // Configuración de Web Push (Lazy load para evitar errores en build de Next.js)
+      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+        console.error("Faltan variables de entorno VAPID para Web Push");
+      } else {
+        webpush.setVapidDetails(
+          process.env.VAPID_SUBJECT || "mailto:admin@asistencias.com",
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+          process.env.VAPID_PRIVATE_KEY
+        );
+      }
+    }
 
     // 3. Enviar la alerta Web Push a todos sus dispositivos
     const pushPromises = subscriptions.map((sub) => {
