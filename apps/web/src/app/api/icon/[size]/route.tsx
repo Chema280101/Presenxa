@@ -8,25 +8,32 @@ export async function GET(
   const numSize = parseInt(sizeParam, 10) || 192;
   const size = Math.min(Math.max(numSize, 32), 512);
 
+  // Requerimos la URL base absoluta para cargar la imagen en ImageResponse
+  const url = new URL(request.url);
+  const baseUrl = `${url.protocol}//${url.host}`;
+  const logoUrl = `${baseUrl}/brand/logo.png`;
+
   return new ImageResponse(
     (
       <div
         style={{
-          fontSize: Math.round(size * 0.52),
-          background: "#102a43",
-          border: `${Math.max(2, Math.round(size * 0.04))}px solid #a3e635`,
+          background: "#ffffff",
           width: "100%",
           height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#ffffff",
-          borderRadius: Math.round(size * 0.24),
-          fontWeight: 900,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          padding: `${Math.round(size * 0.15)}px`, // 15% de margen (padding) para que no quede pegado a los bordes
         }}
       >
-        <span>P</span>
+        <img
+          src={logoUrl}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+          }}
+        />
       </div>
     ),
     {
