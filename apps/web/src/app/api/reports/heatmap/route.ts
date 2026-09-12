@@ -356,29 +356,37 @@ export async function GET(req: Request) {
     const totalExits = peakHoursMatrix.reduce((acc, c) => acc + c.exits, 0);
     const totalLates = peakHoursMatrix.reduce((acc, c) => acc + c.lates, 0);
 
-    // Día con mayor afluencia
+    // Día con mayor afluencia (solo si hay entradas registradas)
     const dayTotals: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 0: 0 };
     peakHoursMatrix.forEach((c) => {
       dayTotals[c.dayOfWeek] += c.entries;
     });
-    const busiestDayIndex = Object.keys(dayTotals).reduce((a, b) => (dayTotals[Number(a)] > dayTotals[Number(b)] ? a : b), "1");
-    const busiestDayName = dayNames[Number(busiestDayIndex)];
+    
+    let busiestDayName = "Sin datos";
+    if (totalEntries > 0) {
+      const busiestDayIndex = Object.keys(dayTotals).reduce((a, b) => (dayTotals[Number(a)] > dayTotals[Number(b)] ? a : b), "1");
+      busiestDayName = dayNames[Number(busiestDayIndex)];
+    }
 
     // Sede con mayor ausentismo
     const sortedByAbsent = [...locationPatterns].sort((a, b) => b.absenteeismRate - a.absenteeismRate);
     const highestAbsentLocation = sortedByAbsent[0]?.name || "N/A";
 
+    const hasEntries = totalEntries > 0 && maxEntryCell.entries > 0;
+    const hasExits = totalExits > 0 && maxExitCell.exits > 0;
+    const hasLates = totalLates > 0 && maxLateCell.lates > 0;
+
     const insights = {
       busiestDay: busiestDayName,
-      peakEntryWindow: `${String(maxEntryCell.hour).padStart(2, "0")}:00 - ${String(maxEntryCell.hour + 1).padStart(2, "0")}:00`,
-      peakEntryDay: maxEntryCell.dayName,
-      peakEntryCount: maxEntryCell.entries,
-      peakExitWindow: `${String(maxExitCell.hour).padStart(2, "0")}:00 - ${String(maxExitCell.hour + 1).padStart(2, "0")}:00`,
-      peakExitDay: maxExitCell.dayName,
-      peakExitCount: maxExitCell.exits,
-      criticalLateDay: maxLateCell.dayName,
-      criticalLateWindow: `${String(maxLateCell.hour).padStart(2, "0")}:00 - ${String(maxLateCell.hour + 1).padStart(2, "0")}:00`,
-      criticalLateCount: maxLateCell.lates,
+      peakEntryWindow: hasEntries ? `${String(maxEntryCell.hour).padStart(2, "0")}:00 - ${String(maxEntryCell.hour + 1).padStart(2, "0")}:00` : "",
+      peakEntryDay: hasEntries ? maxEntryCell.dayName : "",
+      peakEntryCount: hasEntries ? maxEntryCell.entries : 0,
+      peakExitWindow: hasExits ? `${String(maxExitCell.hour).padStart(2, "0")}:00 - ${String(maxExitCell.hour + 1).padStart(2, "0")}:00` : "",
+      peakExitDay: hasExits ? maxExitCell.dayName : "",
+      peakExitCount: hasExits ? maxExitCell.exits : 0,
+      criticalLateDay: hasLates ? maxLateCell.dayName : "",
+      criticalLateWindow: hasLates ? `${String(maxLateCell.hour).padStart(2, "0")}:00 - ${String(maxLateCell.hour + 1).padStart(2, "0")}:00` : "",
+      criticalLateCount: hasLates ? maxLateCell.lates : 0,
       highestAbsentLocation,
       totalEntries,
       totalExits,

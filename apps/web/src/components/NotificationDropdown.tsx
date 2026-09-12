@@ -141,21 +141,21 @@ export function NotificationDropdown() {
 
   const getTypeIcon = (type: string, data?: any) => {
     if (data?.isDniApproval) {
-      return <AlertTriangle className="w-4 h-4 text-amber-400 animate-pulse" />;
+      return <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400 animate-pulse" />;
     }
     switch (type) {
       case "SALIDA_PERIMETRO":
-        return <AlertTriangle className="w-4 h-4 text-amber-400" />;
+        return <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
       case "ABANDONO_REGISTRADO":
-        return <AlertOctagon className="w-4 h-4 text-rose-400" />;
+        return <AlertOctagon className="w-4 h-4 text-danger-500 dark:text-danger-400" />;
       case "LLEGADA_TARDE":
-        return <Clock className="w-4 h-4 text-amber-400" />;
+        return <Clock className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
       case "BIENVENIDA":
-        return <Sparkles className="w-4 h-4 text-primary-400" />;
+        return <Sparkles className="w-4 h-4 text-primary-600 dark:text-primary-400" />;
       case "FALTA_REGISTRADA":
-        return <XCircle className="w-4 h-4 text-rose-400" />;
+        return <XCircle className="w-4 h-4 text-danger-500 dark:text-danger-400" />;
       default:
-        return <Bell className="w-4 h-4 text-primary-300" />;
+        return <Bell className="w-4 h-4 text-primary-600 dark:text-primary-400" />;
     }
   };
 
@@ -177,13 +177,18 @@ export function NotificationDropdown() {
           setIsOpen(!isOpen);
           if (!isOpen) fetchNotifications();
         }}
-        className="relative p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/8 hover:border-primary-400/30 transition-all cursor-pointer"
+        className={`relative p-2 rounded-xl transition-all duration-150 cursor-pointer shadow-xs border ${
+          isOpen
+            ? "bg-primary-50 dark:bg-primary-950/50 border-primary-300 dark:border-primary-600/50 text-primary-600 dark:text-primary-400 ring-2 ring-primary-500/20"
+            : "bg-surface-100 dark:bg-surface-800/60 border-surface-200 dark:border-surface-700/60 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-700/80"
+        }`}
         title="Centro de Notificaciones"
         aria-label="Abrir centro de notificaciones"
+        aria-expanded={isOpen}
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-black text-[10px] flex items-center justify-center border-2 border-surface-900 animate-pulse shadow-md">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-danger-500 text-white font-bold text-[10px] flex items-center justify-center border-2 border-white dark:border-surface-950 shadow-sm animate-pulse">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -191,16 +196,15 @@ export function NotificationDropdown() {
 
       {/* Floating Dropdown Modal */}
       {isOpen && (
-        <div 
-          className="absolute right-0 mt-3 w-80 sm:w-96 rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 z-50 overflow-hidden animate-scale-up"
-          style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(20px)" }}
-        >
+        <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-2xl sm:rounded-3xl border border-surface-200 dark:border-surface-800 bg-white/95 dark:bg-surface-900/95 backdrop-blur-xl shadow-2xl shadow-surface-950/10 dark:shadow-black/60 z-50 overflow-hidden animate-fade-in-up">
           {/* Header */}
-          <div className="p-4 border-b border-white/8 flex items-center justify-between bg-surface-950/40">
+          <div className="p-4 border-b border-surface-200 dark:border-surface-800 flex items-center justify-between bg-surface-50/80 dark:bg-surface-950/50">
             <div className="flex items-center gap-2">
-              <h2 className="text-xs font-bold text-white uppercase tracking-wider">Notificaciones</h2>
+              <h2 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider">
+                Notificaciones
+              </h2>
               {unreadCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-primary-400/15 text-primary-300 text-[10px] font-bold border border-primary-400/30">
+                <span className="px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 text-[10px] font-bold border border-primary-200 dark:border-primary-800/40">
                   {unreadCount} nuevas
                 </span>
               )}
@@ -210,7 +214,7 @@ export function NotificationDropdown() {
               <button
                 onClick={markAllAsRead}
                 disabled={isLoading}
-                className="text-[11px] text-primary-400 hover:text-primary-300 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
+                className="text-[11px] text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-semibold flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Marcar todas</span>
@@ -219,11 +223,11 @@ export function NotificationDropdown() {
           </div>
 
           {/* List */}
-          <div className="max-h-[380px] overflow-y-auto divide-y divide-white/5 scrollbar-thin">
+          <div className="max-h-[380px] overflow-y-auto divide-y divide-surface-100 dark:divide-surface-800/80 scrollbar-thin">
             {notifications.length === 0 ? (
-              <div className="py-12 px-4 text-center text-slate-400 text-xs">
-                <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
-                <p>No tienes notificaciones recientes.</p>
+              <div className="py-12 px-4 text-center text-surface-400 dark:text-surface-500 text-xs">
+                <Bell className="w-8 h-8 text-surface-300 dark:text-surface-600 mx-auto mb-2 opacity-60" />
+                <p className="font-medium">No tienes notificaciones recientes.</p>
               </div>
             ) : (
               notifications.map((item) => {
@@ -236,11 +240,11 @@ export function NotificationDropdown() {
                     key={item.id}
                     className={`p-3.5 flex items-start gap-3 transition-colors ${
                       isUnread
-                        ? "bg-primary-400/8 hover:bg-primary-400/12 border-l-2 border-primary-400"
-                        : "hover:bg-white/5 opacity-85"
+                        ? "bg-primary-50/50 dark:bg-primary-950/30 hover:bg-primary-50 dark:hover:bg-primary-950/50 border-l-2 border-primary-500"
+                        : "hover:bg-surface-50 dark:hover:bg-surface-800/40 opacity-85"
                     }`}
                   >
-                    <div className="p-2 rounded-xl bg-white/5 border border-white/8 shrink-0 mt-0.5 shadow-xs">
+                    <div className="p-2 rounded-xl bg-surface-100 dark:bg-surface-800 border border-surface-200/80 dark:border-surface-700/60 shrink-0 mt-0.5 shadow-xs">
                       {getTypeIcon(item.type, item.data)}
                     </div>
 
@@ -248,17 +252,17 @@ export function NotificationDropdown() {
                       <div className="flex items-center justify-between gap-1">
                         <h3
                           className={`text-xs font-bold truncate ${
-                            isUnread ? "text-white" : "text-slate-300"
+                            isUnread ? "text-surface-900 dark:text-white" : "text-surface-700 dark:text-surface-300"
                           }`}
                         >
                           {item.title}
                         </h3>
-                        <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                        <span className="text-[10px] text-surface-400 dark:text-surface-500 shrink-0 font-medium font-mono">
                           {formatRelativeTime(item.createdAt)}
                         </span>
                       </div>
 
-                      <p className="text-[11px] text-slate-300 leading-snug break-words">
+                      <p className="text-[11px] text-surface-600 dark:text-surface-400 leading-snug break-words">
                         {item.body}
                       </p>
 
@@ -270,7 +274,7 @@ export function NotificationDropdown() {
                               handleDniAction(item.id, item.data.attendanceId, "APPROVE")
                             }
                             disabled={isLoadingItem}
-                            className="px-2.5 py-1 rounded-lg bg-primary-400 hover:bg-primary-300 text-surface-950 font-bold text-[11px] flex items-center gap-1 shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                            className="px-3 py-1 rounded-lg bg-primary-600 hover:bg-primary-500 text-white font-semibold text-[11px] flex items-center gap-1 shadow-sm transition-all disabled:opacity-50 cursor-pointer active:scale-95"
                           >
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Aprobar</span>
@@ -280,7 +284,7 @@ export function NotificationDropdown() {
                               handleDniAction(item.id, item.data.attendanceId, "REJECT")
                             }
                             disabled={isLoadingItem}
-                            className="px-2.5 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-semibold text-[11px] flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
+                            className="px-3 py-1 rounded-lg bg-danger-50 dark:bg-danger-500/15 hover:bg-danger-100 dark:hover:bg-danger-500/25 text-danger-700 dark:text-danger-300 border border-danger-200 dark:border-danger-500/30 font-semibold text-[11px] flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer active:scale-95"
                           >
                             <XCircle className="w-3 h-3" />
                             <span>Rechazar</span>
@@ -289,7 +293,7 @@ export function NotificationDropdown() {
                       )}
 
                       {item.user && !isDniApproval && (
-                        <p className="text-[10px] text-primary-300/90 font-semibold">
+                        <p className="text-[10px] text-primary-600 dark:text-primary-400 font-semibold">
                           {item.user.firstName} {item.user.lastName} ({item.user.role})
                         </p>
                       )}
@@ -298,7 +302,7 @@ export function NotificationDropdown() {
                     {isUnread && (
                       <button
                         onClick={() => markAsRead(item.id)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        className="p-1 rounded-lg text-surface-400 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors cursor-pointer"
                         title="Marcar como leída"
                       >
                         <Check className="w-3.5 h-3.5" />
@@ -311,8 +315,8 @@ export function NotificationDropdown() {
           </div>
 
           {/* Footer */}
-          <div className="p-2.5 border-t border-white/8 bg-surface-950/50 text-center">
-            <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
+          <div className="p-2.5 border-t border-surface-200 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-950/60 text-center">
+            <span className="text-[10px] text-surface-400 dark:text-surface-500 font-semibold tracking-wider uppercase font-mono">
               Presenxa Live Feed
             </span>
           </div>

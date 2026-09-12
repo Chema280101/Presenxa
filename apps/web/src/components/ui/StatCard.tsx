@@ -5,125 +5,171 @@ import { clsx } from "clsx";
 export interface StatCardProps {
   label: string;
   value: string | number;
-  sub?: string;
-  icon: LucideIcon;
-  variant?: "success" | "warning" | "danger" | "info" | "primary" | "default";
+  subLabel?: string;
+  subValue?: string | number;
+  icon: React.ElementType; // Can be LucideIcon or generic SVG
+  variant?: "emerald" | "cyan" | "amber" | "rose" | "indigo" | "default";
   trend?: {
-    value: string;
+    value: string | number;
+    label: string;
     isPositive?: boolean;
+    isNeutral?: boolean;
   };
   onClick?: () => void;
   className?: string;
 }
 
 const VARIANT_MAP = {
-  primary: {
-    iconBg: "bg-primary-400/15",
-    iconColor: "text-primary-300",
-    ring: "ring-1 ring-primary-400/30",
-    glowBorder: "via-primary-400/40",
+  emerald: {
+    hoverBorder: "hover:border-emerald-500/30",
+    orb: "bg-emerald-500/10 group-hover:bg-emerald-500/20",
+    iconBg: "bg-emerald-500/10",
+    iconBorder: "border-emerald-500/20",
+    iconColor: "text-emerald-400",
+    iconShadow: "shadow-[0_0_15px_rgba(16,185,129,0.15)]",
+    trendBg: "bg-emerald-500/10",
+    trendText: "text-emerald-400",
+    subValueText: "text-white",
   },
-  success: {
-    iconBg: "bg-lime-400/15",
-    iconColor: "text-lime-300",
-    ring: "ring-1 ring-lime-400/30",
-    glowBorder: "via-lime-400/40",
+  cyan: {
+    hoverBorder: "hover:border-cyan-500/30",
+    orb: "bg-cyan-500/10 group-hover:bg-cyan-500/20",
+    iconBg: "bg-cyan-500/10",
+    iconBorder: "border-cyan-500/20",
+    iconColor: "text-cyan-400",
+    iconShadow: "shadow-[0_0_15px_rgba(6,182,212,0.15)]",
+    trendBg: "bg-cyan-500/10",
+    trendText: "text-cyan-400",
+    subValueText: "text-cyan-400",
   },
-  warning: {
-    iconBg: "bg-amber-500/15",
-    iconColor: "text-amber-300",
-    ring: "ring-1 ring-amber-500/30",
-    glowBorder: "via-amber-400/40",
+  amber: {
+    hoverBorder: "hover:border-amber-500/30",
+    orb: "bg-amber-500/10 group-hover:bg-amber-500/20",
+    iconBg: "bg-amber-500/10",
+    iconBorder: "border-amber-500/20",
+    iconColor: "text-amber-400",
+    iconShadow: "shadow-[0_0_15px_rgba(245,158,11,0.15)]",
+    trendBg: "bg-amber-500/10",
+    trendText: "text-amber-400",
+    subValueText: "text-emerald-400",
   },
-  danger: {
-    iconBg: "bg-rose-500/15",
-    iconColor: "text-rose-300",
-    ring: "ring-1 ring-rose-500/30",
-    glowBorder: "via-rose-400/40",
+  rose: {
+    hoverBorder: "hover:border-rose-500/30",
+    orb: "bg-rose-500/10 group-hover:bg-rose-500/20",
+    iconBg: "bg-rose-500/10",
+    iconBorder: "border-rose-500/20",
+    iconColor: "text-rose-400",
+    iconShadow: "shadow-[0_0_15px_rgba(244,63,94,0.15)]",
+    trendBg: "bg-rose-500/10",
+    trendText: "text-rose-400",
+    subValueText: "text-rose-400",
   },
-  info: {
-    iconBg: "bg-sky-500/15",
-    iconColor: "text-sky-300",
-    ring: "ring-1 ring-sky-500/30",
-    glowBorder: "via-sky-400/40",
+  indigo: {
+    hoverBorder: "hover:border-indigo-500/30",
+    orb: "bg-indigo-500/10 group-hover:bg-indigo-500/20",
+    iconBg: "bg-indigo-500/10",
+    iconBorder: "border-indigo-500/20",
+    iconColor: "text-indigo-400",
+    iconShadow: "shadow-[0_0_15px_rgba(99,102,241,0.15)]",
+    trendBg: "bg-indigo-500/10",
+    trendText: "text-indigo-400",
+    subValueText: "text-indigo-400",
   },
   default: {
-    iconBg: "bg-white/10",
-    iconColor: "text-slate-200",
-    ring: "ring-1 ring-white/15",
-    glowBorder: "via-white/20",
+    hoverBorder: "hover:border-surface-300 dark:hover:border-surface-700",
+    orb: "bg-surface-200 dark:bg-surface-800 group-hover:bg-surface-300 dark:group-hover:bg-surface-700",
+    iconBg: "bg-surface-100 dark:bg-white/5",
+    iconBorder: "border-surface-200 dark:border-white/10",
+    iconColor: "text-surface-600 dark:text-surface-300",
+    iconShadow: "shadow-none",
+    trendBg: "bg-surface-200 dark:bg-white/10",
+    trendText: "text-surface-600 dark:text-surface-300",
+    subValueText: "text-surface-900 dark:text-white",
   },
 };
 
 export function StatCard({
   label,
   value,
-  sub,
+  subLabel,
+  subValue,
   icon: Icon,
-  variant = "primary",
+  variant = "default",
   trend,
   onClick,
   className,
 }: StatCardProps) {
-  const v = VARIANT_MAP[variant] || VARIANT_MAP.primary;
+  const v = VARIANT_MAP[variant] || VARIANT_MAP.default;
 
   return (
     <div
       onClick={onClick}
       className={clsx(
-        "card-surface-interactive p-5 relative overflow-hidden flex flex-col justify-between group",
+        "command-card p-5 relative group overflow-hidden transition-all",
+        v.hoverBorder,
         onClick && "cursor-pointer",
         className
       )}
     >
-      {/* Dynamic top highlight border glow */}
-      <div
-        className={clsx(
-          "absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-          v.glowBorder
-        )}
-      />
-
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+      {/* Ambient Orb */}
+      <div className={clsx("absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl transition-all", v.orb)}></div>
+      
+      {/* Top Header Section */}
+      <div className="flex justify-between items-start mb-4 relative z-10">
+        <div>
+          <p className="text-[11px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
             {label}
           </p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-white font-mono tracking-tight">
-              {value}
-            </span>
-            {trend && (
-              <span
-                className={clsx(
-                  "text-[11px] font-semibold px-2 py-0.5 rounded-full ring-1",
-                  trend.isPositive
-                    ? "text-lime-300 bg-lime-400/15 ring-lime-400/30"
-                    : "text-rose-300 bg-rose-500/15 ring-rose-500/30"
-                )}
-              >
-                {trend.value}
-              </span>
-            )}
-          </div>
+          <h4 className="text-3xl font-black text-surface-900 dark:text-white tracking-tighter font-sans">
+            {value}
+          </h4>
         </div>
-
         <div
           className={clsx(
-            "w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110 shadow-inner",
+            "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105",
             v.iconBg,
+            v.iconBorder,
             v.iconColor,
-            v.ring
+            v.iconShadow
           )}
         >
-          <Icon className="w-5 h-5" />
+          <Icon className="w-5 h-5" strokeWidth={2} />
         </div>
       </div>
 
-      {sub && (
-        <p className="text-xs text-slate-400 font-medium truncate flex items-center gap-1.5 pt-1 border-t border-white/5">
-          {sub}
-        </p>
+      {/* Middle Trend Section */}
+      {trend ? (
+        <div className="flex items-center gap-2 text-xs relative z-10">
+          <span
+            className={clsx(
+              "flex items-center font-bold px-1.5 py-0.5 rounded",
+              trend.isNeutral ? "text-surface-600 bg-surface-200 dark:text-surface-400 dark:bg-white/5" :
+              trend.isPositive ? "text-primary-600 bg-primary-50 dark:text-emerald-400 dark:bg-emerald-500/10" : "text-danger-600 bg-danger-50 dark:text-rose-400 dark:bg-rose-500/10"
+            )}
+          >
+            {trend.isPositive && !trend.isNeutral && (
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"></path></svg>
+            )}
+            {!trend.isPositive && !trend.isNeutral && (
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 14l-7 7m0 0l-7-7m7 7V3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"></path></svg>
+            )}
+            {trend.value}
+          </span>
+          <span className="text-surface-500 dark:text-surface-400">{trend.label}</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-xs relative z-10 opacity-0 select-none">
+          {/* Spacer if no trend to keep heights consistent */}
+          <span className="flex items-center font-bold px-1.5 py-0.5 rounded">0</span>
+        </div>
+      )}
+
+      {/* Bottom Sub-label Section */}
+      {(subLabel || subValue) && (
+        <div className="mt-4 pt-4 border-t border-surface-200 dark:border-white/5 flex items-center justify-between text-xs font-mono relative z-10">
+          <span className="text-surface-500 dark:text-surface-400">{subLabel}</span>
+          <span className={clsx("font-bold", v.subValueText)}>{subValue}</span>
+        </div>
       )}
     </div>
   );

@@ -30,15 +30,20 @@ import {
   Radio,
   CreditCard,
   Smartphone,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useThemeSchedule } from "@/lib/themeSchedule";
 import { KioskConfigModal } from "@/components/kiosk/KioskConfigModal";
 import { ScanCelebrationCard, ScanCelebrationData } from "@/components/kiosk/ScanCelebrationCard";
 import { ConfettiCanvas } from "@/components/kiosk/ConfettiCanvas";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 export default function KioskAppPage() {
   const [mounted, setMounted] = useState(false);
+  const { theme, toggleTheme, isAuto } = useThemeSchedule();
   const [apiKey, setApiKey] = useState<string>("");
   const [kioskInfo, setKioskInfo] = useState<{
     id: string;
@@ -99,7 +104,7 @@ export default function KioskAppPage() {
     if (scannerRef.current && scannerRef.current.isScanning) {
       try {
         await scannerRef.current.stop();
-      } catch {}
+      } catch { }
     }
     setCameraFacing(nextFacing);
     localStorage.setItem("asistcontrol_kiosk_camera_facing", nextFacing);
@@ -121,9 +126,9 @@ export default function KioskAppPage() {
         const caps: any = track.getCapabilities?.() || {};
         if (caps.focusMode) {
           // Force camera to refocus
-          await track.applyConstraints({ advanced: [{ focusMode: "single-shot" } as any] }).catch(() => {});
+          await track.applyConstraints({ advanced: [{ focusMode: "single-shot" } as any] }).catch(() => { });
           setTimeout(() => {
-            track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => {});
+            track.applyConstraints({ advanced: [{ focusMode: "continuous" } as any] }).catch(() => { });
           }, 250);
         }
       }
@@ -178,7 +183,7 @@ export default function KioskAppPage() {
           if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
             navigator.vibrate([80, 40, 80]);
           }
-        } catch {}
+        } catch { }
 
         let cardId = event.serialNumber;
         if (event.message?.records?.length > 0) {
@@ -377,7 +382,7 @@ export default function KioskAppPage() {
     if (savedQueue) {
       try {
         setOfflineQueue(JSON.parse(savedQueue));
-      } catch {}
+      } catch { }
     }
 
     const handleOnline = () => setIsOnline(true);
@@ -518,12 +523,12 @@ export default function KioskAppPage() {
           (decodedText: string) => {
             handleQrScanned(decodedText);
           },
-          () => {}
+          () => { }
         );
 
         if (isCancelled) {
           if (html5QrCode.isScanning) {
-            html5QrCode.stop().catch(() => {});
+            html5QrCode.stop().catch(() => { });
           }
           return;
         }
@@ -545,7 +550,7 @@ export default function KioskAppPage() {
                     height: { ideal: 1080, min: 720 },
                     advanced: [{ focusMode: "continuous" } as any],
                   })
-                  .catch(() => {});
+                  .catch(() => { });
 
                 const caps: any = track.getCapabilities?.() || {};
 
@@ -576,7 +581,7 @@ export default function KioskAppPage() {
       isCancelled = true;
       videoTrackRef.current = null;
       if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(() => {});
+        html5QrCode.stop().catch(() => { });
       }
     };
   }, [isScanning, lastScanResult, isProcessing, cameraFacing]);
@@ -588,8 +593,8 @@ export default function KioskAppPage() {
     const initialSecs = lastScanResult.requiresVerification
       ? 6
       : lastScanResult.microInteraction?.isBirthday || lastScanResult.microInteraction?.notice
-      ? 5
-      : 4;
+        ? 5
+        : 4;
 
     setTotalDuration(initialSecs);
     setCountdown(initialSecs);
@@ -638,7 +643,7 @@ export default function KioskAppPage() {
           return;
         }
       }
-    } catch {}
+    } catch { }
 
     const activeKey = apiKeyRef.current || (typeof window !== "undefined" ? localStorage.getItem("asistcontrol_kiosk_api_key") : "") || apiKey;
     if (!activeKey) {
@@ -658,7 +663,7 @@ export default function KioskAppPage() {
       if (scannerRef.current && typeof scannerRef.current.pause === "function") {
         scannerRef.current.pause();
       }
-    } catch {}
+    } catch { }
 
     try {
       const res = await fetch("/api/attendance/scan", {
@@ -685,7 +690,7 @@ export default function KioskAppPage() {
             if (scannerRef.current && typeof scannerRef.current.resume === "function") {
               scannerRef.current.resume();
             }
-          } catch {}
+          } catch { }
         }, 3500);
         return;
       }
@@ -720,7 +725,7 @@ export default function KioskAppPage() {
           localStorage.setItem("asistcontrol_offline_queue", JSON.stringify(newQueue));
           return newQueue;
         });
-        
+
         playSound("SUCCESS");
         setLastScanResult({
           scanType: "ENTRY",
@@ -745,7 +750,7 @@ export default function KioskAppPage() {
             if (scannerRef.current && typeof scannerRef.current.resume === "function") {
               scannerRef.current.resume();
             }
-          } catch {}
+          } catch { }
         }, 3000);
       }
     }
@@ -761,24 +766,33 @@ export default function KioskAppPage() {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
       setIsFullscreen(true);
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
       setIsFullscreen(false);
     }
   };
 
   return (
-    <div
-      className="min-h-[100dvh] text-white flex flex-col justify-between select-none relative overflow-hidden font-sans"
-      style={{
-        background: "radial-gradient(ellipse at 50% 0%, #102a43 0%, #0a1b2c 60%, #060e17 100%)",
-      }}
-    >
-      {/* Background ambient lighting */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-lime-400/10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-sky-600/10 blur-3xl pointer-events-none" />
+    <div className="h-[100dvh] select-none overflow-hidden text-slate-900 dark:text-slate-100 font-sans antialiased flex flex-col justify-between relative bg-slate-50 dark:bg-command-bg transition-colors duration-500">
+      {/* Ambient background mesh gradient (Light & Dark dynamic) */}
+      <div className="absolute inset-0 z-0 pointer-events-none transition-colors duration-500 bg-gradient-to-b from-slate-100/90 via-slate-50 to-slate-100/80 dark:from-[#07090e] dark:via-[#0b0f17] dark:to-[#06080d]" />
+      <div
+        className="absolute inset-0 z-0 pointer-events-none opacity-60 dark:opacity-100 transition-opacity duration-500"
+        style={{
+          background: "radial-gradient(circle at 75% 45%, rgba(0, 166, 80, 0.08) 0%, transparent 45%), radial-gradient(circle at 20% 50%, rgba(0, 166, 80, 0.06) 0%, transparent 55%)"
+        }}
+      />
+
+      {/* Styles for HUD animations */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes laser-sweep { 0% { top: 6%; opacity: 0.1; } 15% { opacity: 0.9; } 85% { opacity: 0.9; } 100% { top: 94%; opacity: 0.1; } }
+        .scanner-line { animation: laser-sweep 2.8s ease-in-out infinite alternate; }
+        .pulse-indicator { box-shadow: 0 0 0 0 rgba(0, 166, 80, 0.7); animation: pulse-ring 2s cubic-bezier(0.24, 0, 0.38, 1) infinite; }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(0, 166, 80, 0.6); } 70% { box-shadow: 0 0 0 10px rgba(0, 166, 80, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 166, 80, 0); } }
+      `}} />
 
       {/* Confetti & Celebration Particles FX */}
       <ConfettiCanvas
@@ -786,343 +800,390 @@ export default function KioskAppPage() {
         type={lastScanResult?.microInteraction?.isBirthday ? "BIRTHDAY" : "PUNCTUAL"}
       />
 
-      {/* Topbar of Kiosk */}
-      <header
-        className="p-6 md:px-10 flex items-center justify-between z-10"
-        style={{
-          background: "rgba(10, 27, 44, 0.9)",
-          backdropFilter: "blur(14px)",
-          borderBottom: "1px solid rgba(163, 230, 53, 0.12)",
-        }}
-      >
-        <div className="flex items-center gap-4">
-          <img
-            src="/brand/isotipo-secundario.svg"
-            alt="Presenxa"
-            className="w-12 h-12 rounded-2xl object-contain shadow-lg shadow-black/50 ring-1 ring-lime-400/30"
-          />
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              <span>Presen</span>
-              <span className="text-lime-400">x</span>
-              <span>a</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30 font-semibold">
-                Tablet Kiosk
-              </span>
-            </h1>
-            <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-              <Building className="w-3.5 h-3.5 text-slate-500" />
-              <span>{kioskInfo?.locationName || "Sede Principal"}</span>
-              <span className="text-slate-600">•</span>
-              <span className="text-slate-300">{kioskInfo?.name || "Terminal 01"}</span>
-            </p>
+      {/* Topbar */}
+      <header className="w-full px-6 py-4 flex items-center justify-between border-b border-slate-200/80 dark:border-white/[0.06] bg-white/90 dark:bg-command-bg/70 backdrop-blur-xl z-30 transition-colors duration-500">
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-600/20 to-primary-400/10 dark:from-primary-600/30 dark:to-primary-400/20 border border-primary-500/30 dark:border-primary-400/40 shadow-sm dark:shadow-[0_0_25px_-4px_rgba(0,166,80,0.35)]">
+              <ScanLine className="w-5 h-5 text-primary-400" />
+              <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary-400 rounded-full animate-ping"></div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+                  PRESEN<span className="text-primary-600 dark:text-primary-400">X</span>A
+                </span>
+                <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-primary-500/10 dark:bg-primary-500/15 text-primary-700 dark:text-primary-400 border border-primary-500/20 dark:border-primary-500/30 shadow-sm">
+                  Tablet Kiosk
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                <Building className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                <span>{kioskInfo?.locationName || "Sede Principal"}</span>
+                <span className="text-slate-300 dark:text-slate-600">•</span>
+                <span className="text-slate-600 dark:text-slate-300">{kioskInfo?.name || "Terminal 01"}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Status Indicators & Controls */}
         <div className="flex items-center gap-3">
-          {/* Online status */}
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-              isOnline
-                ? offlineQueue.length > 0 
-                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20 animate-pulse"
-                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-            }`}
-          >
-            {isOnline ? (
-              offlineQueue.length > 0 ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Sincronizando ({offlineQueue.length})</span>
-                </>
-              ) : (
-                <>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span>En Línea</span>
-                </>
-              )
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5" />
-                <span>Offline ({offlineQueue.length} pt.)</span>
-              </>
-            )}
+          {/* Network Connectivity & Sync */}
+          <div className="hidden sm:block">
+            <StatusBadge
+              status={isOnline ? "ACTIVO" : "OFFLINE"}
+              label={isOnline ? "En Línea · Sync 10s" : "Sin Conexión"}
+            />
           </div>
 
-          {/* NFC Status Indicator (Android Chrome) */}
-          {mounted && nfcSupported && (
+          {/* Offline Buffer Queue */}
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/40 border border-slate-200/80 dark:border-white/5 text-xs text-slate-600 dark:text-slate-400 font-mono transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 ${offlineQueue.length > 0 && isOnline ? "animate-spin text-primary-600 dark:text-primary-400" : "text-slate-400"}`} />
+            <span>Cola: <strong className={offlineQueue.length > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-700 dark:text-slate-200"}>{offlineQueue.length} pt.</strong></span>
+          </div>
+          <div className="h-5 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+          {/* Device Peripheral Quick Toggles */}
+          <div className="flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200/90 dark:border-white/10 shadow-sm dark:shadow-none transition-colors">
             <button
-              onClick={startNfcScanning}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                nfcActive
-                  ? "bg-lime-500/10 text-lime-400 border-lime-500/30"
-                  : "bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse"
-              }`}
-              title={nfcActive ? "Sensor NFC escuchando en segundo plano" : "Toca para activar sensor NFC"}
+              onClick={toggleCameraFacing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-500/10 hover:bg-primary-500/20 text-primary-700 dark:text-primary-300 border border-primary-500/20 dark:border-primary-500/25 text-xs font-medium transition-colors cursor-pointer"
+              title={`Alternar Vista de Cámara a ${cameraFacing === 'environment' ? 'Frontal' : 'Trasera'}`}
             >
-              <Radio className={`w-3.5 h-3.5 ${nfcActive ? "animate-pulse text-lime-400" : "text-amber-400"}`} />
-              <span>{nfcActive ? "NFC Listo" : "Activar NFC"}</span>
+              <SwitchCamera className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">{cameraFacing === 'environment' ? 'Cámara Trasera' : 'Cámara Frontal'}</span>
             </button>
-          )}
-
-          {/* Camera facing switcher */}
-          <button
-            onClick={toggleCameraFacing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer"
-            title={`Cambiar a ${cameraFacing === "environment" ? "Cámara Frontal" : "Cámara Trasera"}`}
-          >
-            <SwitchCamera className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-semibold hidden md:inline">
-              {cameraFacing === "environment" ? "Cámara Trasera" : "Cámara Frontal"}
-            </span>
-          </button>
-
-          {/* Sound toggle */}
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
-            title={soundEnabled ? "Silenciar" : "Activar sonido"}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-
-          {/* Fullscreen */}
-          <button
-            onClick={toggleFullscreen}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
-            title="Pantalla Completa"
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          </button>
-
-          {/* Settings */}
-          <button
-            onClick={() => setIsConfigOpen(true)}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors cursor-pointer"
-            title="Configurar Kiosk"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              title={soundEnabled ? "Silenciar" : "Activar sonido"}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4 text-primary-600 dark:text-primary-400" /> : <VolumeX className="w-4 h-4 text-rose-500 dark:text-rose-400" />}
+            </button>
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              title="Modo Pantalla Completa"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={toggleTheme}
+              suppressHydrationWarning
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              title={
+                mounted
+                  ? isAuto
+                    ? theme === "dark"
+                      ? "Modo oscuro automático (7:00 PM - 6:00 AM) • Clic para cambiar a claro"
+                      : "Modo claro automático (6:00 AM - 7:00 PM) • Clic para cambiar a oscuro"
+                    : `Modo manual: ${theme === "dark" ? "Oscuro" : "Claro"} • Clic para alternar / restaurar automático`
+                  : "Cambiar Tema"
+              }
+            >
+              {mounted && theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-400" />}
+            </button>
+            <button
+              onClick={() => setIsConfigOpen(true)}
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+              title="Ajustes de Terminal y Calibración"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col lg:flex-row items-center justify-center p-6 md:p-12 gap-8 max-w-7xl mx-auto w-full z-10">
-        {/* Left Side: Big Digital Clock & Instructions */}
-        <div className="w-full lg:w-1/2 flex flex-col items-center lg:items-start text-center lg:text-left space-y-6">
-          {/* Big Glowing Clock */}
-          <div className="space-y-1" suppressHydrationWarning>
-            <div
-              className="text-6xl md:text-8xl font-extrabold tracking-tight font-mono text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-lime-200 drop-shadow-sm"
-              suppressHydrationWarning
-            >
-              {mounted && currentTime ? format(currentTime, "HH:mm:ss") : "--:--:--"}
-            </div>
-            <p
-              className="text-lg md:text-xl font-semibold text-primary-400 capitalize"
-              suppressHydrationWarning
-            >
-              {mounted && currentTime
-                ? format(currentTime, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })
-                : "Cargando fecha..."}
-            </p>
-          </div>
-
-          {/* Instruction callout */}
-          <div className="p-6 rounded-3xl card-surface max-w-md space-y-3 shadow-xl">
-            <div className="flex items-center gap-3 text-white font-bold text-base">
-              <div className="p-2 rounded-xl bg-primary-400/15 text-primary-300 border border-primary-400/25">
-                <Sparkles className="w-5 h-5" />
+      {/* Main Kiosk Viewport (Split Dual Screen) */}
+      <main className="flex-1 flex flex-col justify-center items-center px-6 lg:px-14 py-6 max-w-[1720px] mx-auto w-full z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center w-full">
+          {/* LADO IZQUIERDO: Reloj Digital & Métodos de Acceso */}
+          <section className="lg:col-span-6 flex flex-col items-center lg:items-start text-center lg:text-left space-y-7">
+            <div className="space-y-1">
+              <div className="inline-flex items-baseline font-mono tracking-tight text-slate-900 dark:text-white select-text transition-colors" suppressHydrationWarning>
+                <span className="text-7xl xl:text-8xl font-black drop-shadow-sm dark:drop-shadow-[0_4px_16px_rgba(255,255,255,0.15)]">
+                  {mounted && currentTime ? format(currentTime, "HH:mm") : "--:--"}
+                </span>
+                <span className="text-5xl xl:text-6xl font-bold text-primary-600 dark:text-primary-400 px-2">:</span>
+                <span className="text-5xl xl:text-6xl font-extrabold text-primary-600 dark:text-primary-400 drop-shadow-sm dark:drop-shadow-[0_0_12px_rgba(0,166,80,0.5)]">
+                  {mounted && currentTime ? format(currentTime, "ss") : "--"}
+                </span>
               </div>
-              <span>Control Biométrico, QR y Tarjetas NFC</span>
+              <div className="flex items-center justify-center lg:justify-start gap-2.5 text-slate-700 dark:text-slate-300 text-lg xl:text-xl font-medium tracking-wide capitalize transition-colors" suppressHydrationWarning>
+                <Clock className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                <span className="text-primary-700 dark:text-primary-400/90 font-semibold">
+                  {mounted && currentTime ? format(currentTime, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es }) : "Cargando fecha..."}
+                </span>
+              </div>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Muestra tu código QR frente a la cámara o acerca tu tarjeta/llavero NFC al dispositivo para marcar tu ingreso o salida al instante.
-            </p>
 
-            {/* Manual DNI button */}
-            <div className="pt-2">
+            <div className="w-full max-w-lg bg-white/95 dark:bg-[#0e1420]/90 border border-slate-200/90 dark:border-white/10 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-[0_12px_36px_0_rgba(0,0,0,0.45)] backdrop-blur-xl relative overflow-hidden group transition-all duration-500">
+              <div className="absolute -top-12 -right-12 w-36 h-36 bg-primary-500/10 dark:bg-primary-400/10 rounded-full blur-2xl pointer-events-none group-hover:bg-primary-500/20 dark:group-hover:bg-primary-400/20 transition-all duration-700"></div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-primary-50 dark:bg-primary-400/10 border border-primary-200 dark:border-primary-400/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">Control Biométrico, QR Dinámico & NFC</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Punto de verificación de identidad sin contacto</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-300/90 leading-relaxed mb-6 font-normal">
+                Muestra tu código QR dinámico frente a la cámara o acerca tu tarjeta física / llavero NFC al lector para registrar tu ingreso o salida en 0.2 segundos.
+              </p>
               <button
                 onClick={() => setIsManualModalOpen(true)}
-                className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-primary-950/40 border border-slate-200 hover:border-primary-400 dark:border-primary-400/40 dark:hover:border-primary-400 text-slate-700 dark:text-white hover:text-primary-700 dark:hover:text-primary-400 font-semibold text-sm transition-all duration-200 shadow-sm dark:shadow-md group/btn cursor-pointer"
               >
-                <Hash className="w-4 h-4 text-primary-400" />
+                <span className="text-primary-600 dark:text-primary-400 font-mono font-bold text-base">#</span>
                 <span>¿No tienes tu QR? Ingresar DNI manualmente</span>
               </button>
             </div>
-          </div>
-        </div>
 
-        {/* Right Side: Camera Viewfinder OR Result Confirmation Card */}
-        <div className="w-full lg:w-1/2 flex flex-col items-center justify-center">
-          {lastScanResult ? (
-            <ScanCelebrationCard
-              data={lastScanResult}
-              countdown={countdown}
-              totalDuration={totalDuration}
-              onDismiss={() => {
-                setLastScanResult(null);
-                setIsProcessing(false);
-              }}
-            />
-          ) : scanError ? (
-            /* Error Card */
-            <div className="w-full max-w-md rounded-3xl p-8 glass-card border border-rose-500/30 bg-rose-500/5 shadow-2xl flex flex-col items-center text-center animate-[shake_0.3s_ease-in-out]">
-              <div className="p-4 rounded-3xl bg-rose-500/20 text-rose-400 mb-4">
-                <ShieldAlert className="w-12 h-12" />
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 w-full max-w-lg">
+              <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-primary-400/25 text-xs text-slate-700 dark:text-slate-200 shadow-sm cursor-pointer transition-colors">
+                <div className="relative flex items-center justify-center">
+                  <Radio className={`w-4 h-4 ${nfcActive ? "text-primary-600 dark:text-primary-400" : "text-amber-500 dark:text-amber-400"}`} />
+                  {nfcActive && <span className="absolute w-2 h-2 rounded-full bg-primary-400/50 animate-ping"></span>}
+                </div>
+                <span>{nfcActive ? "Lector NFC / RFID activo: Pasa tu tarjeta" : "NFC / RFID disponible: Toca para activar"}</span>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">
-                Código Inválido o No Reconocido
-              </h3>
-              <p className="text-xs text-rose-300 leading-relaxed mb-6">
-                {scanError}
-              </p>
-              <button
-                onClick={() => setScanError(null)}
-                className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Reintentar
-              </button>
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/5 text-[11px] text-slate-600 dark:text-slate-400 shadow-sm dark:shadow-none transition-colors">
+                <CheckCircle2 className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                <span>Validación Criptográfica SHA-256</span>
+              </div>
             </div>
-          ) : (
-            /* Camera Viewfinder Box */
-            <div className="w-full max-w-sm flex flex-col items-center">
-              <div
-                onClick={handleTriggerFocus}
-                className="relative w-72 h-72 rounded-3xl overflow-hidden glass border-2 border-primary-400/40 shadow-2xl shadow-primary-950/60 flex items-center justify-center bg-black/60 cursor-pointer group"
-                title="Toca el recuadro para enfocar la cámara"
-              >
-                {/* HTML5 QR Container */}
-                <div id="qr-reader" className="w-full h-full object-cover" />
+          </section>
 
-                {/* Animated laser line */}
-                <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-primary-400 to-transparent shadow-[0_0_14px_#a3e635] animate-[scan-laser_2s_infinite_ease-in-out] pointer-events-none" />
-
-                {/* Viewfinder corner brackets */}
-                <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-primary-400 rounded-tl-lg pointer-events-none" />
-                <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-primary-400 rounded-tr-lg pointer-events-none" />
-                <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-primary-400 rounded-bl-lg pointer-events-none" />
-                <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-primary-400 rounded-br-lg pointer-events-none" />
-
-                {/* Focus indicator animation when tapped */}
-                {isFocusing && (
-                  <div
-                    className="absolute pointer-events-none w-14 h-14 border-2 border-primary-400 rounded-2xl animate-ping flex items-center justify-center"
-                    style={{
-                      left: focusPoint ? `${focusPoint.x - 28}px` : "calc(50% - 28px)",
-                      top: focusPoint ? `${focusPoint.y - 28}px` : "calc(50% - 28px)",
-                    }}
-                  >
-                    <div className="w-2 h-2 bg-primary-400 rounded-full" />
-                  </div>
-                )}
-
-                {/* Badge inside viewfinder */}
-                <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-surface-950/80 backdrop-blur-md border border-white/10 text-[10px] font-semibold text-primary-300 pointer-events-none flex items-center gap-1">
-                  <span>{cameraFacing === "environment" ? "📷 Cámara Trasera" : "🤳 Cámara Frontal"}</span>
-                  {zoomLevel > 1 && <span className="text-primary-300 font-mono">({zoomLevel}x)</span>}
-                </div>
-
-                {/* Tap to focus hint on hover */}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-black/60 text-[9px] text-slate-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  Toca para enfocar
-                </div>
-              </div>
-
-              {/* Viewfinder Controls Bar */}
-              <div className="flex items-center justify-between w-full mt-3 px-1 gap-2">
-                {/* Focus Button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleTriggerFocus();
+          {/* LADO DERECHO: Visor HUD de Escaneo & Reconocimiento */}
+          <section className="lg:col-span-6 flex flex-col items-center justify-center relative w-full h-full min-h-[400px]">
+            {lastScanResult ? (
+              <div className="w-full max-w-md animate-[scale-up_0.3s_ease-out]">
+                <ScanCelebrationCard
+                  data={lastScanResult}
+                  countdown={countdown}
+                  totalDuration={totalDuration}
+                  onDismiss={() => {
+                    setLastScanResult(null);
+                    setIsProcessing(false);
                   }}
-                  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
-                    isFocusing
-                      ? "bg-primary-400/20 text-primary-300 border-primary-400/40 animate-pulse"
-                      : "bg-white/5 hover:bg-white/10 text-slate-200 border-white/10"
-                  }`}
-                  title="Re-enfocar la cámara"
-                >
-                  <Focus className={`w-3.5 h-3.5 ${isFocusing ? "text-primary-400 animate-spin" : "text-primary-400"}`} />
-                  <span>{isFocusing ? "Enfocando..." : "Enfocar"}</span>
-                </button>
-
-                {/* Zoom controls if available */}
-                {zoomCapabilities && (
-                  <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
-                    {[1, 1.5, 2].map((lvl) => (
-                      <button
-                        key={lvl}
-                        type="button"
-                        onClick={() => handleSetZoom(lvl)}
-                        className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
-                          zoomLevel === lvl
-                            ? "bg-primary-400 text-surface-950 shadow-sm"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        {lvl}x
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Switch Camera Button */}
+                />
+              </div>
+            ) : scanError ? (
+              <div className="w-full max-w-[460px] rounded-3xl p-8 bg-rose-50/90 dark:bg-rose-950/20 border border-rose-300 dark:border-rose-500/40 backdrop-blur-md shadow-2xl flex flex-col items-center text-center animate-[shake_0.3s_ease-in-out]">
+                <div className="p-4 rounded-3xl bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 mb-4 shadow-sm dark:shadow-[0_0_20px_rgba(244,63,94,0.4)]">
+                  <ShieldAlert className="w-12 h-12" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                  Código Inválido o No Reconocido
+                </h3>
+                <p className="text-sm text-rose-700 dark:text-rose-300 leading-relaxed mb-6 font-medium">
+                  {scanError}
+                </p>
                 <button
-                  type="button"
-                  onClick={toggleCameraFacing}
-                  className="flex items-center gap-1.5 text-xs text-primary-400 hover:text-primary-300 font-semibold bg-primary-400/10 hover:bg-primary-400/20 border border-primary-400/20 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-                  title="Alternar entre cámara trasera y frontal"
+                  onClick={() => setScanError(null)}
+                  className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white/10 dark:hover:bg-white/20 border border-transparent dark:border-white/20 text-white text-sm font-semibold transition-colors cursor-pointer"
                 >
-                  <SwitchCamera className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{cameraFacing === "environment" ? "Frontal" : "Trasera"}</span>
+                  Reintentar Escaneo
                 </button>
               </div>
+            ) : (
+              <div className="w-full flex flex-col items-center">
+                <div
+                  className="relative w-full max-w-[460px] aspect-[4/3.8] rounded-3xl bg-white dark:bg-black/80 p-3.5 shadow-2xl shadow-slate-300/60 dark:shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-slate-200/90 dark:border-white/10 backdrop-blur-md cursor-pointer group transition-all"
+                  onClick={handleTriggerFocus}
+                >
+                  <div className="absolute -inset-0.5 rounded-[26px] bg-gradient-to-b from-primary-500/30 via-transparent to-primary-600/20 dark:from-primary-400/40 dark:via-transparent dark:to-primary-600/30 -z-10 blur-sm opacity-60 pointer-events-none"></div>
 
-              {/* NFC & USB Reader banner */}
-              <div className="w-full mt-3 p-3 rounded-2xl bg-surface-900/80 border border-lime-400/20 flex items-center justify-between text-xs text-slate-300 shadow-lg">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-lime-400 shrink-0" />
-                  <span className="text-[11px] sm:text-xs">
-                    {mounted && nfcSupported
-                      ? nfcActive
-                        ? "Sensor NFC activo: acerca tu tarjeta física"
-                        : "NFC detectado en este dispositivo"
-                      : "Lector USB / RFID activo: pasa tu tarjeta"}
-                  </span>
+                  <div className="relative w-full h-full rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center border border-black/10 dark:border-white/15">
+                    {/* HTML5 QR Container */}
+                    <div id="qr-reader" className="absolute inset-0 w-full h-full object-cover [&>video]:w-full [&>video]:h-full [&>video]:object-cover" />
+
+                    <div className="absolute inset-0 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0b0e14]/90 via-transparent to-[#0b0e14]/60 pointer-events-none"></div>
+
+                    <div className="absolute inset-8 pointer-events-none flex flex-col justify-between">
+                      <div className="flex justify-between">
+                        <div className="w-8 h-8 border-t-[3.5px] border-l-[3.5px] border-primary-400 rounded-tl-lg shadow-[0_0_12px_rgba(0,166,80,0.8)]"></div>
+                        <div className="w-8 h-8 border-t-[3.5px] border-r-[3.5px] border-primary-400 rounded-tr-lg shadow-[0_0_12px_rgba(0,166,80,0.8)]"></div>
+                      </div>
+                      <div className="flex justify-between">
+                        <div className="w-8 h-8 border-b-[3.5px] border-l-[3.5px] border-primary-400 rounded-bl-lg shadow-[0_0_12px_rgba(0,166,80,0.8)]"></div>
+                        <div className="w-8 h-8 border-b-[3.5px] border-r-[3.5px] border-primary-400 rounded-br-lg shadow-[0_0_12px_rgba(0,166,80,0.8)]"></div>
+                      </div>
+                    </div>
+
+                    <div className="absolute left-6 right-6 h-[2px] bg-gradient-to-r from-transparent via-primary-400 to-transparent shadow-[0_0_14px_4px_rgba(0,166,80,0.7)] scanner-line pointer-events-none"></div>
+
+                    <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-[11px] text-white font-medium">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                        <span>HD 1080p · {isFocusing ? "Enfocando..." : "Activa"}</span>
+                      </div>
+                      <div className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] text-primary-400 font-mono tracking-wider">
+                        {zoomLevel > 1 ? `ZOOM ${zoomLevel}x` : "AUTO-FOCUS"}
+                      </div>
+                    </div>
+
+                    <div className="absolute flex flex-col items-center justify-center pointer-events-none space-y-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                      <div className={`w-16 h-16 rounded-full border flex items-center justify-center ${isFocusing ? "border-primary-400 animate-ping" : "border-primary-400/40 animate-pulse"}`}>
+                        <Camera className="w-6 h-6 text-primary-400/80" />
+                      </div>
+                      <span className="text-xs font-semibold tracking-wider uppercase text-white/90 bg-black/70 px-3 py-1 rounded-md border border-white/10">
+                        {isFocusing ? "Enfocando..." : "Centra tu código QR"}
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-auto">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleTriggerFocus(); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/70 hover:bg-black/90 backdrop-blur-md border border-white/15 text-xs text-slate-200 transition-colors cursor-pointer"
+                      >
+                        <Focus className="w-3.5 h-3.5 text-primary-400" />
+                        <span>Re-enfocar</span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleCameraFacing(); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/70 hover:bg-black/90 backdrop-blur-md border border-white/15 text-xs text-primary-300 transition-colors cursor-pointer"
+                      >
+                        <SwitchCamera className="w-3.5 h-3.5" />
+                        <span>Cambiar</span>
+                      </button>
+                    </div>
+
+                    {isFocusing && focusPoint && (
+                      <div
+                        className="absolute pointer-events-none w-12 h-12 border-2 border-primary-400 rounded-xl animate-ping flex items-center justify-center"
+                        style={{ left: focusPoint.x - 24, top: focusPoint.y - 24 }}
+                      >
+                        <div className="w-1.5 h-1.5 bg-primary-400 rounded-full" />
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {mounted && nfcActive ? (
-                  <span className="w-2 h-2 rounded-full bg-lime-400 animate-ping shrink-0" />
-                ) : mounted && nfcSupported ? (
-                  <button
-                    onClick={startNfcScanning}
-                    className="px-2 py-0.5 rounded-lg bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 text-[10px] font-bold border border-lime-400/30 cursor-pointer"
-                  >
-                    Activar
-                  </button>
-                ) : null}
+
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <ScanLine className="w-4 h-4 text-primary-600 dark:text-primary-400 animate-pulse" />
+                    <span>Sensor óptico continuo activo: <strong>Detectando colaborador...</strong></span>
+                  </div>
+                  {zoomCapabilities && (
+                    <div className="flex items-center gap-1 mt-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl p-0.5 shadow-sm dark:shadow-none">
+                      {[1, 1.5, 2, 2.5, 3].filter(z => z <= zoomCapabilities.max).map((lvl) => (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => handleSetZoom(lvl)}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${zoomLevel === lvl ? "bg-primary-500 text-white dark:bg-primary-400 dark:text-[#07090e] shadow-sm" : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                            }`}
+                        >
+                          {lvl}x
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* WIDGET INFERIOR FLOTANTE: Última Marcación Exitosa */}
+        {!lastScanResult && (
+          <div className="w-full max-w-2xl mt-6 lg:mt-8 transition-opacity">
+            <div className="flex items-center justify-between p-3.5 px-5 rounded-2xl bg-white/95 dark:bg-[#0e1420]/90 border border-slate-200/90 dark:border-primary-500/30 backdrop-blur-xl shadow-lg shadow-slate-200/50 dark:shadow-[0_12px_36px_0_rgba(0,0,0,0.45)]">
+              <div className="flex items-center gap-3.5">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-slate-800 flex items-center justify-center text-primary-600 dark:text-slate-400 border border-primary-200 dark:border-primary-400/40">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-primary-500 border-2 border-white dark:border-slate-900 flex items-center justify-center text-white dark:text-slate-950">
+                    <CheckCircle2 className="w-2.5 h-2.5 stroke-[3]" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-400">Terminal Kiosk Activo</span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-300">
+                    Listo para recibir la siguiente marcación
+                  </p>
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 border-l border-slate-200 dark:border-white/10 pl-4">
+                <Volume2 className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                <span>Timbre & Voz OK</span>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
-      {/* Footer info */}
-      <footer
-        className="p-4 text-center text-xs text-slate-500 flex items-center justify-between px-10 bg-surface-950/60"
-        style={{
-          borderTop: "1px solid rgba(163, 230, 53, 0.1)",
-        }}
-      >
-        <span className="text-slate-400">Presenxa &copy; {new Date().getFullYear()} — Terminal de Asistencia QR</span>
-        <span className="font-mono text-[11px] text-slate-500">
-          Kiosk Key: {apiKey ? `${apiKey.substring(0, 8)}...` : "No configurado"}
-        </span>
-      </footer>
+      {/* Manual DNI Input Modal (Accessible Fallback) */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-[fade-in_0.2s_ease-out]">
+          <div className="w-full max-w-md bg-white dark:bg-[#0e1420] border border-slate-200 dark:border-white/15 rounded-3xl p-6 shadow-2xl relative animate-[scale-up_0.2s_ease-out]">
+            <button
+              onClick={() => setIsManualModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-400/10 border border-primary-200 dark:border-primary-400/30 flex items-center justify-center text-primary-600 dark:text-primary-400 mx-auto mb-3">
+                <Hash className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Ingreso Manual por DNI</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Digita tus 8 dígitos en el teclado táctil</p>
+            </div>
+
+            <div className="mb-5">
+              <div className={`w-full bg-slate-50 dark:bg-slate-950 border rounded-xl py-3 px-4 text-center font-mono text-3xl font-bold tracking-widest min-h-[58px] flex items-center justify-center transition-colors ${manualInput.length > 0 ? 'border-primary-500/50 text-primary-600 dark:border-primary-400/40 dark:text-primary-400' : 'border-slate-200 dark:border-white/10 text-slate-400 dark:text-slate-600'}`}>
+                {manualInput.length > 0 ? manualInput.padEnd(8, '-') : '--------'}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5 mb-5 font-mono">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+                <button
+                  key={num}
+                  onClick={() => { if (manualInput.length < 8) setManualInput(prev => prev + num) }}
+                  className="py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-white/10 hover:border-primary-500 dark:hover:border-primary-400 text-xl font-bold text-slate-800 dark:text-white active:scale-95 transition-all cursor-pointer"
+                >
+                  {num}
+                </button>
+              ))}
+              <button
+                onClick={() => setManualInput("")}
+                className="py-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-500/30 hover:border-rose-500 text-sm font-bold text-rose-600 dark:text-rose-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+              >
+                BORRAR
+              </button>
+              <button
+                onClick={() => { if (manualInput.length < 8) setManualInput(prev => prev + '0') }}
+                className="py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-white/10 hover:border-primary-500 dark:hover:border-primary-400 text-xl font-bold text-slate-800 dark:text-white active:scale-95 transition-all cursor-pointer"
+              >
+                0
+              </button>
+              <button
+                onClick={() => setManualInput(prev => prev.slice(0, -1))}
+                className="py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 border border-slate-200 dark:border-white/10 hover:border-slate-400 dark:hover:border-white text-slate-600 dark:text-slate-300 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+              >
+                ←
+              </button>
+            </div>
+
+            <button
+              onClick={handleManualSubmit}
+              disabled={manualInput.length < 8}
+              className="w-full py-3.5 rounded-xl bg-primary-600 hover:bg-primary-700 dark:bg-primary-400 dark:hover:bg-primary-300 text-white dark:text-slate-950 font-bold text-base shadow-lg shadow-primary-600/30 dark:shadow-[0_0_25px_-4px_rgba(0,166,80,0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+              <span>Confirmar Marcación</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Config Modal */}
       <KioskConfigModal
@@ -1132,62 +1193,29 @@ export default function KioskAppPage() {
         currentKey={apiKey}
       />
 
-      {/* Manual DNI Modal */}
-      {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-950/80 backdrop-blur-md">
-          <div 
-            className="w-full max-w-sm rounded-3xl p-6 border border-primary-400/20 shadow-2xl text-white animate-scale-up"
-            style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(20px)" }}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-              <h3 className="text-base font-bold flex items-center gap-2">
-                <Hash className="w-4 h-4 text-primary-400" />
-                Ingreso por DNI o Token
-              </h3>
-              <button
-                onClick={() => setIsManualModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleManualSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs text-slate-300 mb-1.5 font-medium">
-                  Número de Documento (DNI) o Token
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  placeholder="Ej: 23456789"
-                  value={manualInput}
-                  onChange={(e) => setManualInput(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/15 text-white font-mono text-center text-lg tracking-wider focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none input-standard"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsManualModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl gradient-brand text-surface-950 text-xs font-bold shadow-lg shadow-primary-950/50 cursor-pointer"
-                >
-                  Registrar Asistencia
-                </button>
-              </div>
-            </form>
-          </div>
+      {/* Operational Footer */}
+      <footer className="w-full px-6 py-3 border-t border-slate-200/80 dark:border-white/[0.06] bg-white/90 dark:bg-command-bg/90 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 z-30 transition-colors">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-slate-700 dark:text-slate-300">PRESENXA © {new Date().getFullYear()}</span>
+          <span className="text-slate-400 dark:text-slate-600">—</span>
+          <span>Terminal de Asistencia Inteligente</span>
+          <span className="text-slate-400 dark:text-slate-600">•</span>
+          <span className="text-slate-600 dark:text-slate-400">{kioskInfo?.locationName || "Sede Principal"}</span>
         </div>
-      )}
-
+        <div className="flex items-center gap-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <ShieldAlert className="w-3 h-3 text-primary-600 dark:text-primary-400" />
+            <span>TLS 1.3 Strict</span>
+          </span>
+          <span className="text-slate-400 dark:text-slate-600">•</span>
+          <span>Kiosk Key: <strong className="text-slate-700 dark:text-slate-300">{apiKey ? `${apiKey.substring(0, 8)}...` : "No config"}</strong></span>
+          <span className="text-slate-400 dark:text-slate-600">•</span>
+          <span className="flex items-center gap-1 text-primary-600 dark:text-primary-400">
+            <Wifi className="w-3 h-3 text-primary-600 dark:text-primary-400" />
+            <span>AC 100% Conectado</span>
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

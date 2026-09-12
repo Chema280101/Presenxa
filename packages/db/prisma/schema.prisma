@@ -31,10 +31,11 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  locations Location[]
-  users     User[]
-  schedules Schedule[]
-  auditLogs AuditLog[]
+  locations    Location[]
+  users        User[]
+  schedules    Schedule[]
+  auditLogs    AuditLog[]
+  departments  Department[]
 
   @@map("organizations")
 }
@@ -42,6 +43,24 @@ model Organization {
 enum OrgType {
   EMPRESA
   COLEGIO
+}
+
+// ─────────────────────────────────────────────────────────────
+//  DEPARTAMENTOS / ÁREAS
+// ─────────────────────────────────────────────────────────────
+
+model Department {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String       // Ej: "Housekeeping", "Cocina Caliente", "Front Desk"
+  
+  users          User[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("departments")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -78,6 +97,8 @@ model User {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   locationId     String?      @db.Uuid
   location       Location?    @relation("UserLocation", fields: [locationId], references: [id])
+  departmentId   String?      @db.Uuid
+  department     Department?  @relation(fields: [departmentId], references: [id])
 
   firstName  String
   lastName   String
@@ -125,6 +146,14 @@ enum UserRole {
   ALUMNO
 }
 
+enum PunchMethod {
+  QR
+  NFC
+  PIN
+  MANUAL
+  BIOMETRICO
+}
+
 // ─────────────────────────────────────────────────────────────
 //  HORARIOS Y TURNOS
 // ─────────────────────────────────────────────────────────────
@@ -155,6 +184,8 @@ model Schedule {
   exitHour2         Int?
   exitMinute2       Int?
   toleranceMinutes2 Int?    @default(5)
+
+  isTemplate Boolean @default(false)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -239,9 +270,17 @@ model Attendance {
   entryTime2 DateTime? // Hora exacta de entrada Tramo 2 (retorno de receso/almuerzo)
   exitTime2  DateTime? // Hora exacta de salida Tramo 2 (fin de jornada)
 
+  // Metodo de marcación
+  entryMethod PunchMethod?
+  exitMethod  PunchMethod?
+
   // Estado calculado
   status        AttendanceStatus @default(PENDIENTE)
   wrongLocation Boolean          @default(false)
+
+  // Excepciones y aprobaciones
+  requiresManagerApproval Boolean @default(false)
+  approvalReason          String? // Ej: "Olvido de fotocheck", "Falla de Kiosko"
 
   // Métricas calculadas al cierre del día
   workedMinutes Int?

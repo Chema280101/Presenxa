@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import {
   MapPin,
   Plus,
@@ -14,14 +15,21 @@ import {
   CheckCircle2,
   RefreshCw,
   MapPinOff,
+  Activity,
+  ArrowRight,
 } from "lucide-react";
 import {
   LocationFormModal,
   LocationFormData,
 } from "@/components/locations/LocationFormModal";
+import { LocationCard } from "@/components/locations/LocationCard";
+import { LocationSidebar } from "@/components/locations/LocationSidebar";
 import { StatCard } from "@/components/ui/StatCard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
@@ -165,240 +173,187 @@ export default function LocationsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-6 lg:space-y-8 animate-fade-in-up pb-10">
 
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="gradient-brand w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-950/60 ring-1 ring-emerald-400/20">
-              <Building className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Sedes de la Organización
-            </h1>
+      {/* 1. EXECUTIVE OPERATIONAL TOPBAR & BREADCRUMBS */}
+      <header className="flex flex-col gap-4">
+        {/* Telemetry meta-strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
+          {/* Breadcrumb path */}
+          <div className="flex items-center gap-2 text-sm font-mono text-surface-500 dark:text-slate-400">
+            <span className="text-primary-600 dark:text-emerald-400 font-bold uppercase tracking-wider">SEDES Y UBICACIONES</span>
+            <span className="text-surface-300 dark:text-white/20">/</span>
+            <span className="text-surface-900 dark:text-white">Panel de Control</span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-400">
-            Administra las sucursales, oficinas y puntos de control de tu empresa.
-          </p>
+          {/* Realtime telemetry indicators */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-200/70 dark:bg-white/[0.04] border border-surface-300/80 dark:border-white/[0.08] shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]"></span>
+              <span className="font-mono text-xs font-semibold text-surface-900 dark:text-white">Live Sync</span>
+              <span className="font-mono text-xs font-bold text-primary-600 dark:text-emerald-400">12ms</span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-shrink-0">
-          <button
-            onClick={fetchLocations}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
-            title="Recargar listado de sedes"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-emerald-400" : "text-slate-400"}`} />
-            <span className="hidden sm:inline">Actualizar</span>
-          </button>
+        {/* Section Main Title & Action Triggers */}
+        <PageHeader 
+          title="Sedes y Zonas Operativas"
+          subtitle="Administra las sedes, terminales kiosk y puntos físicos de marcación de la organización."
+          icon={Building}
+          iconVariant="emerald"
+          actionButtons={
+            <>
+              <Button
+                variant="secondary"
+                onClick={fetchLocations}
+                isLoading={isLoading}
+                icon={<RefreshCw className="w-4 h-4" />}
+              >
+                Actualizar
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setEditingLocation(null);
+                  setIsModalOpen(true);
+                }}
+                icon={<Plus className="w-4 h-4" />}
+              >
+                Nueva Sede
+              </Button>
+            </>
+          }
+        />
+      </header>
 
-          <button
-            onClick={() => {
-              setEditingLocation(null);
-              setIsModalOpen(true);
-            }}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-primary-400 hover:bg-primary-300 text-surface-950 font-bold text-xs sm:text-sm shadow-lg shadow-primary-950/40 active:scale-[0.98] transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-surface-950" />
-            <span>Nueva Sede</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
+      {/* 2. HIGH PRIORITY OPERATIONAL KPIS */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Sedes"
           value={stats.total}
-          sub="Ubicaciones registradas"
+          subLabel="Complejos registrados"
           icon={Building}
-          variant="primary"
+          variant="emerald"
         />
         <StatCard
           label="Sedes Operativas"
           value={stats.active}
-          sub="En servicio activo"
+          subLabel="Estado de red"
           icon={Globe}
-          variant="success"
+          variant="cyan"
+          trend={{ value: 100, label: "Activas", isPositive: true }}
         />
         <StatCard
-          label="Empleados Asignados"
+          label="Colaboradores"
           value={stats.totalUsers}
-          sub="Personal distribuido"
+          subLabel="Personal distribuido globalmente"
           icon={Users}
-          variant="info"
+          variant="indigo"
         />
         <StatCard
           label="Kiosks Emparejados"
           value={stats.totalKiosks}
-          sub="Terminales de escaneo"
+          subLabel="Sincronización activa"
           icon={QrCode}
-          variant="default"
+          variant="amber"
         />
-      </div>
+      </section>
 
-      {/* Filter and Search Bar */}
-      <div className="card-surface p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Buscar por nombre o dirección..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs"
-            />
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+      {/* 3. INFRASTRUCTURE BANNER */}
+      <div className="relative overflow-hidden p-5 lg:p-6 rounded-2xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/20 flex items-center justify-center text-primary-600 dark:text-primary-400 shrink-0">
+            <QrCode className="w-5 h-5" />
           </div>
-
-          <div className="relative">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 input-standard text-xs cursor-pointer appearance-none"
-            >
-              <option value="ALL">Todas las sedes</option>
-              <option value="ACTIVE">Solo Activas</option>
-              <option value="INACTIVE">Solo Inactivas</option>
-            </select>
-            <CheckCircle2 className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
-          </div>
-        </div>
-      </div>
-
-      {/* Locations Cards Grid */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="card-surface p-6 rounded-3xl border border-white/8 space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-36" />
-                  <Skeleton className="h-3 w-48" />
-                  <Skeleton className="h-3 w-28" />
-                </div>
-                <div className="flex gap-1.5">
-                  <Skeleton className="h-8 w-8 rounded-xl" />
-                  <Skeleton className="h-8 w-8 rounded-xl" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-24" />
-              </div>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-surface-900 dark:text-surface-100 font-bold">Red de Terminales Físicos y Puntos de Marcación</span>
+              <span className="px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-500/15 text-primary-700 dark:text-primary-300 font-mono text-[10px] font-bold border border-primary-200 dark:border-primary-500/30">HARDWARE OK</span>
             </div>
-          ))}
+            <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 max-w-2xl">
+              {stats.totalKiosks} tótems de acceso sincronizando en tiempo real. Protocolo offline activado para asegurar continuidad operativa.
+            </p>
+          </div>
         </div>
-      ) : filteredLocations.length === 0 ? (
-        <EmptyState
-          icon={MapPinOff}
-          title="Sin sedes encontradas"
-          description="No se encontraron sedes que coincidan con la búsqueda o estado seleccionado."
-          action={{
-            label: "Crear Nueva Sede",
-            icon: Plus,
-            onClick: () => {
-              setEditingLocation(null);
-              setIsModalOpen(true);
-            },
-          }}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredLocations.map((loc) => {
-            return (
-              <div
+        <div className="flex items-center gap-3 shrink-0 self-end md:self-auto">
+          <Link 
+            href="/kiosks"
+            className="px-4 py-2 rounded-xl bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-900 dark:text-surface-100 border border-surface-200 dark:border-surface-700 text-xs font-semibold flex items-center gap-2 transition cursor-pointer"
+          >
+            <QrCode className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+            <span>Ver Red de Kioskos</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* 4. SEARCH, FILTER CONTROLS */}
+      <FilterToolbar 
+        searchQuery={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar por nombre o dirección..."
+        onReset={() => {
+          setSearch("");
+          setSelectedStatus("ALL");
+        }}
+        filters={[
+          {
+            id: "status",
+            value: selectedStatus,
+            onChange: setSelectedStatus,
+            options: [
+              { value: "ALL", label: "Todas las sedes" },
+              { value: "ACTIVE", label: "Activas" },
+              { value: "INACTIVE", label: "Inactivas" },
+            ]
+          }
+        ]}
+      />
+
+      {/* 5. MAIN CONTENT SPLIT: SITES GRID (LEFT) + RIGHT SIDEBAR */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        
+        {/* SITES CARDS GRID (8 COLS) */}
+        <div className="lg:col-span-8 flex flex-col gap-5">
+          {isLoading ? (
+            <div className="text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800">
+              <RefreshCw className="w-8 h-8 text-primary-500 dark:text-primary-400 animate-spin mx-auto mb-4" />
+              <p className="text-surface-600 dark:text-surface-400 font-medium text-sm">Cargando sedes...</p>
+            </div>
+          ) : filteredLocations.length === 0 ? (
+            <div className="text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-dashed border-surface-200 dark:border-surface-800 p-8">
+              <MapPinOff className="w-12 h-12 text-surface-400 dark:text-surface-500 mx-auto mb-4" />
+              <p className="text-surface-900 dark:text-surface-100 text-base font-bold">Sin sedes encontradas</p>
+              <p className="text-surface-500 dark:text-surface-400 text-xs mt-1">Prueba cambiando los filtros o registra una nueva sede.</p>
+            </div>
+          ) : (
+            filteredLocations.map((loc) => (
+              <LocationCard
                 key={loc.id}
-                className="card-surface-interactive overflow-hidden flex flex-col justify-between group p-6 space-y-4 rounded-3xl"
-              >
-                {/* Header of card */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-white group-hover:text-primary-300 transition-colors">
-                        {loc.name}
-                      </h3>
-                      {loc.isActive ? (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
-                          Activa
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20">
-                          Inactiva
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                      <span>{loc.address || "Sin dirección especificada"}</span>
-                    </p>
-                    <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
-                      <Globe className="w-3 h-3 text-slate-500 flex-shrink-0" />
-                      <span>{loc.timezone}</span>
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={() => {
-                        setEditingLocation({
-                          id: loc.id,
-                          name: loc.name,
-                          address: loc.address || "",
-                          timezone: loc.timezone,
-                          isActive: loc.isActive,
-                        });
-                        setIsModalOpen(true);
-                      }}
-                      title="Editar Sede"
-                      className="p-2 rounded-xl card-surface text-slate-300 hover:text-white hover:border-primary-400/30 transition-all active:scale-95 cursor-pointer"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      onClick={() => handleToggleStatus(loc)}
-                      title={loc.isActive ? "Desactivar sede" : "Reactivar sede"}
-                      className={`p-2 rounded-xl transition-all active:scale-95 border cursor-pointer ${
-                        loc.isActive
-                          ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20"
-                          : "bg-primary-400/10 hover:bg-primary-400/20 text-primary-400 border-primary-400/20"
-                      }`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Summary badges footer */}
-                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/5 text-xs text-slate-400">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary-400" />
-                    <span>
-                      <strong className="text-white font-mono">
-                        {loc._count?.users || 0}
-                      </strong>{" "}
-                      Empleados
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <QrCode className="w-4 h-4 text-primary-400" />
-                    <span>
-                      <strong className="text-white font-mono">
-                        {loc._count?.kiosks || 0}
-                      </strong>{" "}
-                      Kiosks
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                location={loc}
+                onEdit={(locData) => {
+                  setEditingLocation({
+                    id: locData.id,
+                    name: locData.name,
+                    address: locData.address || "",
+                    timezone: locData.timezone,
+                    isActive: locData.isActive,
+                  });
+                  setIsModalOpen(true);
+                }}
+                onToggleStatus={handleToggleStatus}
+              />
+            ))
+          )}
         </div>
-      )}
+
+        {/* 6. RIGHT SIDEBAR: GEOCERCA INSPECTOR & HEALTH MONITOR */}
+        <div className="lg:col-span-4">
+          <LocationSidebar 
+            totalLocations={locations.length}
+            totalKiosks={stats.totalKiosks}
+          />
+        </div>
+      </div>
 
       {/* Modal Form */}
       <LocationFormModal

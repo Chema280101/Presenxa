@@ -95,7 +95,7 @@ export function KioskConfigModal({
           (decodedText: string) => {
             handleDetectedCode(decodedText);
           },
-          () => {}
+          () => { }
         );
       } catch (err: any) {
         if (!isCancelled) {
@@ -179,51 +179,48 @@ export function KioskConfigModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/85 backdrop-blur-lg overflow-hidden animate-[fade-in_0.2s_ease-out]">
-      <div className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl glass border border-white/15 shadow-2xl shadow-black/80 my-auto overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-black/40 dark:bg-black/85 backdrop-blur-lg overflow-hidden animate-[fade-in_0.2s_ease-out]">
+      <div className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-[#0e1420] border border-slate-200 dark:border-white/15 shadow-2xl dark:shadow-black/80 my-auto overflow-hidden">
         {/* Header - Fixed Top */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.02] flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-white/[0.02] flex-shrink-0">
           <div className="flex items-center gap-3.5">
-            <div className="p-3 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-lg shadow-emerald-950/40">
+            <div className="p-3 rounded-2xl bg-primary-500/15 text-primary-400 border border-primary-500/30 shadow-lg shadow-primary-950/40">
               <Key className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-white tracking-tight">
+              <h3 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                 Vincular Dispositivo Kiosk
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Configuración y activación de la pantalla o tablet
               </p>
             </div>
           </div>
-          {currentKey && (
-            <button
-              onClick={() => {
-                stopScanner();
-                onClose();
-              }}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-              title="Cerrar ventana"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            onClick={() => {
+              stopScanner();
+              onClose();
+            }}
+            className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+            title="Cerrar ventana"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Tab Selection */}
         <div className="px-6 pt-4 pb-2 flex-shrink-0">
-          <div className="grid grid-cols-2 p-1 rounded-2xl bg-white/5 border border-white/10">
+          <div className="grid grid-cols-2 p-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-black/5 dark:border-white/10">
             <button
               type="button"
               onClick={() => {
                 setError("");
                 setMode("scan");
               }}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                mode === "scan"
-                  ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              }`}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${mode === "scan"
+                  ? "bg-primary-500 text-white dark:text-slate-950 shadow-md shadow-primary-500/20"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5"
+                }`}
             >
               <Camera className="w-4 h-4" />
               <span>Escanear QR</span>
@@ -235,11 +232,10 @@ export function KioskConfigModal({
                 setError("");
                 setMode("manual");
               }}
-              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                mode === "manual"
-                  ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              }`}
+              className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer ${mode === "manual"
+                  ? "bg-primary-500 text-white dark:text-slate-950 shadow-md shadow-primary-500/20"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5"
+                }`}
             >
               <Keyboard className="w-4 h-4" />
               <span>Digitar Clave</span>
@@ -259,24 +255,24 @@ export function KioskConfigModal({
           {mode === "scan" ? (
             /* Mode 1: QR Camera Scanner */
             <div className="flex flex-col items-center space-y-3">
-              <div className="relative w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden bg-black/60 border-2 border-dashed border-emerald-500/40 flex items-center justify-center shadow-inner">
+              <div className="relative w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden bg-black/60 border-2 border-dashed border-primary-500/40 flex items-center justify-center shadow-inner">
                 <div id="kiosk-pairing-qr-reader" className="w-full h-full" />
 
                 {isValidating && (
                   <div className="absolute inset-0 bg-black/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-white z-20">
-                    <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+                    <Loader2 className="w-8 h-8 text-primary-400 animate-spin" />
                     <p className="text-xs font-semibold">Validando vinculación...</p>
                   </div>
                 )}
               </div>
 
               {cameraError ? (
-                <div className="text-center p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                <div className="text-center p-3 rounded-xl bg-amber-100 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
                   <p>{cameraError}</p>
                 </div>
               ) : (
                 <div className="flex items-center justify-between w-full max-w-[280px] px-1">
-                  <p className="text-[11px] text-slate-400 text-center flex-1">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 text-center flex-1">
                     Apunta la cámara al <strong>QR de vinculación</strong> del Panel Administrativo &rarr; Kiosks
                   </p>
                   <button
@@ -284,7 +280,7 @@ export function KioskConfigModal({
                     onClick={() =>
                       setCameraFacing((prev) => (prev === "environment" ? "user" : "environment"))
                     }
-                    className="p-2 ml-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 transition-colors"
+                    className="p-2 ml-2 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 transition-colors"
                     title="Cambiar cámara (frontal / trasera)"
                   >
                     <SwitchCamera className="w-4 h-4" />
@@ -295,9 +291,9 @@ export function KioskConfigModal({
           ) : (
             /* Mode 2: Manual Key Form */
             <form onSubmit={handleManualSubmit} id="kiosk-manual-form" className="space-y-4">
-              <div className="rounded-2xl p-4 bg-white/[0.02] border border-white/10 space-y-3">
-                <label className="block text-xs font-semibold text-slate-300">
-                  API Key o Clave Secreta del Kiosk <span className="text-rose-400">*</span>
+              <div className="rounded-2xl p-4 bg-slate-50 dark:bg-white/[0.02] border border-black/5 dark:border-white/10 space-y-3">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  API Key o Clave Secreta del Kiosk <span className="text-rose-500 dark:text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -308,9 +304,9 @@ export function KioskConfigModal({
                   placeholder="Ej: f47ac10b-58cc-4372-a567-0e02b2c3d479"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-500 font-mono text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white dark:bg-white/5 border border-black/10 dark:border-white/15 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 font-mono text-xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
                 />
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                   Puedes copiar esta clave ingresando al <strong>Panel Administrativo &rarr; Kiosks</strong> &rarr; Ver Clave.
                 </p>
               </div>
@@ -319,28 +315,24 @@ export function KioskConfigModal({
         </div>
 
         {/* Footer - Fixed Bottom */}
-        <div className="px-6 py-4 border-t border-white/10 bg-black/30 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
-          {currentKey ? (
-            <button
-              type="button"
-              onClick={() => {
-                stopScanner();
-                onClose();
-              }}
-              className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-medium transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-          ) : (
-            <div />
-          )}
+        <div className="px-6 py-4 border-t border-slate-200/80 dark:border-white/10 bg-slate-50 dark:bg-black/30 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              stopScanner();
+              onClose();
+            }}
+            className="px-5 py-2.5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold transition-colors cursor-pointer"
+          >
+            {currentKey ? "Cancelar" : "Cerrar"}
+          </button>
 
           {mode === "manual" ? (
             <button
               type="submit"
               form="kiosk-manual-form"
               disabled={isValidating}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm shadow-lg shadow-primary-950/40 transition-all disabled:opacity-50 cursor-pointer"
             >
               {isValidating ? (
                 <>
@@ -358,7 +350,7 @@ export function KioskConfigModal({
                 stopScanner();
                 setMode("manual");
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-semibold transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/15 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors"
             >
               <Keyboard className="w-3.5 h-3.5" />
               <span>Digitar manualmente</span>

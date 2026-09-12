@@ -1,24 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import {
-  X,
   Clock,
-  Calendar,
-  Sliders,
-  CheckCircle2,
-  Loader2,
-  Sparkles,
   Sun,
   Moon,
   Layers,
-  Info,
   Check,
   Plus,
   MapPin,
   ChevronDown,
+  Loader2,
+  CalendarDays,
+  FileText
 } from "lucide-react";
+import { clsx } from "clsx";
+import { ModalShell } from "@/components/ui/ModalShell";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 
 export interface ScheduleFormData {
   id?: string;
@@ -36,6 +34,7 @@ export interface ScheduleFormData {
   exitMinute2?: number | null;
   toleranceMinutes2?: number | null;
   locationId?: string | null;
+  isTemplate?: boolean;
   isActive?: boolean;
 }
 
@@ -63,7 +62,6 @@ export function ScheduleFormModal({
   initialData,
 }: ScheduleFormModalProps) {
   const isEditing = !!initialData?.id;
-  const [mounted, setMounted] = useState(false);
 
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
   const [locationId, setLocationId] = useState("");
@@ -80,6 +78,9 @@ export function ScheduleFormModal({
   const [entryTime2, setEntryTime2] = useState("15:00");
   const [exitTime2, setExitTime2] = useState("19:00");
   const [toleranceMinutes2, setToleranceMinutes2] = useState(10);
+
+  // Template flag
+  const [isTemplate, setIsTemplate] = useState(false);
 
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,6 +125,7 @@ export function ScheduleFormModal({
 
       setToleranceMinutes2(initialData.toleranceMinutes2 ?? 10);
       setLocationId(initialData.locationId || "");
+      setIsTemplate(initialData.isTemplate || false);
     } else {
       setName("");
       setWorkdaysMask(31);
@@ -135,6 +137,7 @@ export function ScheduleFormModal({
       setExitTime2("19:00");
       setToleranceMinutes2(10);
       setLocationId("");
+      setIsTemplate(false);
     }
     setError("");
   }, [initialData, isOpen]);
@@ -150,27 +153,7 @@ export function ScheduleFormModal({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !mounted) return null;
+  if (!isOpen) return null;
 
   const toggleDay = (bit: number) => {
     if (workdaysMask & bit) {
@@ -188,9 +171,9 @@ export function ScheduleFormModal({
   const handleToggleSplit = (split: boolean) => {
     setIsSplit(split);
     if (split && exitTime === "17:00") {
-      setExitTime("13:00"); // Sugerencia de salida tramo 1 al activar partido
+      setExitTime("13:00");
     } else if (!split && exitTime === "13:00") {
-      setExitTime("17:00"); // Restaurar salida normal
+      setExitTime("17:00");
     }
   };
 
@@ -249,6 +232,7 @@ export function ScheduleFormModal({
         exitMinute2: xM2,
         toleranceMinutes2: isSplit ? Number(toleranceMinutes2) || 0 : null,
         locationId: locationId || null,
+        isTemplate,
       });
       if (success) {
         onClose();
@@ -260,106 +244,150 @@ export function ScheduleFormModal({
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
-      <div 
-        className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
-        style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(24px)" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-surface-950/40 flex-shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div className="p-2.5 rounded-2xl bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white tracking-tight">
-                {isEditing ? "Editar Turno / Horario" : "Nuevo Turno / Horario"}
-              </h3>
-              <p className="text-xs text-slate-400">
-                Define las horas de entrada, salida, modalidad continua o partida y tolerancias
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-            title="Cerrar"
-          >
-            <X className="w-5 h-5" />
-          </button>
+  const premiumInputClass =
+    "w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-white/[0.05] dark:hover:bg-white/[0.08] text-surface-900 dark:text-white placeholder:text-surface-400 dark:placeholder:text-surface-500 font-medium rounded-xl border border-surface-200 dark:border-white/10 dark:hover:border-white/20 shadow-xs focus:border-primary-500 dark:focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-400/20 outline-none transition-all";
+
+  const InputWrapper = ({
+    label,
+    icon: Icon,
+    required = false,
+    optional = false,
+    helperText,
+    children,
+  }: {
+    label: string;
+    icon: React.ElementType;
+    required?: boolean;
+    optional?: boolean;
+    helperText?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-semibold text-surface-900 dark:text-surface-100 flex items-center gap-1">
+          {label}
+          {required && <span className="text-danger-500">*</span>}
+        </label>
+        {optional && (
+          <span className="text-[10px] text-surface-400 dark:text-surface-500 font-normal">(Opcional)</span>
+        )}
+      </div>
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors z-10">
+          <Icon className="w-4 h-4" />
         </div>
+        {children}
+      </div>
+      {helperText && (
+        <div className="text-[11px] text-surface-500 dark:text-surface-400 mt-0.5 leading-tight">
+          {helperText}
+        </div>
+      )}
+    </div>
+  );
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} id="schedule-form" className="p-6 sm:p-8 space-y-6 overflow-y-auto">
-          {error && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className="px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2"
-            >
-              <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        className="h-10 px-5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        form="schedule-form"
+        disabled={isSubmitting}
+        className="h-10 px-5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white shadow-sm hover:shadow-md hover:shadow-primary-500/20 text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Guardando horario...</span>
+          </>
+        ) : isEditing ? (
+          <>
+            <Check className="w-4 h-4" />
+            <span>Actualizar Horario</span>
+          </>
+        ) : (
+          <>
+            <Plus className="w-4 h-4" />
+            <span>Crear Horario</span>
+          </>
+        )}
+      </button>
+    </>
+  );
 
-          {/* Nombre */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Nombre del Horario / Turno <span className="text-rose-400">*</span>
-            </label>
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? "Editar Turno / Horario" : "Nuevo Turno / Horario"}
+      description="Define las horas de entrada, salida, modalidad continua o partida y tolerancias"
+      icon={Clock}
+      iconVariant="primary"
+      maxWidth="3xl"
+      footer={footer}
+    >
+      <form onSubmit={handleSubmit} id="schedule-form" className="space-y-6 py-2">
+        {error && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="px-4 py-3 rounded-2xl bg-danger-500/15 border border-danger-500/30 text-danger-700 dark:text-danger-300 text-xs flex items-center gap-2 animate-shake"
+          >
+            <span className="w-2 h-2 rounded-full bg-danger-500 flex-shrink-0 animate-ping" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+          <InputWrapper label="Nombre del Horario / Turno" icon={FileText} required>
             <input
               type="text"
               required
               placeholder="Ej: Turno Administrativo (8:00 AM - 5:00 PM)"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+              className={premiumInputClass}
             />
-          </div>
+          </InputWrapper>
 
-          {/* Sede */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Sede (Opcional)
-            </label>
-            <div className="relative">
-              <select
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-                className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all appearance-none cursor-pointer"
-              >
-                <option value="" className="bg-slate-900 text-white">Aplicar a todas las sedes (Global)</option>
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id} className="bg-slate-900 text-white">
-                    {loc.name}
-                  </option>
-                ))}
-              </select>
-              <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3 pointer-events-none" />
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
-            </div>
-          </div>
+          <InputWrapper label="Sede (Opcional)" icon={MapPin}>
+            <CustomSelect
+              value={locationId}
+              onChange={setLocationId}
+              options={[
+                { value: "", label: "Aplicar a todas las sedes (Global)" },
+                ...locations.map((loc) => ({ value: loc.id, label: loc.name })),
+              ]}
+              hasLeftIcon
+            />
+          </InputWrapper>
 
-          {/* Selector de Modalidad: Continua vs Partida */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-300">
+          <div className="md:col-span-2 space-y-2">
+            <label className="block text-xs font-semibold text-surface-900 dark:text-surface-100">
               Tipo de Jornada
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 type="button"
                 onClick={() => handleToggleSplit(false)}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                className={clsx(
+                  "p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3",
                   !isSplit
-                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50"
-                    : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
-                }`}
+                    ? "bg-primary-50 dark:bg-primary-500/10 border-primary-500 text-primary-900 dark:text-primary-100 shadow-sm ring-1 ring-primary-500/50"
+                    : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-white/10 text-surface-600 dark:text-slate-400 hover:text-surface-900 hover:bg-surface-100 dark:hover:text-white dark:hover:bg-white/5"
+                )}
               >
                 <div
-                  className={`p-2 rounded-xl ${
-                    !isSplit ? "bg-indigo-500 text-white" : "bg-white/10 text-slate-400"
-                  }`}
+                  className={clsx(
+                    "p-2 rounded-xl",
+                    !isSplit ? "bg-primary-500 text-white" : "bg-surface-200 dark:bg-white/10 text-surface-500 dark:text-slate-400"
+                  )}
                 >
                   <Sun className="w-4 h-4" />
                 </div>
@@ -372,16 +400,18 @@ export function ScheduleFormModal({
               <button
                 type="button"
                 onClick={() => handleToggleSplit(true)}
-                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                className={clsx(
+                  "p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3",
                   isSplit
-                    ? "bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50"
-                    : "bg-white/[0.03] border-white/10 text-slate-400 hover:text-white hover:bg-white/[0.06]"
-                }`}
+                    ? "bg-primary-50 dark:bg-primary-500/10 border-primary-500 text-primary-900 dark:text-primary-100 shadow-sm ring-1 ring-primary-500/50"
+                    : "bg-surface-50 dark:bg-surface-800 border-surface-200 dark:border-white/10 text-surface-600 dark:text-slate-400 hover:text-surface-900 hover:bg-surface-100 dark:hover:text-white dark:hover:bg-white/5"
+                )}
               >
                 <div
-                  className={`p-2 rounded-xl ${
-                    isSplit ? "bg-indigo-500 text-white" : "bg-white/10 text-slate-400"
-                  }`}
+                  className={clsx(
+                    "p-2 rounded-xl",
+                    isSplit ? "bg-primary-500 text-white" : "bg-surface-200 dark:bg-white/10 text-surface-500 dark:text-slate-400"
+                  )}
                 >
                   <Layers className="w-4 h-4" />
                 </div>
@@ -393,45 +423,48 @@ export function ScheduleFormModal({
             </div>
           </div>
 
-          {/* Días Laborables */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300">
+          <div className="md:col-span-2 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="text-xs font-semibold text-surface-900 dark:text-surface-100 flex items-center gap-1.5">
+                <CalendarDays className="w-4 h-4 text-surface-500" />
                 Días Laborables de la Semana
               </label>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => applyPreset(31)}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors cursor-pointer ${
+                  className={clsx(
+                    "text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors cursor-pointer",
                     workdaysMask === 31
-                      ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40 font-bold"
-                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
-                  }`}
+                      ? "bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-500/40"
+                      : "bg-surface-100 dark:bg-white/5 text-surface-600 dark:text-slate-400 border-surface-200 dark:border-white/10 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200 dark:hover:bg-white/10"
+                  )}
                 >
                   Lun - Vie
                 </button>
                 <button
                   type="button"
                   onClick={() => applyPreset(63)}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors cursor-pointer ${
+                  className={clsx(
+                    "text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors cursor-pointer",
                     workdaysMask === 63
-                      ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40 font-bold"
-                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
-                  }`}
+                      ? "bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-500/40"
+                      : "bg-surface-100 dark:bg-white/5 text-surface-600 dark:text-slate-400 border-surface-200 dark:border-white/10 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200 dark:hover:bg-white/10"
+                  )}
                 >
                   Lun - Sáb
                 </button>
                 <button
                   type="button"
                   onClick={() => applyPreset(127)}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors cursor-pointer ${
+                  className={clsx(
+                    "text-xs px-2.5 py-1 rounded-lg font-medium border transition-colors cursor-pointer",
                     workdaysMask === 127
-                      ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40 font-bold"
-                      : "bg-white/5 text-slate-400 border-white/10 hover:text-white"
-                  }`}
+                      ? "bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 border-primary-300 dark:border-primary-500/40"
+                      : "bg-surface-100 dark:bg-white/5 text-surface-600 dark:text-slate-400 border-surface-200 dark:border-white/10 hover:text-surface-900 dark:hover:text-white hover:bg-surface-200 dark:hover:bg-white/10"
+                  )}
                 >
-                  Todos (7 días)
+                  Todos
                 </button>
               </div>
             </div>
@@ -444,31 +477,30 @@ export function ScheduleFormModal({
                     key={d.bit}
                     type="button"
                     onClick={() => toggleDay(d.bit)}
-                    className={`py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${
+                    className={clsx(
+                      "py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center transition-all cursor-pointer border",
                       isSelected
-                        ? "gradient-brand text-white shadow-md shadow-indigo-900/40 scale-100 font-bold"
-                        : "bg-white/5 text-slate-500 hover:text-slate-300 hover:bg-white/10 border border-white/5"
-                    }`}
+                        ? "bg-primary-500 text-white shadow-sm border-primary-600"
+                        : "bg-surface-50 dark:bg-white/5 text-surface-500 dark:text-slate-400 hover:text-surface-800 dark:hover:text-slate-200 hover:bg-surface-100 dark:hover:bg-white/10 border-surface-200 dark:border-white/10"
+                    )}
                   >
                     <span>{d.label}</span>
-                    <span className="text-[10px] opacity-70 hidden sm:inline">{d.fullLabel}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Configuración de Horas: Tramo 1 */}
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5">
+          <div className="md:col-span-2 p-4 rounded-2xl bg-surface-50 dark:bg-surface-900/50 border border-surface-200 dark:border-white/10 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sun className="w-4 h-4 text-amber-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  {isSplit ? "Tramo 1 (Turno Mañana / Primer Bloque)" : "Horario de la Jornada"}
+                <Sun className="w-4 h-4 text-warning-500" />
+                <h4 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider">
+                  {isSplit ? "Tramo 1 (Turno Mañana)" : "Horario de la Jornada"}
                 </h4>
               </div>
               {isSplit && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-semibold border border-amber-500/30">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning-100 dark:bg-warning-500/15 text-warning-700 dark:text-warning-300 font-semibold border border-warning-200 dark:border-warning-500/30">
                   Bloque 1
                 </span>
               )}
@@ -476,38 +508,38 @@ export function ScheduleFormModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Hora de Entrada <span className="text-rose-400">*</span>
+                <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
+                  Hora de Entrada <span className="text-danger-500">*</span>
                 </label>
                 <input
                   type="time"
                   required
                   value={entryTime}
                   onChange={(e) => setEntryTime(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                  className={clsx(premiumInputClass, "font-mono !pl-4")}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
                   {isSplit ? "Hora de Salida (Inicio Receso)" : "Hora de Salida Oficial"}{" "}
-                  <span className="text-rose-400">*</span>
+                  <span className="text-danger-500">*</span>
                 </label>
                 <input
                   type="time"
                   required
                   value={exitTime}
                   onChange={(e) => setExitTime(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                  className={clsx(premiumInputClass, "font-mono !pl-4")}
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              <label className="text-xs text-slate-300">
+            <div className="flex items-center justify-between pt-1 border-t border-surface-200 dark:border-white/10 mt-2">
+              <label className="text-xs text-surface-600 dark:text-slate-400 font-medium">
                 Tolerancia de Tardanza Tramo 1:
               </label>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 mt-2">
                 <input
                   type="number"
                   min={0}
@@ -516,61 +548,60 @@ export function ScheduleFormModal({
                   onChange={(e) =>
                     setToleranceMinutes(Math.max(0, parseInt(e.target.value) || 0))
                   }
-                  className="w-14 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono text-center outline-none"
+                  className="w-16 px-2 py-1.5 rounded-lg bg-white dark:bg-[#1A2333] border border-surface-200 dark:border-white/10 text-surface-900 dark:text-white text-xs font-mono text-center outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                 />
-                <span className="text-xs text-slate-400">minutos</span>
+                <span className="text-xs text-surface-500 dark:text-slate-500 font-medium">minutos</span>
               </div>
             </div>
           </div>
 
-          {/* Configuración de Horas: Tramo 2 (Solo si isSplit) */}
           {isSplit && (
-            <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 space-y-3.5 animate-[fade-in_0.2s_ease-out]">
+            <div className="md:col-span-2 p-4 rounded-2xl bg-info-50 dark:bg-info-900/10 border border-info-200 dark:border-info-500/20 space-y-4 animate-[fade-in_0.2s_ease-out]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Moon className="w-4 h-4 text-indigo-400" />
-                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Tramo 2 (Turno Tarde / Segundo Bloque)
+                  <Moon className="w-4 h-4 text-info-500" />
+                  <h4 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider">
+                    Tramo 2 (Turno Tarde)
                   </h4>
                 </div>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-info-100 dark:bg-info-500/20 text-info-700 dark:text-info-300 font-semibold border border-info-200 dark:border-info-500/30">
                   Bloque 2
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Hora de Retorno (Entrada Tarde) <span className="text-rose-400">*</span>
+                  <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
+                    Hora de Retorno (Entrada Tarde) <span className="text-danger-500">*</span>
                   </label>
                   <input
                     type="time"
                     required={isSplit}
                     value={entryTime2}
                     onChange={(e) => setEntryTime2(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                    className={clsx(premiumInputClass, "font-mono !pl-4")}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Hora de Salida Final (Fin de Jornada) <span className="text-rose-400">*</span>
+                  <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
+                    Hora de Salida Final <span className="text-danger-500">*</span>
                   </label>
                   <input
                     type="time"
                     required={isSplit}
                     value={exitTime2}
                     onChange={(e) => setExitTime2(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer"
+                    className={clsx(premiumInputClass, "font-mono !pl-4")}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <label className="text-xs text-slate-300">
+              <div className="flex items-center justify-between pt-1 border-t border-info-200/50 dark:border-info-500/20 mt-2">
+                <label className="text-xs text-surface-600 dark:text-slate-400 font-medium">
                   Tolerancia de Tardanza Tramo 2:
                 </label>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 mt-2">
                   <input
                     type="number"
                     min={0}
@@ -579,51 +610,29 @@ export function ScheduleFormModal({
                     onChange={(e) =>
                       setToleranceMinutes2(Math.max(0, parseInt(e.target.value) || 0))
                     }
-                    className="w-14 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono text-center outline-none"
+                    className="w-16 px-2 py-1.5 rounded-lg bg-white dark:bg-[#1A2333] border border-surface-200 dark:border-white/10 text-surface-900 dark:text-white text-xs font-mono text-center outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />
-                  <span className="text-xs text-slate-400">minutos</span>
+                  <span className="text-xs text-surface-500 dark:text-slate-500 font-medium">minutos</span>
                 </div>
               </div>
             </div>
           )}
-        </form>
 
-        {/* Form Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 sm:px-8 py-4 border-t border-white/10 bg-surface-950/60 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4 text-slate-400" />
-            <span>Cancelar</span>
-          </button>
-          <button
-            type="submit"
-            form="schedule-form"
-            disabled={isSubmitting}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-400 hover:bg-primary-300 text-surface-950 text-xs font-bold shadow-lg shadow-primary-950/50 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Guardando horario...</span>
-              </>
-            ) : isEditing ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span>Actualizar Horario</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                <span>Crear Horario</span>
-              </>
-            )}
-          </button>
+          <div className="md:col-span-2 flex items-center space-x-3 p-4 rounded-2xl bg-surface-50 dark:bg-white/5 border border-surface-200 dark:border-white/10">
+            <input
+              type="checkbox"
+              id="isTemplate"
+              checked={isTemplate}
+              onChange={(e) => setIsTemplate(e.target.checked)}
+              className="w-5 h-5 rounded-md bg-white dark:bg-[#1A2333] border-surface-300 dark:border-white/20 text-primary-500 focus:ring-primary-500/20 cursor-pointer"
+            />
+            <label htmlFor="isTemplate" className="text-sm text-surface-700 dark:text-slate-300 font-medium cursor-pointer select-none flex-1">
+              <span className="block text-surface-900 dark:text-white font-semibold">Guardar como Plantilla Base</span>
+              <span className="text-xs text-surface-500 dark:text-slate-400 block mt-0.5">No se asignará directamente, servirá para clonar horarios rápidamente.</span>
+            </label>
+          </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      </form>
+    </ModalShell>
   );
 }

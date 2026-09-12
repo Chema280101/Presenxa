@@ -18,19 +18,23 @@ const ScheduleSchema = z.object({
   exitMinute2: z.number().int().min(0).max(59).optional().nullable(),
   toleranceMinutes2: z.number().int().min(0).max(120).optional().nullable(),
   locationId: z.string().uuid().optional().nullable(),
+  isTemplate: z.boolean().default(false),
 });
 
 // GET /api/schedules
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
+  const url = new URL(req.url);
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
+    const isTemplate = url.searchParams.get("templates") === "true";
     const schedules = await prisma.schedule.findMany({
       where: {
         organizationId: session.user.organizationId,
+        isTemplate,
       },
       orderBy: [{ isActive: "desc" }, { name: "asc" }],
       include: {
@@ -96,6 +100,7 @@ export async function POST(req: Request) {
         exitMinute2: data.isSplit ? data.exitMinute2 : null,
         toleranceMinutes2: data.isSplit ? (data.toleranceMinutes2 ?? data.toleranceMinutes) : null,
         locationId: data.locationId,
+        isTemplate: data.isTemplate,
         isActive: true,
       },
     });

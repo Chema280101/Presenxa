@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { QrCode, Download, RefreshCw, X, Copy, Check, Printer, Shield, Sparkles } from "lucide-react";
+import { QrCode, Download, RefreshCw, Copy, Check, Printer, Shield } from "lucide-react";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
+import { ModalShell } from "@/components/ui/ModalShell";
 
 interface QrModalProps {
   isOpen: boolean;
@@ -28,12 +28,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
   const [dataUrl, setDataUrl] = useState<string>("");
   const [isCopied, setIsCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const payloadToEncode = user?.signedQrPayload || user?.qrToken || "";
 
@@ -53,23 +48,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
       .catch((err) => console.error("Error generating QR:", err));
   }, [payloadToEncode]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !user || !mounted) return null;
+  if (!isOpen || !user) return null;
 
   const handleCopyToken = () => {
     navigator.clipboard.writeText(user.qrToken);
@@ -145,109 +124,87 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 md:p-8 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
-      <div 
-        className="relative w-full max-w-lg max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
-        style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(24px)" }}
+  const footer = (
+    <div className="flex flex-col sm:flex-row gap-2 w-full">
+      <button
+        onClick={handleDownload}
+        disabled={!dataUrl}
+        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-primary-50 dark:bg-primary-500/10 border border-primary-200 dark:border-primary-500/20 hover:bg-primary-100 dark:hover:bg-primary-500/20 text-primary-700 dark:text-primary-300 text-xs font-bold transition-all cursor-pointer"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-surface-950/40 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
-              <QrCode className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white tracking-tight">Credencial QR Digital</h3>
-              <p className="text-xs text-slate-400">Pase oficial para marcaciones en kiosco</p>
-            </div>
+        <Download className="w-3.5 h-3.5" />
+        Descargar
+      </button>
+      <button
+        onClick={handlePrint}
+        disabled={!dataUrl}
+        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-surface-100 dark:bg-white/5 border border-surface-200 dark:border-white/10 hover:bg-surface-200 dark:hover:bg-white/10 text-surface-700 dark:text-slate-200 text-xs font-semibold transition-all cursor-pointer"
+      >
+        <Printer className="w-3.5 h-3.5" />
+        Imprimir
+      </button>
+      <button
+        onClick={handleRegenerate}
+        disabled={isRegenerating}
+        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-danger-50 dark:bg-danger-500/10 border border-danger-200 dark:border-danger-500/20 hover:bg-danger-100 dark:hover:bg-danger-500/20 text-danger-700 dark:text-danger-300 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+      >
+        <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? "animate-spin" : ""}`} />
+        Regenerar
+      </button>
+    </div>
+  );
+
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Credencial QR Digital"
+      description="Pase oficial para marcaciones en kiosco"
+      icon={QrCode}
+      iconVariant="primary"
+      maxWidth="md"
+      footer={footer}
+    >
+      <div className="flex flex-col items-center py-2 space-y-5">
+        <div ref={printRef} className="w-full bg-white dark:bg-[#1A2333] rounded-2xl p-6 flex flex-col items-center shadow-sm border border-surface-200 dark:border-white/10">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-surface-900 dark:text-white tracking-wider uppercase mb-1">
+            <Shield className="w-3.5 h-3.5 text-primary-500" />
+            Presenxa · Pase Oficial
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-            title="Cerrar ventana"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <h4 className="text-xl font-black text-surface-900 dark:text-white text-center leading-tight">
+            {user.firstName} {user.lastName}
+          </h4>
+          <p className="text-xs text-surface-500 dark:text-slate-400 font-medium capitalize mb-3">
+            {user.role.toLowerCase()} {user.locationName ? `• ${user.locationName}` : ""}
+          </p>
+
+          <div className="bg-surface-50 dark:bg-white p-4 rounded-2xl border border-surface-200 dark:border-transparent shadow-inner my-1">
+            {dataUrl ? (
+              <img src={dataUrl} alt={`QR de ${user.firstName}`} className="w-52 h-52 rounded-lg" />
+            ) : (
+              <div className="w-52 h-52 flex items-center justify-center text-surface-400 text-xs animate-pulse">
+                Generando código QR...
+              </div>
+            )}
+          </div>
+
+          <p className="text-[11px] font-mono text-surface-400 dark:text-slate-500 mt-2 truncate max-w-[240px]">
+            ID: {user.qrToken}
+          </p>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* Badge Card preview */}
-          <div ref={printRef} className="flex flex-col items-center">
-            <div className="w-full bg-white rounded-2xl p-6 flex flex-col items-center shadow-xl text-slate-900 border border-slate-200">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 tracking-wider uppercase mb-1">
-                <Shield className="w-3.5 h-3.5 text-primary-600" />
-                Presenxa · Pase Oficial
-              </div>
-              <h4 className="text-xl font-black text-slate-900 text-center leading-tight">
-                {user.firstName} {user.lastName}
-              </h4>
-              <p className="text-xs text-slate-500 font-medium capitalize mb-3">
-                {user.role.toLowerCase()} {user.locationName ? `• ${user.locationName}` : ""}
-              </p>
-
-              {/* QR Image */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner my-1">
-                {dataUrl ? (
-                  <img src={dataUrl} alt={`QR de ${user.firstName}`} className="w-52 h-52 rounded-lg" />
-                ) : (
-                  <div className="w-52 h-52 flex items-center justify-center text-slate-400 text-xs animate-pulse">
-                    Generando código QR...
-                  </div>
-                )}
-              </div>
-
-              <p className="text-[11px] font-mono text-slate-400 mt-2 truncate max-w-[240px]">
-                ID: {user.qrToken}
-              </p>
-            </div>
-          </div>
-
-          {/* Token copy block */}
-          <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-white/5 border border-white/8">
-            <span className="text-xs font-mono text-slate-300 truncate mr-2">
-              {user.qrToken}
-            </span>
-            <button
-              onClick={handleCopyToken}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 transition-colors flex-shrink-0 cursor-pointer"
-            >
-              {isCopied ? <Check className="w-3.5 h-3.5 text-primary-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{isCopied ? "Copiado" : "Copiar Token"}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 bg-surface-950/50 grid grid-cols-3 gap-2 flex-shrink-0">
+        <div className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-surface-50 dark:bg-[#1A2333] border border-surface-200 dark:border-white/10">
+          <span className="text-xs font-mono text-surface-600 dark:text-slate-300 truncate mr-2">
+            {user.qrToken}
+          </span>
           <button
-            onClick={handleDownload}
-            disabled={!dataUrl}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-primary-400/15 border border-primary-400/30 hover:bg-primary-400/25 text-primary-300 text-xs font-bold transition-all active:scale-[0.98] cursor-pointer"
+            onClick={handleCopyToken}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-white dark:bg-white/5 border border-surface-200 dark:border-transparent hover:bg-surface-100 dark:hover:bg-white/10 text-surface-700 dark:text-slate-200 transition-colors flex-shrink-0 cursor-pointer shadow-sm"
           >
-            <Download className="w-3.5 h-3.5" />
-            Descargar
-          </button>
-          <button
-            onClick={handlePrint}
-            disabled={!dataUrl}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white/10 border border-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Imprimir
-          </button>
-          <button
-            onClick={handleRegenerate}
-            disabled={isRegenerating}
-            className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-rose-500/15 border border-rose-500/30 hover:bg-rose-500/25 text-rose-300 text-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? "animate-spin" : ""}`} />
-            Regenerar
+            {isCopied ? <Check className="w-3.5 h-3.5 text-primary-500" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{isCopied ? "Copiado" : "Copiar Token"}</span>
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </ModalShell>
   );
 }

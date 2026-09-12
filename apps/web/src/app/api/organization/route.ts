@@ -18,6 +18,7 @@ const UpdateOrganizationSchema = z.object({
       grace_period_minutes: z.number().min(1).max(60).optional().nullable(),
       tolerance_minutes: z.number().min(0).max(120).optional().nullable(),
       timezone: z.string().optional().nullable(),
+      offline_buffer: z.boolean().optional().nullable(),
     })
     .passthrough()
     .optional(),
@@ -35,6 +36,10 @@ export async function GET() {
       prisma.organization.findUnique({
         where: { id: session.user.organizationId },
         include: {
+          locations: {
+            where: { isActive: true },
+            take: 1
+          },
           _count: {
             select: {
               users: { where: { isActive: true } },

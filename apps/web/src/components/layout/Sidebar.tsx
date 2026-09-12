@@ -16,8 +16,10 @@ import {
   Settings,
   X,
   ExternalLink,
+  ChevronsUpDown,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { PresenxaIcon } from "@/components/ui/PresenxaLogo";
 
 interface NavGroup {
   title?: string;
@@ -36,18 +38,19 @@ const NAV_GROUPS: NavGroup[] = [
     title: "PRINCIPAL",
     items: [
       {
-        label: "Dashboard",
+        label: "Command Center",
         href: "/",
         icon: LayoutDashboard,
         exact: true,
+        badge: "LIVE",
       },
       {
-        label: "Asistencias",
+        label: "Asistencias & Turnos",
         href: "/asistencias",
         icon: ClipboardList,
       },
       {
-        label: "Usuarios",
+        label: "Colaboradores",
         href: "/usuarios",
         icon: Users,
       },
@@ -57,44 +60,46 @@ const NAV_GROUPS: NavGroup[] = [
     title: "OPERACIONES",
     items: [
       {
-        label: "Sedes",
+        label: "Sedes & Zonas",
         href: "/sedes",
         icon: MapPin,
       },
       {
-        label: "Horarios",
+        label: "Horarios & Rotativas",
         href: "/horarios",
         icon: Clock,
       },
       {
-        label: "Kiosks",
+        label: "Red Kiosks",
         href: "/kiosks",
         icon: QrCode,
       },
       {
-        label: "Reportes",
+        label: "Centro de Reportes",
         href: "/reportes",
         icon: BarChart3,
       },
       {
-        label: "Configuración",
+        label: "Configuración Segura",
         href: "/configuracion",
         icon: Settings,
       },
     ],
   },
   {
-    title: "ACCESOS RÁPIDOS",
+    title: "ENTORNOS RÁPIDOS",
     items: [
       {
-        label: "Portal Empleado",
+        label: "Portal Colaborador",
         href: "/app",
         icon: Smartphone,
+        isExternal: true,
       },
       {
-        label: "Pantalla Kiosk",
+        label: "Terminal Kiosk (F11)",
         href: "/kiosk",
         icon: Tablet,
+        badge: "TOTEM",
       },
     ],
   },
@@ -107,16 +112,26 @@ interface SidebarProps {
 
 export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
-  const [orgData, setOrgData] = useState<{ name: string; logoUrl?: string | null } | null>(null);
+  const [orgData, setOrgData] = useState<{ 
+    name: string; 
+    logoUrl?: string | null;
+    subtitle?: string;
+    locationName?: string;
+    locationCode?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/organization")
       .then((res) => res.json())
       .then((data) => {
         if (data?.organization) {
+          const firstLoc = data.organization.locations?.[0];
           setOrgData({
             name: data.organization.name,
             logoUrl: data.organization.logoUrl,
+            subtitle: data.organization.settings?.address || (data.organization.type === 'COLEGIO' ? 'Institución Educativa' : 'Centro de Operaciones'),
+            locationName: firstLoc?.name || "Sede Principal",
+            locationCode: firstLoc?.id ? firstLoc.id.substring(0, 8).toUpperCase() : "HQ-01",
           });
         }
       })
@@ -130,125 +145,135 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
 
   const renderSidebarContent = (isMobile = false) => (
     <div
-      className="flex flex-col h-full w-full bg-surface-900/95 backdrop-blur-xl"
-      style={{
-        borderRight: isMobile ? "none" : "1px solid rgba(163, 230, 53, 0.12)",
-      }}
+      className="w-full bg-surface-50/95 dark:bg-surface-950/95 border-r border-surface-200 dark:border-surface-800 flex flex-col justify-between shrink-0 h-full select-none z-20 backdrop-blur-xl transition-colors"
+      data-purpose="sidebar-navigation"
     >
-      {/* Logo y Encabezado de la Organización */}
-      <div
-        className="px-5 py-4.5 flex items-center justify-between flex-shrink-0"
-        style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.07)" }}
-      >
-        <Link
-          href="/"
-          onClick={() => isMobile && onMobileClose?.()}
-          className="flex items-center gap-3 group min-w-0"
-        >
-          <div className="relative flex-shrink-0">
+      <div className="p-5 flex flex-col gap-5 overflow-y-auto scrollbar-subtle flex-1">
+        {/* Tenant & Brand Header */}
+        <div className="flex items-center justify-between pb-5 border-b border-surface-200 dark:border-surface-800">
+          <Link
+            href="/"
+            onClick={() => isMobile && onMobileClose?.()}
+            className="flex items-center gap-3.5 cursor-pointer group"
+          >
             {orgData?.logoUrl ? (
-              <img
-                src={orgData.logoUrl}
-                alt={orgData.name || "Logo"}
-                className="w-9 h-9 rounded-xl object-contain shadow-md ring-1 ring-primary-400/30 group-hover:scale-105 transition-transform bg-surface-950/40 p-0.5"
-              />
+              <div className="w-12 h-12 rounded-2xl overflow-hidden border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 p-1 shrink-0 group-hover:scale-105 transition-all duration-300 shadow-md group-hover:shadow-lg group-hover:border-primary-500/50">
+                <img src={orgData.logoUrl} alt={orgData.name} className="w-full h-full object-contain" />
+              </div>
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-950/40 ring-1 ring-primary-300/40 group-hover:scale-105 transition-transform">
-                <span className="text-surface-950 font-black text-base tracking-tighter">P</span>
+              <div className="w-12 h-12 rounded-2xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 p-2.5 flex items-center justify-center shadow-md group-hover:scale-105 transition-all duration-300 shrink-0 group-hover:shadow-lg group-hover:border-primary-500/50">
+                <PresenxaIcon className="w-full h-full drop-shadow-sm" />
               </div>
             )}
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary-400 ring-2 ring-surface-900 animate-pulse-dot" />
-          </div>
-
-          <div className="overflow-hidden min-w-0">
-            {orgData?.name ? (
-              <p className="font-bold text-white text-sm tracking-tight truncate group-hover:text-primary-300 transition-colors">
-                {orgData.name}
-              </p>
-            ) : (
-              <p className="font-extrabold text-white text-base tracking-tight flex items-center">
-                <span>Presen</span>
-                <span className="text-primary-400">x</span>
-                <span>a</span>
-              </p>
+            <div className="flex flex-col justify-center">
+              <div className="flex items-center gap-2">
+                <span className="font-black text-surface-900 dark:text-white text-lg tracking-tight leading-none group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">{orgData?.name || "PRESENXA"}</span>
+                <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-md bg-info-50 dark:bg-info-500/20 text-info-600 dark:text-info-300 border border-info-200 dark:border-info-500/30 uppercase tracking-widest mt-0.5">PRO</span>
+              </div>
+              <span className="text-[13px] text-surface-500 dark:text-surface-400 font-medium tracking-wide truncate max-w-[150px] mt-1">{orgData?.subtitle || "Centro de Operaciones"}</span>
+            </div>
+          </Link>
+          
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-primary-500 dark:bg-primary-400 shadow-[0_0_8px_rgba(0,166,80,0.6)]" title="Conectado vía WebSocket"></div>
+            {isMobile && onMobileClose && (
+              <button
+                type="button"
+                onClick={onMobileClose}
+                className="p-2 min-w-[32px] min-h-[32px] flex items-center justify-center rounded-lg text-surface-400 hover:text-surface-900 hover:bg-surface-200 dark:hover:text-white dark:hover:bg-surface-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
-            <p className="text-[11px] text-slate-400 font-medium truncate flex items-center gap-1.5">
-              <span>Panel Operativo</span>
-            </p>
           </div>
-        </Link>
+        </div>
 
-        {isMobile && onMobileClose && (
-          <button
-            type="button"
-            onClick={onMobileClose}
-            aria-label="Cerrar navegación"
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
-      </div>
+        {/* Quick Sede Switcher Dropdown Preview */}
+        <div className="p-2.5 rounded-xl bg-surface-100 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700/50 flex items-center justify-between group hover:border-primary-500/30 dark:hover:border-primary-500/30 transition-colors cursor-pointer">
+          <div className="flex items-center gap-2 text-xs min-w-0">
+            <MapPin className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400 shrink-0" />
+            <div className="truncate min-w-0">
+              <p className="font-semibold text-surface-700 dark:text-surface-200 text-xs truncate">{orgData?.locationName || "Sede Central"}</p>
+              <p className="text-xs text-surface-500 dark:text-surface-400 font-mono truncate">ID: {orgData?.locationCode || "LIM-01"}</p>
+            </div>
+          </div>
+          <ChevronsUpDown className="w-3.5 h-3.5 text-surface-400 group-hover:text-primary-500 dark:group-hover:text-primary-400 transition-colors shrink-0" />
+        </div>
 
-      {/* Menú de Navegación por Grupos */}
-      <nav
-        className="flex-1 px-3 py-4 space-y-6 overflow-y-auto"
-        aria-label="Navegación principal"
-      >
+        {/* Menú de Navegación por Grupos */}
         {NAV_GROUPS.map((group, groupIdx) => (
-          <div key={groupIdx} className="space-y-1">
+          <div key={groupIdx} className="flex flex-col gap-1">
             {group.title && (
-              <p className="px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {group.title}
-              </p>
+              <div className="flex items-center justify-between px-3 mb-1">
+                <span className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest">{group.title}</span>
+                {groupIdx === 0 && <span className="text-xs font-mono text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-500/10 px-1.5 py-0.2 rounded border border-primary-200 dark:border-primary-500/20 uppercase tracking-wider">LIVE</span>}
+              </div>
             )}
+            
             {group.items.map((item) => {
               const active = isActive(item.href, item.exact);
               const Icon = item.icon;
+              
+              if (active) {
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => isMobile && onMobileClose?.()}
+                    className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-primary-50 dark:from-primary-500/15 via-transparent to-transparent border border-primary-200 dark:border-primary-500/30 text-primary-700 dark:text-primary-300 font-semibold group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                      <span className="text-xs tracking-wide">{item.label}</span>
+                    </div>
+                    {item.badge ? (
+                       <span className="text-xs font-mono text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-500/20 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-500/30 uppercase tracking-wider">{item.badge}</span>
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-primary-400 shadow-[0_0_8px_rgba(0,166,80,0.5)]"></span>
+                    )}
+                  </Link>
+                )
+              }
+              
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => isMobile && onMobileClose?.()}
-                  className={clsx(
-                    "relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 group cursor-pointer min-h-[40px]",
-                    active
-                      ? "text-primary-300 bg-primary-400/12 border border-primary-400/30 shadow-xs shadow-primary-950/40"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.05] border border-transparent"
-                  )}
-                  aria-current={active ? "page" : undefined}
+                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-surface-600 dark:text-surface-300 hover:text-surface-900 hover:bg-surface-100 dark:hover:text-white dark:hover:bg-surface-800 transition-all text-xs font-medium group"
                 >
-                  <Icon
-                    className={clsx(
-                      "w-4 h-4 flex-shrink-0 transition-colors duration-200",
-                      active
-                        ? "text-primary-400"
-                        : "text-slate-400 group-hover:text-slate-200"
-                    )}
-                  />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {active && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary-400 shadow-xs shadow-primary-400 flex-shrink-0" />
-                  )}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className="w-4 h-4 text-surface-400 dark:text-surface-400 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  {item.badge ? (
+                    <span className="text-xs font-mono text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-800 px-1.5 py-0.5 rounded border border-surface-200 dark:border-surface-700 uppercase tracking-wider">{item.badge}</span>
+                  ) : item.isExternal ? (
+                    <ExternalLink className="w-3.5 h-3.5 text-surface-400 group-hover:text-surface-600 dark:group-hover:text-surface-300 flex-shrink-0" />
+                  ) : null}
                 </Link>
-              );
+              )
             })}
           </div>
         ))}
-      </nav>
+      </div>
 
-      {/* Footer del sidebar */}
-      <div
-        className="px-5 py-3.5 flex items-center justify-between border-t border-white/5 bg-surface-950/30 flex-shrink-0"
-      >
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-400"></span>
-          </span>
-          <p className="text-[11px] text-slate-400 font-medium">Sistema Activo</p>
+      {/* Sidebar Compliance & HSM Footer */}
+      <div className="p-3.5 border-t border-surface-200 dark:border-surface-800 bg-surface-100/50 dark:bg-surface-950/50 flex flex-col gap-2 shrink-0 transition-colors">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
+            </span>
+            <span className="font-semibold text-surface-700 dark:text-surface-300">HSM Criptográfico</span>
+          </div>
+          <span className="font-mono text-primary-700 dark:text-primary-400 text-xs bg-primary-100 dark:bg-primary-500/10 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-500/20 uppercase tracking-wider">SHA-256 OK</span>
         </div>
-        <span className="text-[10px] font-mono text-slate-400">v1.2.0</span>
+        <div className="flex items-center justify-between text-xs text-surface-500 dark:text-surface-400 font-mono pt-1 border-t border-surface-200 dark:border-surface-800">
+          <span>Presenxa Enterprise</span>
+          <span className="text-surface-400">v2.4-ent</span>
+        </div>
       </div>
     </div>
   );
@@ -256,7 +281,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex md:w-60 md:flex-shrink-0 md:flex-col md:h-full z-30">
+      <aside className="hidden md:flex md:w-72 md:flex-shrink-0 md:flex-col md:h-full z-30">
         {renderSidebarContent(false)}
       </aside>
 

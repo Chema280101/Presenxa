@@ -1,9 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
-import { X, User, Mail, Phone, FileText, Lock, Building, Clock, ShieldCheck, Loader2, CreditCard, Radio, Check, Sparkles, Cake } from "lucide-react";
 import { UserRole } from "@asistencias/db";
+import {
+  UserPlus,
+  User,
+  Mail,
+  Phone,
+  FileText,
+  Lock,
+  Building,
+  Clock,
+  ShieldCheck,
+  CreditCard,
+  Radio,
+  Cake,
+  Check,
+  Sparkles,
+  Loader2,
+} from "lucide-react";
+import { clsx } from "clsx";
+import { ModalShell } from "@/components/ui/ModalShell";
+import { CustomSelect, CustomSelectOption } from "@/components/ui/CustomSelect";
 
 interface LocationOption {
   id: string;
@@ -49,6 +67,14 @@ interface UserFormModalProps {
   schedules: ScheduleOption[];
 }
 
+const ROLE_OPTIONS: CustomSelectOption[] = [
+  { value: UserRole.EMPLEADO, label: "Empleado / Trabajador" },
+  { value: UserRole.ALUMNO, label: "Alumno / Estudiante" },
+  { value: UserRole.SUPERVISOR, label: "Supervisor" },
+  { value: UserRole.ADMIN, label: "Administrador" },
+  { value: UserRole.SUPER_ADMIN, label: "Super Admin" },
+];
+
 export function UserFormModal({
   isOpen,
   onClose,
@@ -58,8 +84,7 @@ export function UserFormModal({
   schedules,
 }: UserFormModalProps) {
   const isEditing = !!initialData?.id;
-  const [mounted, setMounted] = useState(false);
-
+  
   const [formData, setFormData] = useState<UserFormData>({
     firstName: "",
     lastName: "",
@@ -80,9 +105,29 @@ export function UserFormModal({
   const [error, setError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const locationOptions: CustomSelectOption[] = [
+    { value: "", label: "Sin sede específica (Acceso global)" },
+    ...locations.map((loc) => ({
+      value: loc.id,
+      label: loc.name,
+    })),
+  ];
+
+  const scheduleOptions: CustomSelectOption[] = [
+    { value: "", label: "Sin horario asignado (Flexible)" },
+    ...schedules.map((sch) => {
+      const shift1 = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")} - ${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
+      const shift2 =
+        sch.isSplit && sch.entryHour2 !== null && sch.exitHour2 !== null
+          ? ` | ${String(sch.entryHour2).padStart(2, "0")}:${String(sch.entryMinute2 || 0).padStart(2, "0")} - ${String(sch.exitHour2).padStart(2, "0")}:${String(sch.exitMinute2 || 0).padStart(2, "0")}`
+          : "";
+      return {
+        value: sch.id,
+        label: sch.name,
+        description: `${shift1}${shift2}`,
+      };
+    }),
+  ];
 
   useEffect(() => {
     if (initialData) {
@@ -122,29 +167,10 @@ export function UserFormModal({
     setNfcScanSuccess(false);
   }, [initialData, isOpen, locations, schedules]);
 
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleKeyDown);
-    }
-    return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  // Escaneo NFC directo en Android / Chrome
   const handleScanNfc = async () => {
     if (typeof window === "undefined") return;
 
     if (!("NDEFReader" in window)) {
-      // Si el navegador no soporta Web NFC (como desktop), enfocar el input para lector USB
       const nfcInput = document.getElementById("nfc-card-input");
       if (nfcInput) {
         nfcInput.focus();
@@ -207,8 +233,6 @@ export function UserFormModal({
     }
   };
 
-  if (!isOpen || !mounted) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -236,324 +260,266 @@ export function UserFormModal({
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-surface-950/80 backdrop-blur-md overflow-hidden animate-fade-in-up">
-      <div 
-        className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl border border-primary-400/20 shadow-2xl shadow-black/90 my-auto overflow-hidden animate-scale-up"
-        style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(24px)" }}
-      >
-        {/* Header - Fixed Top */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-white/10 bg-surface-950/40 flex-shrink-0">
-          <div className="flex items-center gap-3.5">
-            <div className="p-2.5 rounded-2xl bg-primary-400/15 text-primary-300 ring-1 ring-primary-400/30">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white tracking-tight">
-                {isEditing ? "Editar Usuario y Permisos" : "Registrar Nuevo Usuario"}
-              </h3>
-              <p className="text-xs text-slate-400">
-                {isEditing
-                  ? "Modifica los datos personales, asignaciones operativas y credenciales"
-                  : "Ingresa los datos para registrar al colaborador y generar su credencial QR"}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-            title="Cerrar"
-          >
-            <X className="w-5 h-5" />
-          </button>
+  const premiumInputClass =
+    "w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-white/[0.05] dark:hover:bg-white/[0.08] text-surface-900 dark:text-white placeholder:text-surface-400 dark:placeholder:text-surface-500 font-medium rounded-xl border border-surface-200 dark:border-white/10 dark:hover:border-white/20 shadow-xs focus:border-primary-500 dark:focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-400/20 outline-none transition-all";
+
+  const InputWrapper = ({
+    label,
+    icon: Icon,
+    required = false,
+    optional = false,
+    helperText,
+    children,
+  }: {
+    label: string;
+    icon: React.ElementType;
+    required?: boolean;
+    optional?: boolean;
+    helperText?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-semibold text-surface-900 dark:text-surface-100 flex items-center gap-1">
+          {label}
+          {required && <span className="text-danger-500">*</span>}
+        </label>
+        {optional && (
+          <span className="text-[10px] text-surface-400 dark:text-surface-500 font-normal">(Opcional)</span>
+        )}
+      </div>
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors z-10">
+          <Icon className="w-4 h-4" />
         </div>
+        {children}
+      </div>
+      {helperText && (
+        <div className="text-[11px] text-surface-500 dark:text-surface-400 mt-0.5 leading-tight">
+          {helperText}
+        </div>
+      )}
+    </div>
+  );
 
-        {/* Form Body - Scrollable */}
-        <form onSubmit={handleSubmit} id="user-form" className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-5">
-          {error && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 animate-shake"
-            >
-              <span className="w-2 h-2 rounded-full bg-rose-400 flex-shrink-0 animate-ping" />
-              <span>{error}</span>
-            </div>
-          )}
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        className="h-10 px-5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
+      >
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        form="user-form"
+        disabled={isSubmitting}
+        className="h-10 px-5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white shadow-sm hover:shadow-md hover:shadow-primary-500/20 text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Guardando...</span>
+          </>
+        ) : isEditing ? (
+          <>
+            <Check className="w-4 h-4" />
+            <span>Guardar Cambios</span>
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-4 h-4" />
+            <span>Crear Usuario y Generar QR</span>
+          </>
+        )}
+      </button>
+    </>
+  );
 
-          {/* Grid de 2 Columnas amplias */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-            {/* Fila 1: Nombres y Apellidos */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Nombres <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: Carlos"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                />
-                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              </div>
-            </div>
+  return (
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? "Editar Usuario y Permisos" : "Registrar Nuevo Usuario"}
+      description={
+        isEditing
+          ? "Modifica los datos personales, asignaciones operativas y credenciales"
+          : "Ingresa los datos para registrar al colaborador y generar su credencial QR"
+      }
+      icon={UserPlus}
+      iconVariant="primary"
+      maxWidth="3xl"
+      footer={footer}
+    >
+      <form onSubmit={handleSubmit} id="user-form" className="space-y-5 py-2">
+        {error && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="px-4 py-3 rounded-2xl bg-danger-500/15 border border-danger-500/30 text-danger-700 dark:text-danger-300 text-xs flex items-center gap-2 animate-shake"
+          >
+            <span className="w-2 h-2 rounded-full bg-danger-500 flex-shrink-0 animate-ping" />
+            <span>{error}</span>
+          </div>
+        )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Apellidos <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: Mendoza"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                />
-                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              </div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+          <InputWrapper label="Nombres" icon={User} required>
+            <input
+              type="text"
+              required
+              placeholder="Ej: Carlos"
+              value={formData.firstName}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              className={premiumInputClass}
+            />
+          </InputWrapper>
 
-            {/* Fila 2: Correo y Teléfono */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Correo Electrónico <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  placeholder="carlos@empresa.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                />
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              </div>
-            </div>
+          <InputWrapper label="Apellidos" icon={User} required>
+            <input
+              type="text"
+              required
+              placeholder="Ej: Mendoza"
+              value={formData.lastName}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              className={premiumInputClass}
+            />
+          </InputWrapper>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Teléfono / WhatsApp
-              </label>
-              <div className="relative">
-                <input
-                  type="tel"
-                  placeholder="+51 987 654 321"
-                  value={formData.phone || ""}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                />
-                <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              </div>
-            </div>
+          <InputWrapper label="Correo Electrónico" icon={Mail} required>
+            <input
+              type="email"
+              required
+              placeholder="carlos@empresa.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className={premiumInputClass}
+            />
+          </InputWrapper>
 
-            {/* Fila 3: Documento y Fecha de Cumpleaños (Opcional) */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Documento de Identidad (DNI / Pasaporte / ID)
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Ej: 74859612"
-                  value={formData.documentId || ""}
-                  onChange={(e) => setFormData({ ...formData, documentId: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm font-mono focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                />
-                <FileText className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              </div>
-            </div>
+          <InputWrapper label="Teléfono / WhatsApp" icon={Phone}>
+            <input
+              type="tel"
+              placeholder="+51 987 654 321"
+              value={formData.phone || ""}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className={premiumInputClass}
+            />
+          </InputWrapper>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
-                <span>Fecha de Cumpleaños</span>
-                <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={formData.birthDate || ""}
-                  onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm font-mono focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard cursor-pointer"
-                />
-                <Cake className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1">
-                Dejar vacío si el colaborador prefiere no compartir su cumpleaños.
-              </p>
-            </div>
+          <InputWrapper label="Documento de Identidad (DNI / Pasaporte / ID)" icon={FileText}>
+            <input
+              type="text"
+              placeholder="Ej: 74859612"
+              value={formData.documentId || ""}
+              onChange={(e) => setFormData({ ...formData, documentId: e.target.value })}
+              className={clsx(premiumInputClass, "font-mono")}
+            />
+          </InputWrapper>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Rol / Tipo de Usuario
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-950 border border-white/10 text-white text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all appearance-none cursor-pointer input-standard"
-                >
-                  <option value={UserRole.EMPLEADO}>Empleado / Trabajador</option>
-                  <option value={UserRole.ALUMNO}>Alumno / Estudiante</option>
-                  <option value={UserRole.SUPERVISOR}>Supervisor</option>
-                  <option value={UserRole.ADMIN}>Administrador</option>
-                  <option value={UserRole.SUPER_ADMIN}>Super Admin</option>
-                </select>
-                <ShieldCheck className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
-              </div>
-            </div>
+          <InputWrapper
+            label="Fecha de Cumpleaños"
+            icon={Cake}
+            optional
+            helperText="Dejar vacío si el colaborador prefiere no compartir su cumpleaños."
+          >
+            <input
+              type="date"
+              value={formData.birthDate || ""}
+              onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+              className={clsx(
+                premiumInputClass,
+                "cursor-pointer font-mono [color-scheme:light] dark:[color-scheme:dark]"
+              )}
+            />
+          </InputWrapper>
 
-            {/* Fila 4: Sede y Turno / Horario */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Sede / Ubicación Asignada
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.locationId || ""}
-                  onChange={(e) => setFormData({ ...formData, locationId: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-950 border border-white/10 text-white text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all appearance-none cursor-pointer input-standard"
-                >
-                  <option value="">Sin sede específica (Acceso global)</option>
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name}
-                    </option>
-                  ))}
-                </select>
-                <Building className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
-              </div>
-            </div>
+          <InputWrapper label="Rol / Tipo de Usuario" icon={ShieldCheck}>
+            <CustomSelect
+              value={formData.role}
+              onChange={(val) => setFormData({ ...formData, role: val as UserRole })}
+              options={ROLE_OPTIONS}
+              hasLeftIcon
+            />
+          </InputWrapper>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Turno / Horario Asignado
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.scheduleId || ""}
-                  onChange={(e) => setFormData({ ...formData, scheduleId: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-950 border border-white/10 text-white text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all appearance-none cursor-pointer input-standard"
-                >
-                  <option value="">Sin horario asignado (Flexible)</option>
-                  {schedules.map((sch) => {
-                    const shift1 = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")} - ${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
-                    const shift2 = sch.isSplit && sch.entryHour2 !== null && sch.exitHour2 !== null
-                      ? ` | ${String(sch.entryHour2).padStart(2, "0")}:${String(sch.entryMinute2 || 0).padStart(2, "0")} - ${String(sch.exitHour2).padStart(2, "0")}:${String(sch.exitMinute2 || 0).padStart(2, "0")}`
-                      : "";
-                    return (
-                      <option key={sch.id} value={sch.id}>
-                        {sch.name} ({shift1}{shift2})
-                      </option>
-                    );
-                  })}
-                </select>
-                <Clock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
-              </div>
-            </div>
+          <InputWrapper label="Sede / Ubicación Asignada" icon={Building}>
+            <CustomSelect
+              value={formData.locationId || ""}
+              onChange={(val) => setFormData({ ...formData, locationId: val })}
+              options={locationOptions}
+              hasLeftIcon
+            />
+          </InputWrapper>
 
-            {/* Fila 5: Tarjeta NFC y Contraseña de Acceso */}
-            <div className="md:col-span-2">
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-300">
-                  Tarjeta o Llavero NFC Físico (UID)
-                </label>
-                {nfcScanSuccess && (
-                  <span className="text-[11px] text-lime-400 font-bold flex items-center gap-1">
-                    ✓ ¡Tarjeta detectada!
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    id="nfc-card-input"
-                    type="text"
-                    placeholder="Ej: 04:A1:B2:C3:D4 (o acerca la tarjeta al lector)"
-                    value={formData.nfcCardUid || ""}
-                    onChange={(e) => setFormData({ ...formData, nfcCardUid: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm font-mono focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                  />
-                  <CreditCard className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+          <InputWrapper label="Turno / Horario Asignado" icon={Clock}>
+            <CustomSelect
+              value={formData.scheduleId || ""}
+              onChange={(val) => setFormData({ ...formData, scheduleId: val })}
+              options={scheduleOptions}
+              hasLeftIcon
+            />
+          </InputWrapper>
+
+          {/* NFC Field */}
+          <div className="md:col-span-2">
+            <InputWrapper
+              label="Tarjeta o Llavero NFC Físico (UID)"
+              icon={CreditCard}
+              helperText={
+                <div className="flex items-center justify-between">
+                  <span>Puedes tocar este celular con la tarjeta física, usar un lector USB o escribir su código único.</span>
+                  {nfcScanSuccess && (
+                    <span className="text-primary-600 dark:text-primary-400 font-bold flex items-center gap-1">
+                      <Check className="w-3 h-3" /> ¡Tarjeta detectada!
+                    </span>
+                  )}
                 </div>
+              }
+            >
+              <div className="flex gap-2">
+                <input
+                  id="nfc-card-input"
+                  type="text"
+                  placeholder="Ej: 04:A1:B2:C3:D4 (o acerca la tarjeta al lector)"
+                  value={formData.nfcCardUid || ""}
+                  onChange={(e) => setFormData({ ...formData, nfcCardUid: e.target.value })}
+                  className={clsx(premiumInputClass, "flex-1 font-mono")}
+                />
                 <button
                   type="button"
                   onClick={handleScanNfc}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all cursor-pointer ${
+                  className={clsx(
+                    "h-11 px-4 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm",
                     isNfcScanning
-                      ? "bg-lime-400/20 text-lime-300 border-lime-400/40 animate-pulse"
-                      : "bg-white/5 hover:bg-white/10 text-slate-200 border-white/10 hover:border-lime-400/30"
-                  }`}
+                      ? "bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 border-primary-200 dark:border-primary-500/30 animate-pulse"
+                      : "bg-surface-50 hover:bg-surface-100 dark:bg-white/5 dark:hover:bg-white/10 text-surface-700 dark:text-slate-200 border-surface-200 dark:border-white/10"
+                  )}
                 >
-                  <Radio className={`w-4 h-4 ${isNfcScanning ? "animate-spin text-lime-400" : "text-lime-400"}`} />
+                  <Radio className={clsx("w-4 h-4", isNfcScanning ? "animate-spin text-primary-500" : "text-primary-500")} />
                   <span>{isNfcScanning ? "Acerca la tarjeta..." : "Escanear NFC"}</span>
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Puedes tocar este celular con la tarjeta física, usar un lector USB o escribir su código único.
-              </p>
-            </div>
-
-            {/* Fila 6: Contraseña de Acceso */}
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                {isEditing ? "Nueva Contraseña (dejar en blanco para conservar la actual)" : "Contraseña de Acceso al Panel / App Web"}
-              </label>
-              <div className="relative">
-                <input
-                  type="password"
-                  placeholder={isEditing ? "••••••••" : "Mínimo 6 caracteres"}
-                  value={formData.password || ""}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-400 outline-none transition-all input-standard"
-                />
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              </div>
-            </div>
+            </InputWrapper>
           </div>
-        </form>
 
-        {/* Footer Actions - Fixed Bottom */}
-        <div className="flex items-center justify-end gap-3 px-6 sm:px-8 py-4 border-t border-white/10 bg-surface-950/60 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4 text-slate-400" />
-            <span>Cancelar</span>
-          </button>
-          <button
-            type="submit"
-            form="user-form"
-            disabled={isSubmitting}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary-400 hover:bg-primary-300 text-surface-950 text-xs font-bold shadow-lg shadow-primary-950/50 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Guardando...</span>
-              </>
-            ) : isEditing ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span>Guardar Cambios</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                <span>Crear Usuario y Generar QR</span>
-              </>
-            )}
-          </button>
+          <div className="md:col-span-2">
+            <InputWrapper
+              label={isEditing ? "Nueva Contraseña (dejar en blanco para conservar la actual)" : "Contraseña de Acceso al Panel / App Web"}
+              icon={Lock}
+            >
+              <input
+                type="password"
+                placeholder={isEditing ? "••••••••" : "Mínimo 6 caracteres"}
+                value={formData.password || ""}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className={premiumInputClass}
+              />
+            </InputWrapper>
+          </div>
         </div>
-      </div>
-    </div>,
-    document.body
+      </form>
+    </ModalShell>
   );
 }

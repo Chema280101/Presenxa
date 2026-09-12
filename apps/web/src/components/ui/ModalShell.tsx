@@ -8,11 +8,11 @@ import { clsx } from "clsx";
 interface ModalShellProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title: React.ReactNode;
   description?: string;
   icon?: LucideIcon;
-  iconVariant?: "primary" | "warning" | "danger" | "info";
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  iconVariant?: "primary" | "warning" | "danger" | "info" | "success";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl" | "7xl";
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
@@ -26,6 +26,9 @@ const MAX_WIDTHS = {
   "2xl": "max-w-2xl",
   "3xl": "max-w-3xl",
   "4xl": "max-w-4xl",
+  "5xl": "max-w-5xl",
+  "6xl": "max-w-6xl",
+  "7xl": "max-w-7xl",
 };
 
 const ICON_VARIANTS = {
@@ -33,6 +36,7 @@ const ICON_VARIANTS = {
   warning: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30",
   danger: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30",
   info: "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30",
+  success: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30",
 };
 
 export function ModalShell({
@@ -83,21 +87,17 @@ export function ModalShell({
       {/* Modal Dialog Card */}
       <div
         className={clsx(
-          "relative w-full z-10 my-auto rounded-3xl overflow-hidden shadow-2xl shadow-black/90",
-          "border border-primary-400/20 animate-scale-up flex flex-col max-h-[90vh]",
+          "relative w-full z-10 my-auto rounded-3xl overflow-hidden shadow-2xl",
+          "border border-surface-200 dark:border-primary-400/20 animate-scale-up flex flex-col max-h-[90vh]",
+          "bg-surface-50/95 dark:bg-[#0a111c]/95 backdrop-blur-xl",
           MAX_WIDTHS[maxWidth] || MAX_WIDTHS.lg,
           className
         )}
-        style={{
-          background: "rgba(10, 27, 44, 0.96)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-        }}
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-6 pb-4 border-b border-white/10 flex-shrink-0">
+        <div className="flex items-start justify-between p-6 pb-4 border-b border-surface-200 dark:border-white/10 flex-shrink-0">
           <div className="flex items-center gap-3.5 pr-6">
             {Icon && (
               <div
@@ -110,11 +110,11 @@ export function ModalShell({
               </div>
             )}
             <div>
-              <h3 className="text-lg font-bold text-white tracking-tight">
+              <h3 className="text-lg font-bold text-surface-900 dark:text-white tracking-tight">
                 {title}
               </h3>
               {description && (
-                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                <p className="text-xs text-surface-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                   {description}
                 </p>
               )}
@@ -124,7 +124,7 @@ export function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-400/50 cursor-pointer"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-surface-500 hover:text-surface-900 hover:bg-surface-200 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10 transition-all flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:focus:ring-primary-400/50 cursor-pointer"
             aria-label="Cerrar modal"
           >
             <X className="w-4 h-4" />
@@ -138,7 +138,7 @@ export function ModalShell({
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-white/10 bg-surface-950/40 flex items-center justify-end gap-3 flex-shrink-0">
+          <div className="px-6 py-4 border-t border-surface-200 dark:border-white/10 bg-surface-100/50 dark:bg-surface-950/40 flex items-center justify-end gap-3 flex-shrink-0">
             {footer}
           </div>
         )}

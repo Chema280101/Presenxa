@@ -2,10 +2,11 @@
 
 import { Session } from "next-auth";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LogOut, ChevronDown, Building2, Menu, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 // Mapa de rutas a títulos legibles
 const ROUTE_TITLES: Record<string, string> = {
@@ -29,6 +30,18 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [orgName, setOrgName] = useState<string>(session?.user?.organizationName || "Hotel Italia");
+
+  useEffect(() => {
+    fetch("/api/organization")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.organization?.name) {
+          setOrgName(data.organization.name);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const pageTitle = Object.entries(ROUTE_TITLES).find(([path]) =>
     path === "/" ? pathname === "/" : pathname.startsWith(path)
@@ -48,104 +61,101 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
         .toUpperCase()
     : "AD";
 
+  const roleLabel =
+    session?.user?.role === "SUPERADMIN"
+      ? "Super Admin"
+      : session?.user?.role === "ADMIN"
+      ? "Admin"
+      : session?.user?.role === "SUPERVISOR"
+      ? "Supervisor"
+      : "Colaborador";
+
   return (
     <header
-      className="relative z-40 flex items-center justify-between px-4 sm:px-6 py-3 flex-shrink-0 bg-surface-900/80 backdrop-blur-xl border-b border-primary-400/10"
+      className="h-16 px-6 flex items-center justify-between border-b border-surface-200 dark:border-surface-800 bg-surface-50/80 dark:bg-surface-950/80 backdrop-blur-xl shrink-0 z-40 transition-colors"
+      data-purpose="top-navigation-header"
     >
-      {/* Botón hamburguesa móvil + Título de la sección */}
-      <div className="flex items-center gap-3.5 min-w-0">
+      {/* Left: Clean, real breadcrumb navigation */}
+      <div className="flex items-center gap-4">
         {onMenuToggle && (
           <button
             type="button"
             onClick={onMenuToggle}
-            aria-label="Abrir menú de navegación"
-            aria-expanded={isMenuOpen}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors md:hidden min-w-[40px] min-h-[40px] flex items-center justify-center -ml-1 focus:outline-none focus:ring-2 focus:ring-primary-400/50 cursor-pointer"
+            className="p-2 rounded-xl text-surface-500 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-50 dark:hover:bg-surface-800 transition-colors md:hidden cursor-pointer"
           >
-            <Menu className="w-5 h-5 text-primary-400" />
+            <Menu className="w-5 h-5 text-primary-500 dark:text-primary-400" />
           </button>
         )}
-
-        <div className="min-w-0">
-          <h2 className="text-sm sm:text-base font-bold text-white tracking-tight truncate flex items-center gap-2">
-            <span>{pageTitle}</span>
-          </h2>
-          <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400 font-medium truncate">
-            <Building2 className="w-3 h-3 text-primary-400 flex-shrink-0" />
-            <span className="truncate">{session?.user?.organizationName || "Organización Principal"}</span>
-          </div>
-        </div>
+        <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-2 text-xs">
+          <span className="font-medium text-surface-500 dark:text-surface-400">
+            {orgName}
+          </span>
+          <span className="text-surface-300 dark:text-surface-700 select-none">/</span>
+          <h1 className="font-bold text-sm text-surface-900 dark:text-white tracking-tight">
+            {pageTitle}
+          </h1>
+        </nav>
       </div>
 
-      {/* Acciones del header */}
+      {/* Right: Functional actions & User profile */}
       <div className="flex items-center gap-3">
-        {/* Centro de Notificaciones Interactivo */}
+        {/* Real Notification Center Dropdown */}
         <NotificationDropdown />
 
-        {/* Menú de usuario */}
-        <div className="relative">
+        {/* Theme Toggle (Light / Dark) */}
+        <ThemeToggle />
+
+        {/* Profile Avatar and Menu */}
+        <div className="relative border-l border-surface-200 dark:border-surface-800 pl-3 ml-1">
           <button
-            id="user-menu-btn"
             onClick={() => setMenuOpen(!menuOpen)}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-2xl hover:bg-white/5
-                       transition-all border border-white/8 hover:border-primary-400/30 cursor-pointer"
-            aria-expanded={menuOpen}
-            aria-haspopup="true"
+            className="flex items-center gap-2.5 hover:bg-surface-100 dark:hover:bg-surface-800/50 p-1.5 rounded-xl transition-all cursor-pointer"
           >
-            {/* Avatar */}
-            <div className="gradient-brand w-8 h-8 rounded-xl flex items-center justify-center
-                            text-surface-950 text-xs font-black shadow-xs flex-shrink-0 ring-1 ring-primary-400/30">
-              {userInitials}
+            {session?.user?.image ? (
+              <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 bg-surface-100 dark:bg-surface-800 ring-1 ring-surface-200 dark:ring-surface-800">
+                <img
+                  src={session.user.image}
+                  alt={session?.user?.name || "Avatar"}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-primary-50 dark:bg-primary-950/60 border border-primary-200/80 dark:border-primary-800/40 text-primary-700 dark:text-primary-300 flex items-center justify-center font-bold text-xs shadow-sm shrink-0">
+                {userInitials}
+              </div>
+            )}
+            <div className="flex flex-col text-left hidden sm:flex max-w-[150px]">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-xs text-surface-900 dark:text-white leading-tight truncate">
+                  {session?.user?.name || "Administrador"}
+                </span>
+                <span className="text-[9px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40">
+                  {roleLabel}
+                </span>
+              </div>
+              <span className="text-[10px] text-surface-500 dark:text-surface-400 font-mono truncate">
+                {session?.user?.email || ""}
+              </span>
             </div>
-
-            <div className="text-left hidden sm:block max-w-[140px]">
-              <p className="text-xs font-bold text-white leading-tight truncate">
-                {session?.user?.name || "Usuario"}
-              </p>
-              <p className="text-[10px] text-primary-300 font-semibold uppercase tracking-wider mt-0.5">
-                {(session?.user?.role || "ADMIN").toLowerCase().replace("_", " ")}
-              </p>
-            </div>
-
-            <ChevronDown
-              className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`}
-            />
+            <ChevronDown className="w-3.5 h-3.5 text-surface-400 hidden sm:block" />
           </button>
-
-          {/* Dropdown */}
+          
+          {/* Dropdown Menu */}
           {menuOpen && (
             <>
-              {/* Overlay para cerrar */}
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setMenuOpen(false)}
-              />
-              <div
-                className="absolute right-0 top-full mt-2 w-60 z-50 rounded-2xl
-                           border border-primary-400/20 shadow-2xl shadow-black/90 overflow-hidden"
-                style={{ background: "rgba(10, 27, 44, 0.98)", backdropFilter: "blur(20px)" }}
-              >
-                {/* Info del usuario */}
-                <div className="px-4 py-3 border-b border-white/8 bg-surface-950/40">
-                  <p className="text-xs font-bold text-white truncate">
-                    {session?.user?.name || "Usuario"}
-                  </p>
-                  <p className="text-[11px] text-slate-400 truncate mt-0.5 font-mono">
-                    {session?.user?.email || ""}
-                  </p>
+              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-2 w-60 z-50 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-2xl overflow-hidden bg-white/95 dark:bg-surface-900/95 backdrop-blur-xl">
+                <div className="px-4 py-3 border-b border-surface-200 dark:border-surface-800 bg-surface-50/80 dark:bg-surface-950/80">
+                  <p className="text-xs font-bold text-surface-900 dark:text-white truncate">{session?.user?.name || "Usuario"}</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 truncate mt-0.5 font-mono">{session?.user?.email || ""}</p>
                 </div>
-
-                {/* Acciones */}
                 <div className="p-1.5">
                   <button
-                    id="logout-btn"
                     onClick={handleSignOut}
                     disabled={isSigningOut}
-                    className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-semibold
-                               text-slate-300 hover:text-rose-300 hover:bg-rose-500/15
-                               transition-all duration-150 disabled:opacity-50 cursor-pointer"
+                    className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-surface-700 dark:text-surface-300 hover:text-danger-600 dark:hover:text-danger-400 hover:bg-danger-50 dark:hover:bg-danger-500/15 transition-all duration-150 disabled:opacity-50 cursor-pointer"
                   >
-                    <LogOut className="w-4 h-4 text-rose-400" />
+                    <LogOut className="w-4 h-4 text-danger-500 dark:text-danger-400" />
                     {isSigningOut ? "Cerrando sesión..." : "Cerrar sesión"}
                   </button>
                 </div>
