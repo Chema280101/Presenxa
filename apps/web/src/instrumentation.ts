@@ -13,6 +13,14 @@ export async function register() {
   // Solo validar en el runtime de Node.js (no en Edge)
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // Durante la fase de compilación/build de Next.js, no bloquear la generación estática
+  if (
+    process.env.NEXT_PHASE === "phase-production-build" ||
+    process.env.npm_lifecycle_event === "build"
+  ) {
+    return;
+  }
+
   const isProduction = process.env.NODE_ENV === "production";
 
   if (!isProduction) return; // En dev los secretos de prueba son aceptables

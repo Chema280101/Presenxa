@@ -36,6 +36,14 @@ export const authConfig = {
   secret: (() => {
     const s = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
     if (!s && process.env.NODE_ENV === "production") {
+      // Durante la fase de build / recopilación estática de rutas, permitir fallback temporal para que la compilación no falle
+      if (
+        process.env.NEXT_PHASE === "phase-production-build" ||
+        process.env.npm_lifecycle_event === "build" ||
+        process.env.STANDALONE === "1"
+      ) {
+        return "build-time-dummy-secret-not-for-production";
+      }
       throw new Error("FATAL: AUTH_SECRET o NEXTAUTH_SECRET no configurado en producción");
     }
     return s || "dev-only-secret-not-for-production";

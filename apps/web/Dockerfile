@@ -38,6 +38,10 @@ ENV NODE_ENV=production
 
 # Compilar proyecto en modo standalone
 ENV STANDALONE=1
+ENV AUTH_SECRET="build-temp-auth-secret-for-docker-build-only-32chars"
+ENV NEXTAUTH_SECRET="build-temp-auth-secret-for-docker-build-only-32chars"
+ENV CRON_SECRET="build-temp-cron-secret-for-docker-build-only"
+ENV QR_HMAC_SECRET="build-temp-qr-hmac-secret-for-docker-build-only"
 RUN pnpm --filter @asistencias/web build
 
 # ── Stage 3: Production Runner ────────────────────────────────────────────

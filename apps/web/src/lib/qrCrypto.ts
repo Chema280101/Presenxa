@@ -3,6 +3,13 @@ import crypto from "crypto";
 const DEFAULT_SECRET = (() => {
   const s = process.env.QR_HMAC_SECRET || process.env.NEXTAUTH_SECRET;
   if (!s && process.env.NODE_ENV === "production") {
+    if (
+      process.env.NEXT_PHASE === "phase-production-build" ||
+      process.env.npm_lifecycle_event === "build" ||
+      process.env.STANDALONE === "1"
+    ) {
+      return "build-time-dummy-qr-secret";
+    }
     throw new Error("FATAL: QR_HMAC_SECRET no configurado en producción");
   }
   return s || "dev-qr-hmac-secret-not-for-prod";

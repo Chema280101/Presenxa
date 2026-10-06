@@ -8,6 +8,13 @@ import { sendPushToAllAdmins } from "@/lib/webPush";
 const CRON_SECRET = (() => {
   const s = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET;
   if (!s && process.env.NODE_ENV === "production") {
+    if (
+      process.env.NEXT_PHASE === "phase-production-build" ||
+      process.env.npm_lifecycle_event === "build" ||
+      process.env.STANDALONE === "1"
+    ) {
+      return "build-time-dummy-cron-secret";
+    }
     throw new Error("FATAL: CRON_SECRET no configurado en producción");
   }
   return s || "dev-cron-secret";
