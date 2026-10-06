@@ -35,6 +35,54 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
   console.log(`[EOD] Iniciando cierre de jornada/auditoría para ${dateStr}`);
 
   try {
+    // 0. Procesar Feriados: Marcar como FERIADO en vez de AUSENTE
+    const holidays = await prisma.holiday.findMany({
+      where: { date: targetDateDb, isActive: true },
+    });
+
+    for (const holiday of holidays) {
+      await prisma.attendance.updateMany({
+        where: {
+          date: targetDateDb,
+          status: "PENDIENTE",
+          user: {
+            organizationId: holiday.organizationId,
+          },
+          ...(holiday.locationId ? { locationId: holiday.locationId } : {}),
+        },
+        data: {
+          status: "FERIADO",
+          statusChangedAt: new Date(),
+          statusChangedBy: "CRON_EOD",
+        },
+      });
+    }
+
+    // 0.5. Procesar ausencias justificadas (Vacaciones, Descansos y Días libres aprobados en el día)
+    const approvedTimeOffs = await prisma.timeOffRequest.findMany({
+      where: { status: "APPROVED", startDate: { lte: targetDateDb }, endDate: { gte: targetDateDb } },
+    });
+    for (const timeOff of approvedTimeOffs) {
+      let statusToSet: any = "PERMISO";
+      if (timeOff.type === "VACACIONES") statusToSet = "VACACIONES";
+      else if (timeOff.type === "DESCANSO_MEDICO") statusToSet = "DESCANSO_MEDICO";
+      
+      await prisma.attendance.updateMany({
+        where: { date: targetDateDb, userId: timeOff.userId, status: "PENDIENTE", entryTime: null },
+        data: { status: statusToSet, statusChangedAt: new Date(), statusChangedBy: "CRON_EOD" },
+      });
+    }
+
+    const dayOffOverrides = await prisma.shiftOverride.findMany({
+      where: { date: targetDateDb, isDayOff: true },
+    });
+    for (const override of dayOffOverrides) {
+      await prisma.attendance.updateMany({
+        where: { date: targetDateDb, userId: override.userId, status: "PENDIENTE", entryTime: null },
+        data: { status: "DIA_LIBRE", statusChangedAt: new Date(), statusChangedBy: "CRON_EOD" },
+      });
+    }
+
     // 1. Marcar AUSENTE: usuarios con PENDIENTE que nunca registraron entrada
     const resAusentes = await prisma.attendance.updateMany({
       where: {

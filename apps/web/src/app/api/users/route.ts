@@ -7,6 +7,13 @@ import crypto from "crypto";
 import { generateSignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
 
+const optionalUuidOrNull = z
+  .string()
+  .uuid()
+  .optional()
+  .nullable()
+  .or(z.literal("").transform(() => null));
+
 const CreateUserSchema = z.object({
   firstName: z.string().min(1, "El nombre es obligatorio"),
   lastName: z.string().min(1, "El apellido es obligatorio"),
@@ -15,10 +22,11 @@ const CreateUserSchema = z.object({
   documentId: z.string().optional().nullable(),
   birthDate: z.string().optional().nullable(),
   role: z.nativeEnum(UserRole).default(UserRole.EMPLEADO),
-  locationId: z.string().uuid().optional().nullable(),
+  locationId: optionalUuidOrNull,
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
-  scheduleId: z.string().uuid().optional().nullable(),
+  scheduleId: optionalUuidOrNull,
   nfcCardUid: z.string().optional().nullable(),
+  departmentId: optionalUuidOrNull,
 });
 
 // GET /api/users
@@ -42,6 +50,7 @@ export async function GET(req: Request) {
   const search = searchParams.get("search") || "";
   const role = searchParams.get("role") as UserRole | null;
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
   const isActiveParam = searchParams.get("isActive");
 
   const where: any = {
@@ -53,6 +62,10 @@ export async function GET(req: Request) {
     where.locationId = supervisorLocationId;
   } else if (locationId) {
     where.locationId = locationId;
+  }
+
+  if (departmentId && departmentId !== "ALL") {
+    where.departmentId = departmentId;
   }
 
   if (search) {
@@ -84,12 +97,18 @@ export async function GET(req: Request) {
         email: true,
         phone: true,
         documentId: true,
+        birthDate: true,
         role: true,
         isActive: true,
         qrToken: true,
         qrGeneratedAt: true,
         nfcCardUid: true,
+        locationId: true,
         location: {
+          select: { id: true, name: true },
+        },
+        departmentId: true,
+        department: {
           select: { id: true, name: true },
         },
         userSchedules: {
@@ -142,6 +161,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const userRole = (session.user as any).role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole)) {
+    return NextResponse.json(
+      { error: "No tienes permiso para crear usuarios" },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await req.json();
     const parsed = CreateUserSchema.safeParse(body);
@@ -154,6 +181,22 @@ export async function POST(req: Request) {
     }
 
     const data = parsed.data;
+
+    // Validación jerárquica de roles
+    const ROLE_HIERARCHY: Record<string, number> = {
+      EMPLEADO: 0,
+      SUPERVISOR: 1,
+      ADMIN: 2,
+      SUPER_ADMIN: 3,
+    };
+    const callerLevel = ROLE_HIERARCHY[userRole] ?? 0;
+    const targetLevel = ROLE_HIERARCHY[data.role] ?? 0;
+    if (targetLevel > callerLevel) {
+      return NextResponse.json(
+        { error: "No puedes crear un usuario con un rol superior al tuyo" },
+        { status: 403 }
+      );
+    }
 
     // Verificar si el correo ya existe
     const existing = await prisma.user.findUnique({
@@ -194,6 +237,7 @@ export async function POST(req: Request) {
           birthDate: data.birthDate && data.birthDate.trim() !== "" ? new Date(data.birthDate) : null,
           role: data.role,
           locationId: data.locationId || null,
+          departmentId: data.departmentId || null,
           passwordHash,
           qrToken,
           nfcCardUid: data.nfcCardUid && data.nfcCardUid.trim() !== "" ? data.nfcCardUid.trim() : null,

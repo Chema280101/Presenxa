@@ -5,6 +5,7 @@ import { Users, Loader2, Search, MapPin, CheckSquare, Square, CheckCircle2 } fro
 import { clsx } from "clsx";
 import { useToast } from "@/providers/ToastProvider";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 
 interface ScheduleItem {
   id: string;
@@ -198,21 +199,17 @@ export function BulkAssignModal({ isOpen, onClose, onSuccess }: BulkAssignModalP
             <label className="block text-xs font-semibold text-surface-900 dark:text-slate-300 mb-1.5">
               Horario a Asignar <span className="text-danger-500">*</span>
             </label>
-            <select
+            <CustomSelect
               value={selectedScheduleId}
-              onChange={(e) => setSelectedScheduleId(e.target.value)}
-              className={clsx(premiumInputClass, "!pl-4 cursor-pointer appearance-none")}
-            >
-              <option value="">Selecciona un horario activo...</option>
-              {schedules.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedScheduleId(val)}
+              options={schedules.map(s => ({ value: s.id, label: s.name }))}
+              placeholder="Selecciona un horario activo..."
+            />
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1 group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors z-10">
                 <Search className="w-4 h-4" />
               </div>
               <input 
@@ -223,21 +220,18 @@ export function BulkAssignModal({ isOpen, onClose, onSuccess }: BulkAssignModalP
                 className={premiumInputClass}
               />
             </div>
-            <div className="relative w-full sm:w-64 group">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
-                <MapPin className="w-4 h-4" />
-              </div>
-              <select
+            <div className="w-full sm:w-64">
+              <CustomSelect
                 value={selectedLocationId}
-                onChange={e => setSelectedLocationId(e.target.value)}
-                className={clsx(premiumInputClass, "cursor-pointer appearance-none")}
-              >
-                <option value="ALL">Todas las sedes</option>
-                <option value="GLOBAL">Global (Sin Sede)</option>
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedLocationId(val)}
+                options={[
+                  { value: "ALL", label: "Todas las sedes" },
+                  { value: "GLOBAL", label: "Global (Sin Sede)" },
+                  ...locations.map(loc => ({ value: loc.id, label: loc.name })),
+                ]}
+                hasLeftIcon
+                leftIcon={MapPin}
+              />
             </div>
           </div>
         </div>

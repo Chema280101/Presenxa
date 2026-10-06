@@ -1,6 +1,12 @@
 import crypto from "crypto";
 
-const DEFAULT_SECRET = process.env.QR_HMAC_SECRET || process.env.NEXTAUTH_SECRET || "asistcontrol-secret-qr-key-2026";
+const DEFAULT_SECRET = (() => {
+  const s = process.env.QR_HMAC_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!s && process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: QR_HMAC_SECRET no configurado en producción");
+  }
+  return s || "dev-qr-hmac-secret-not-for-prod";
+})();
 const DEFAULT_EXPIRATION_DAYS = 60; // 60 días de vigencia para el token firmado
 
 export interface VerifiedQrPayload {

@@ -8,6 +8,7 @@ import { scheduleSedeNotification } from "@/lib/qstash";
 const OverrideSchema = z.object({
   scheduleId: z.string().uuid("El horario es obligatorio"),
   date: z.string().min(1, "La fecha es obligatoria"),
+  locationId: z.string().uuid().optional().nullable(),
 });
 
 // POST /api/users/[id]/override
@@ -86,6 +87,22 @@ export async function POST(
       },
     });
 
+    const explicitLocationId = parsed.data.locationId;
+    let targetLocation = schedule.location;
+    if (explicitLocationId) {
+      const foundLocation = await prisma.location.findFirst({
+        where: {
+          id: explicitLocationId,
+          organizationId: session.user.organizationId,
+        },
+      });
+      if (foundLocation) {
+        targetLocation = foundLocation;
+      }
+    }
+
+    const sedeName = targetLocation?.name || schedule.location?.name || "tu sede asignada";
+
     // Auditar
     await logAuditEvent({
       organizationId: session.user.organizationId,
@@ -97,14 +114,14 @@ export async function POST(
       newData: {
         overrideDate: overrideDate.toISOString(),
         scheduleId,
+        locationId: targetLocation?.id || schedule.locationId || null,
+        locationName: sedeName,
         actionBy: session.user.email,
       },
       req,
     });
 
     // Programar la notificación con QStash
-    const sedeName = schedule.location?.name || "tu sede asignada";
-    
     // Asumiendo que overrideDate viene como fecha "YYYY-MM-DD"
     const [year, month, day] = dateString.split("-").map(Number);
     const shiftDate = new Date(year, month - 1, day); 
@@ -125,7 +142,8 @@ export async function POST(
     return NextResponse.json({ 
       success: true, 
       override, 
-      message: "Excepción registrada y alerta programada." 
+      sedeName,
+      message: `Excepción registrada para la sede ${sedeName} y alerta programada.` 
     });
   } catch (error: any) {
     console.error("Error al guardar override:", error);

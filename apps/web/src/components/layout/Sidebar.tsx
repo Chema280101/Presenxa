@@ -17,6 +17,10 @@ import {
   X,
   ExternalLink,
   ChevronsUpDown,
+  CalendarDays,
+  FileCheck,
+  ShieldAlert,
+  FolderTree,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { PresenxaIcon } from "@/components/ui/PresenxaLogo";
@@ -30,6 +34,7 @@ interface NavGroup {
     exact?: boolean;
     isExternal?: boolean;
     badge?: string;
+    allowedRoles?: string[];
   }[];
 }
 
@@ -50,6 +55,11 @@ const NAV_GROUPS: NavGroup[] = [
         icon: ClipboardList,
       },
       {
+        label: "Permisos & Ausencias",
+        href: "/ausencias",
+        icon: FileCheck,
+      },
+      {
         label: "Colaboradores",
         href: "/usuarios",
         icon: Users,
@@ -65,9 +75,26 @@ const NAV_GROUPS: NavGroup[] = [
         icon: MapPin,
       },
       {
+        label: "Departamentos",
+        href: "/departamentos",
+        icon: FolderTree,
+      },
+      {
         label: "Horarios & Rotativas",
         href: "/horarios",
         icon: Clock,
+      },
+      {
+        label: "Gestor de Feriados",
+        href: "/feriados",
+        icon: CalendarDays,
+      },
+      {
+        label: "Auditoría de Sistema",
+        href: "/auditoria",
+        icon: ShieldAlert,
+        badge: "LOGS",
+        allowedRoles: ["ADMIN", "SUPER_ADMIN"],
       },
       {
         label: "Red Kiosks",
@@ -83,6 +110,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Configuración Segura",
         href: "/configuracion",
         icon: Settings,
+        allowedRoles: ["ADMIN", "SUPER_ADMIN"],
       },
     ],
   },
@@ -108,9 +136,10 @@ const NAV_GROUPS: NavGroup[] = [
 interface SidebarProps {
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  userRole?: string;
 }
 
-export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
+export function Sidebar({ isMobileOpen = false, onMobileClose, userRole }: SidebarProps) {
   const pathname = usePathname();
   const [orgData, setOrgData] = useState<{ 
     name: string; 
@@ -129,7 +158,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
           setOrgData({
             name: data.organization.name,
             logoUrl: data.organization.logoUrl,
-            subtitle: data.organization.settings?.address || (data.organization.type === 'COLEGIO' ? 'Institución Educativa' : 'Centro de Operaciones'),
+            subtitle: data.organization.settings?.address || 'Centro de Operaciones',
             locationName: firstLoc?.name || "Sede Principal",
             locationCode: firstLoc?.id ? firstLoc.id.substring(0, 8).toUpperCase() : "HQ-01",
           });
@@ -201,16 +230,23 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
         </div>
 
         {/* Menú de Navegación por Grupos */}
-        {NAV_GROUPS.map((group, groupIdx) => (
-          <div key={groupIdx} className="flex flex-col gap-1">
-            {group.title && (
-              <div className="flex items-center justify-between px-3 mb-1">
-                <span className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest">{group.title}</span>
-                {groupIdx === 0 && <span className="text-xs font-mono text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-500/10 px-1.5 py-0.2 rounded border border-primary-200 dark:border-primary-500/20 uppercase tracking-wider">LIVE</span>}
-              </div>
-            )}
-            
-            {group.items.map((item) => {
+        {NAV_GROUPS.map((group, groupIdx) => {
+          const visibleItems = group.items.filter((item) => {
+            if (!item.allowedRoles) return true;
+            return userRole && item.allowedRoles.includes(userRole);
+          });
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={groupIdx} className="flex flex-col gap-1">
+              {group.title && (
+                <div className="flex items-center justify-between px-3 mb-1">
+                  <span className="text-xs font-bold text-surface-500 dark:text-surface-400 uppercase tracking-widest">{group.title}</span>
+                  {groupIdx === 0 && <span className="text-xs font-mono text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-500/10 px-1.5 py-0.2 rounded border border-primary-200 dark:border-primary-500/20 uppercase tracking-wider">LIVE</span>}
+                </div>
+              )}
+              
+              {visibleItems.map((item) => {
               const active = isActive(item.href, item.exact);
               const Icon = item.icon;
               
@@ -252,10 +288,11 @@ export function Sidebar({ isMobileOpen = false, onMobileClose }: SidebarProps) {
                     <ExternalLink className="w-3.5 h-3.5 text-surface-400 group-hover:text-surface-600 dark:group-hover:text-surface-300 flex-shrink-0" />
                   ) : null}
                 </Link>
-              )
+              );
             })}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Sidebar Compliance & HSM Footer */}

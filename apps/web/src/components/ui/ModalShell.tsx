@@ -76,7 +76,7 @@ export function ModalShell({
   if (!isOpen || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto print:hidden">
       {/* Backdrop covering 100% of entire browser window */}
       <div
         className="fixed inset-0 bg-surface-950/80 backdrop-blur-md transition-opacity animate-fade-in-up"
@@ -87,9 +87,9 @@ export function ModalShell({
       {/* Modal Dialog Card */}
       <div
         className={clsx(
-          "relative w-full z-10 my-auto rounded-3xl overflow-hidden shadow-2xl",
-          "border border-surface-200 dark:border-primary-400/20 animate-scale-up flex flex-col max-h-[90vh]",
-          "bg-surface-50/95 dark:bg-[#0a111c]/95 backdrop-blur-xl",
+          "relative w-full z-10 my-auto rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl",
+          "border border-surface-200 dark:border-surface-800 animate-scale-up flex flex-col max-h-[92dvh]",
+          "bg-surface-50/95 dark:bg-surface-900/95 backdrop-blur-xl",
           MAX_WIDTHS[maxWidth] || MAX_WIDTHS.lg,
           className
         )}
@@ -97,20 +97,20 @@ export function ModalShell({
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-6 pb-4 border-b border-surface-200 dark:border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-3.5 pr-6">
+        <div className="flex items-start justify-between p-4 sm:p-6 pb-3 sm:pb-4 border-b border-surface-200 dark:border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-3 pr-3 sm:pr-6 min-w-0">
             {Icon && (
               <div
                 className={clsx(
-                  "w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner",
+                  "w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner",
                   ICON_VARIANTS[iconVariant]
                 )}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             )}
-            <div>
-              <h3 className="text-lg font-bold text-surface-900 dark:text-white tracking-tight">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base sm:text-lg font-bold text-surface-900 dark:text-white tracking-tight truncate sm:whitespace-normal">
                 {title}
               </h3>
               {description && (
@@ -124,7 +124,7 @@ export function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-surface-500 hover:text-surface-900 hover:bg-surface-200 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10 transition-all flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:focus:ring-primary-400/50 cursor-pointer"
+            className="w-9 h-9 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-surface-500 hover:text-surface-900 hover:bg-surface-200 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/10 transition-all flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary-500/50 dark:focus:ring-primary-400/50 cursor-pointer"
             aria-label="Cerrar modal"
           >
             <X className="w-4 h-4" />
@@ -132,13 +132,13 @@ export function ModalShell({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 border-t border-surface-200 dark:border-white/10 bg-surface-100/50 dark:bg-surface-950/40 flex items-center justify-end gap-3 flex-shrink-0">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-surface-200 dark:border-white/10 bg-surface-100/50 dark:bg-surface-950/40 flex flex-wrap items-center justify-end gap-2 sm:gap-3 flex-shrink-0">
             {footer}
           </div>
         )}

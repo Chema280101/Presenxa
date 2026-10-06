@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   ClipboardList,
   Calendar,
+  CalendarDays,
   Search,
   Building,
   Clock,
@@ -19,6 +21,8 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   UserCheck,
   UserX,
   Sparkles,
@@ -35,14 +39,20 @@ import {
   Eye,
   X,
   MoreVertical,
+  Copy,
+  User,
+  FolderTree,
 } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 import { format, addDays, subDays, isToday, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { JustifyModal } from "@/components/attendance/JustifyModal";
 import { EditAttendanceModal } from "@/components/attendance/EditAttendanceModal";
+import { EmployeeProfileModal } from "@/components/attendance/EmployeeProfileModal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/providers/ToastProvider";
+import { ExportReportDropdown } from "@/components/reports/ExportReportDropdown";
+import { PdfReportModal } from "@/components/reports/PdfReportModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ModalShell } from "@/components/ui/ModalShell";
@@ -56,9 +66,11 @@ import {
   DataTableBody, 
   DataTableRow, 
   DataTableCell, 
-  DataTableEmptyState 
+  DataTableEmptyState,
+  DataTablePagination
 } from "@/components/ui/DataTable";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
+import { RowActionMenu } from "@/components/ui/RowActionMenu";
 import { Button } from "@/components/ui/Button";
 
 interface AttendanceRecord {
@@ -85,6 +97,10 @@ interface AttendanceRecord {
     email: string;
     documentId?: string | null;
     role: string;
+    department?: {
+      id: string;
+      name: string;
+    } | null;
     userSchedules?: Array<{
       schedule: {
         id: string;
@@ -113,6 +129,7 @@ interface AttendanceRecord {
 }
 
 export default function AttendancePage() {
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<string>(
     format(new Date(), "yyyy-MM-dd")
   );
@@ -128,20 +145,48 @@ export default function AttendancePage() {
     justified: 0,
   });
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
 
   // Modals state
   const [selectedForJustify, setSelectedForJustify] = useState<any | null>(null);
   const [selectedForEdit, setSelectedForEdit] = useState<any | null>(null);
+  const [selectedForProfile, setSelectedForProfile] = useState<any | null>(null);
   const { toast } = useToast();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDate, selectedStatus, selectedLocation, selectedDepartment, search]);
+
+  const totalItems = attendances.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  const paginatedAttendances = useMemo(() => {
+    return attendances.slice(startIndex, endIndex);
+  }, [attendances, startIndex, endIndex]);
 
   // Automation Panel State
   const [showAutomation, setShowAutomation] = useState(false);
+
+  // PDF Report modal state
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfReportData, setPdfReportData] = useState<any>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isTriggeringJob, setIsTriggeringJob] = useState<string | null>(null);
   const [schedulerStatus, setSchedulerStatus] = useState<any | null>(null);
   const [jobResultModal, setJobResultModal] = useState<{
@@ -149,13 +194,18 @@ export default function AttendancePage() {
     details: any;
   } | null>(null);
 
-  const fetchLocations = async () => {
+  const fetchLocationsAndDepartments = async () => {
     try {
-      const res = await fetch("/api/locations");
-      const data = await res.json();
-      if (data.locations) setLocations(data.locations);
+      const [locRes, deptRes] = await Promise.all([
+        fetch("/api/locations"),
+        fetch("/api/departments"),
+      ]);
+      const locData = await locRes.json();
+      const deptData = await deptRes.json();
+      if (locData.locations) setLocations(locData.locations);
+      if (deptData.departments) setDepartments(deptData.departments);
     } catch (err) {
-      console.error("Error fetching locations:", err);
+      console.error("Error fetching locations or departments:", err);
     }
   };
 
@@ -179,6 +229,7 @@ export default function AttendancePage() {
       });
       if (selectedStatus !== "ALL") params.append("status", selectedStatus);
       if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
+      if (selectedDepartment !== "ALL") params.append("departmentId", selectedDepartment);
       if (search) params.append("search", search);
 
       const res = await fetch(`/api/attendance?${params.toString()}`);
@@ -200,13 +251,37 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
-    fetchLocations();
+    fetchLocationsAndDepartments();
     fetchSchedulerStatus();
   }, []);
 
   useEffect(() => {
     fetchAttendance();
-  }, [selectedDate, selectedStatus, selectedLocation]);
+  }, [selectedDate, selectedStatus, selectedLocation, selectedDepartment]);
+
+  // Date Navigation State & Refs
+  const [showDatePresets, setShowDatePresets] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const presetsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (presetsRef.current && !presetsRef.current.contains(e.target as Node)) {
+        setShowDatePresets(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const quickDateJumps = useMemo(() => [
+    { label: "Hoy", value: format(new Date(), "yyyy-MM-dd"), sub: "Día actual" },
+    { label: "Ayer", value: format(subDays(new Date(), 1), "yyyy-MM-dd"), sub: "1 día atrás" },
+    { label: "Hace 7 días", value: format(subDays(new Date(), 7), "yyyy-MM-dd"), sub: "1 semana atrás" },
+    { label: "Hace 15 días", value: format(subDays(new Date(), 15), "yyyy-MM-dd"), sub: "2 semanas atrás" },
+    { label: "Hace 30 días", value: format(subDays(new Date(), 30), "yyyy-MM-dd"), sub: "1 mes atrás" },
+    { label: "Hace 60 días", value: format(subDays(new Date(), 60), "yyyy-MM-dd"), sub: "2 meses atrás" },
+  ], []);
 
   const handlePrevDay = () => {
     const prev = subDays(parseISO(selectedDate), 1);
@@ -218,11 +293,54 @@ export default function AttendancePage() {
     setSelectedDate(format(next, "yyyy-MM-dd"));
   };
 
-  const handleExportCsv = () => {
+  const handlePrevWeek = () => {
+    const prev = subDays(parseISO(selectedDate), 7);
+    setSelectedDate(format(prev, "yyyy-MM-dd"));
+  };
+
+  const handleNextWeek = () => {
+    const next = addDays(parseISO(selectedDate), 7);
+    setSelectedDate(format(next, "yyyy-MM-dd"));
+  };
+
+  const handleExportExcel = () => {
     window.open(
-      `/api/reports/export?startDate=${selectedDate}&endDate=${selectedDate}`,
+      `/api/reports/export?startDate=${selectedDate}&endDate=${selectedDate}&format=xlsx`,
       "_blank"
     );
+  };
+
+  const handleExportCsv = () => {
+    window.open(
+      `/api/reports/export?startDate=${selectedDate}&endDate=${selectedDate}&format=csv`,
+      "_blank"
+    );
+  };
+
+  const handleOpenPdfModal = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const params = new URLSearchParams({
+        period: "CUSTOM",
+        startDate: selectedDate,
+        endDate: selectedDate,
+      });
+      if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
+
+      const res = await fetch(`/api/reports/detailed?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok && data) {
+        setPdfReportData(data);
+        setIsPdfModalOpen(true);
+      } else {
+        toast.error(data.error || "No se pudo cargar el reporte en PDF");
+      }
+    } catch (err) {
+      console.error("Error al generar PDF de asistencia:", err);
+      toast.error("Error al conectar con el servidor para generar el PDF");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleVerifyDni = async (id: string, action: "APPROVE" | "REJECT", userName: string) => {
@@ -319,50 +437,98 @@ export default function AttendancePage() {
     }
   }, [selectedDate]);
 
+  const getRecordSmartMenuItems = (record: AttendanceRecord) => {
+    const isPendingDni = record.requiresManagerApproval || record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
+    const canJustify = record.status === 'TARDE' || record.status === 'AUSENTE' || record.status === 'INCOMPLETO' || record.status === 'ABANDONO_PUESTO';
+    const isAlreadyJustified = record.status === 'JUSTIFICADO' || record.status === 'PERMISO';
+    const smartMenuItems: any[] = [];
+
+    if (isPendingDni) {
+      smartMenuItems.push({
+        label: "Aprobar marcación DNI",
+        icon: <Check className="w-3.5 h-3.5 text-emerald-500" />,
+        onClick: () => handleVerifyDni(record.id, "APPROVE", record.user.firstName),
+      });
+      smartMenuItems.push({
+        label: "Rechazar marcación DNI",
+        icon: <X className="w-3.5 h-3.5 text-danger-500" />,
+        variant: "danger",
+        onClick: () => handleVerifyDni(record.id, "REJECT", record.user.firstName),
+      });
+    }
+
+    if (canJustify) {
+      smartMenuItems.push({
+        label: record.status === 'TARDE'
+          ? "Justificar tardanza"
+          : record.status === 'AUSENTE'
+          ? "Justificar inasistencia"
+          : "Justificar incidencia",
+        icon: <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />,
+        onClick: () => setSelectedForJustify({
+          id: record.id,
+          userName: `${record.user.firstName} ${record.user.lastName}`,
+          date: record.date,
+          currentStatus: record.status,
+        }),
+      });
+    } else if (isAlreadyJustified) {
+      smartMenuItems.push({
+        label: "Ver justificación registrada",
+        icon: <Eye className="w-3.5 h-3.5 text-sky-500" />,
+        onClick: () => setSelectedForJustify({
+          id: record.id,
+          userName: `${record.user.firstName} ${record.user.lastName}`,
+          date: record.date,
+          currentStatus: record.status,
+        }),
+      });
+    }
+
+    smartMenuItems.push({
+      label: "Ajustar horas / estado",
+      icon: <Edit3 className="w-3.5 h-3.5 text-amber-500" />,
+      onClick: () => setSelectedForEdit({
+        id: record.id,
+        userName: `${record.user.firstName} ${record.user.lastName}`,
+        date: typeof record.date === 'string' ? record.date.slice(0, 10) : format(new Date(record.date), 'yyyy-MM-dd'),
+        status: record.status,
+        entryTime: record.entryTime,
+        exitTime: record.exitTime,
+        entryTime2: record.entryTime2,
+        exitTime2: record.exitTime2,
+        notes: record.notes,
+        lateMinutes: record.lateMinutes,
+        lateMinutes2: record.lateMinutes2,
+      }),
+    });
+
+    smartMenuItems.push({
+      label: `Copiar DNI (${record.user.documentId || "Sin DNI"})`,
+      icon: <Copy className="w-3.5 h-3.5 text-surface-500 dark:text-slate-400" />,
+      disabled: !record.user.documentId,
+      divider: true,
+      onClick: () => {
+        if (record.user.documentId) {
+          navigator.clipboard.writeText(record.user.documentId);
+          toast.success(`DNI ${record.user.documentId} copiado`);
+        }
+      },
+    });
+
+    smartMenuItems.push({
+      label: "Ver ficha del colaborador",
+      icon: <User className="w-3.5 h-3.5 text-emerald-500" />,
+      onClick: () => {
+        setSelectedForProfile(record);
+      },
+    });
+
+    return smartMenuItems;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <style data-purpose="custom-glassmorphism" dangerouslySetInnerHTML={{__html: `
-        .glass-panel {
-          background: var(--color-surface-50);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid var(--color-surface-200);
-        }
-        .dark .glass-panel {
-          background: rgba(13, 20, 32, 0.75);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-        }
-        .glass-panel-glow {
-          background: var(--color-surface-50);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid var(--color-primary-200);
-          box-shadow: 0 0 25px -5px var(--color-primary-100);
-        }
-        .dark .glass-panel-glow {
-          background: rgba(16, 26, 42, 0.82);
-          border: 1px solid rgba(0, 166, 80, 0.22);
-          box-shadow: 0 0 25px -5px rgba(0, 166, 80, 0.12);
-        }
-        .glass-card-subtle {
-          background: var(--color-surface-100);
-          backdrop-filter: blur(12px);
-          border: 1px solid var(--color-surface-200);
-        }
-        .dark .glass-card-subtle {
-          background: rgba(18, 28, 44, 0.45);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-        .badge-glow-emerald {
-          box-shadow: 0 0 12px rgba(0, 166, 80, 0.35);
-        }
-        .badge-glow-amber {
-          box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
-        }
-        .badge-glow-rose {
-          box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
-        }
-      `}} />
 
       <PageHeader
         title="Control Diario de Asistencias"
@@ -374,18 +540,113 @@ export default function AttendancePage() {
         iconVariant="emerald"
         actionButtons={
           <>
-            <div className="flex items-center bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-1 shadow-inner mr-1 transition-colors">
-              <button onClick={handlePrevDay} aria-label="Día anterior" className="p-1.5 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-white rounded-lg hover:bg-surface-100 dark:hover:bg-white/[0.06] transition-colors" type="button">
+            {/* Control de Navegación Rápida de Fecha */}
+            <div className="flex items-center bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-xl p-0.5 shadow-inner mr-1 transition-colors">
+              <button 
+                onClick={handlePrevWeek} 
+                title="Semana anterior (-7 días)" 
+                aria-label="Semana anterior" 
+                className="p-1.5 text-surface-400 hover:text-surface-800 dark:hover:text-white rounded-lg hover:bg-surface-200/60 dark:hover:bg-white/[0.08] transition-colors" 
+                type="button"
+              >
+                <ChevronsLeft className="w-3.5 h-3.5" />
+              </button>
+              <button 
+                onClick={handlePrevDay} 
+                title="Día anterior (-1 día)" 
+                aria-label="Día anterior" 
+                className="p-1.5 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-white rounded-lg hover:bg-surface-200/60 dark:hover:bg-white/[0.08] transition-colors" 
+                type="button"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <div className="flex items-center space-x-2 px-3">
-                <span className="font-mono text-xs font-bold text-surface-900 dark:text-slate-200 tracking-wide">{format(parseISO(selectedDate), "dd / MM / yyyy")}</span>
-                <Calendar className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+
+              {/* Selector interactivo con calendario emergente al clic */}
+              <div 
+                onClick={() => dateInputRef.current?.showPicker?.()} 
+                className="relative flex items-center space-x-2 px-2.5 py-1 rounded-lg hover:bg-surface-200/50 dark:hover:bg-white/[0.08] cursor-pointer transition-colors group"
+                title="Clic para abrir calendario y elegir cualquier fecha"
+              >
+                <span className="font-mono text-xs font-bold text-surface-900 dark:text-slate-200 tracking-wide select-none group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                  {format(parseISO(selectedDate), "dd / MM / yyyy")}
+                </span>
+                <Calendar className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition-transform" />
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    if (e.target.value) setSelectedDate(e.target.value);
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  tabIndex={-1}
+                />
               </div>
-              <button onClick={handleNextDay} aria-label="Día siguiente" className="p-1.5 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-white rounded-lg hover:bg-surface-100 dark:hover:bg-white/[0.06] transition-colors" type="button">
+
+              <button 
+                onClick={handleNextDay} 
+                title="Día siguiente (+1 día)" 
+                aria-label="Día siguiente" 
+                className="p-1.5 text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-white rounded-lg hover:bg-surface-200/60 dark:hover:bg-white/[0.08] transition-colors" 
+                type="button"
+              >
                 <ChevronRight className="w-4 h-4" />
               </button>
+              <button 
+                onClick={handleNextWeek} 
+                title="Semana siguiente (+7 días)" 
+                aria-label="Semana siguiente" 
+                className="p-1.5 text-surface-400 hover:text-surface-800 dark:hover:text-white rounded-lg hover:bg-surface-200/60 dark:hover:bg-white/[0.08] transition-colors" 
+                type="button"
+              >
+                <ChevronsRight className="w-3.5 h-3.5" />
+              </button>
             </div>
+
+            {/* Menú de Atajos Rápidos */}
+            <div className="relative" ref={presetsRef}>
+              <Button
+                onClick={() => setShowDatePresets(!showDatePresets)}
+                variant="secondary"
+                icon={<Clock className="w-3.5 h-3.5 text-primary-500" />}
+              >
+                <span className="hidden sm:inline">Saltar a</span>
+                <ChevronDown className="w-3 h-3 text-surface-400 ml-1 inline-block" />
+              </Button>
+              {showDatePresets && (
+                <div className="absolute right-0 sm:left-0 mt-1.5 w-52 rounded-xl bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 backdrop-blur-md">
+                  <div className="px-3 py-1 text-[10px] font-semibold text-surface-400 dark:text-slate-500 uppercase tracking-wider">
+                    Saltos Rápidos
+                  </div>
+                  {quickDateJumps.map((jump) => {
+                    const isCurrent = selectedDate === jump.value;
+                    return (
+                      <button
+                        key={jump.label}
+                        onClick={() => {
+                          setSelectedDate(jump.value);
+                          setShowDatePresets(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors ${
+                          isCurrent 
+                            ? "bg-primary-50 dark:bg-primary-500/15 text-primary-700 dark:text-primary-300 font-semibold" 
+                            : "text-surface-700 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-white/[0.06] hover:text-surface-900 dark:hover:text-white"
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <span>{jump.label}</span>
+                          <span className="text-[10px] text-surface-400 dark:text-slate-500 font-normal">{jump.sub}</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-surface-500 dark:text-slate-400">
+                          {format(parseISO(jump.value), "dd/MM")}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <Button 
               onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))} 
               variant={isToday(parseISO(selectedDate)) ? "primary" : "secondary"}
@@ -410,13 +671,13 @@ export default function AttendancePage() {
               isLoading={isLoading}
               icon={<RefreshCw className="w-4 h-4" />}
             />
-            <Button 
-              onClick={handleExportCsv} 
-              variant="primary"
-              icon={<Download className="w-4 h-4" />}
-            >
-              <span className="hidden sm:inline">Exportar Reporte CSV</span>
-            </Button>
+            <ExportReportDropdown
+              onExportExcel={handleExportExcel}
+              onExportPdf={handleOpenPdfModal}
+              onExportCsv={handleExportCsv}
+              periodLabel={selectedDate}
+              isLoadingPdf={isGeneratingPdf}
+            />
           </>
         }
       />
@@ -632,6 +893,7 @@ export default function AttendancePage() {
           setSearch("");
           setSelectedStatus("ALL");
           setSelectedLocation("ALL");
+          setSelectedDepartment("ALL");
         }}
         filters={[
           {
@@ -654,20 +916,18 @@ export default function AttendancePage() {
             value: selectedLocation,
             onChange: setSelectedLocation,
             options: [
-              { value: "ALL", label: "Todas las sedes y puntos" },
+              { value: "ALL", label: "Todas las sedes" },
               ...locations.map(l => ({ value: l.id, label: l.name }))
             ]
           },
           {
-            id: "shift",
-            value: "all",
-            onChange: () => {}, // mock
+            id: "department",
+            icon: FolderTree,
+            value: selectedDepartment,
+            onChange: setSelectedDepartment,
             options: [
-              { value: "all", label: "Todos los turnos" },
-              { value: "tm", label: "Turno Mañana (07:00 - 15:30)" },
-              { value: "tt", label: "Turno Tarde (15:00 - 23:30)" },
-              { value: "tn", label: "Turno Noche (23:00 - 07:30)" },
-              { value: "tp", label: "Turno Partido (Cocina / A&B)" },
+              { value: "ALL", label: "Todos los departamentos" },
+              ...departments.map(d => ({ value: d.id, label: d.name }))
             ]
           }
         ]}
@@ -685,26 +945,166 @@ export default function AttendancePage() {
 
       {/* BEGIN: AttendanceDataGrid */}
       <DataTableContainer
+        mobileContent={
+          isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 rounded-2xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 animate-pulse space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-surface-200 dark:bg-surface-850 rounded w-1/3"></div>
+                    <div className="h-5 bg-surface-200 dark:bg-surface-850 rounded-full w-20"></div>
+                  </div>
+                  <div className="h-3 bg-surface-200 dark:bg-surface-850 rounded w-1/2"></div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-100 dark:border-surface-800">
+                    <div className="h-10 bg-surface-100 dark:bg-surface-800/50 rounded-xl"></div>
+                    <div className="h-10 bg-surface-100 dark:bg-surface-800/50 rounded-xl"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : attendances.length === 0 ? (
+            <div className="p-8 text-center text-surface-500 text-xs">
+              Sin registros para esta fecha. No se encontraron marcaciones con los filtros seleccionados.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {paginatedAttendances.map((record) => {
+                const smartMenuItems = getRecordSmartMenuItems(record);
+                const isPendingDni = record.requiresManagerApproval || record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
+                const entryFormatted = record.entryTime ? format(new Date(record.entryTime), "hh:mm a") : "-";
+                const exitFormatted = record.exitTime ? format(new Date(record.exitTime), "hh:mm a") : null;
+
+                return (
+                  <div
+                    key={`mobile-${record.id}`}
+                    className={`p-4 rounded-2xl border bg-white dark:bg-surface-900 shadow-xs transition-all space-y-3 ${
+                      isPendingDni
+                        ? "border-warning-300 dark:border-warning-500/40 bg-warning-50/20 dark:bg-warning-500/[0.04]"
+                        : record.status === "ABANDONO_PUESTO"
+                        ? "border-danger-300 dark:border-danger-500/40 bg-danger-50/20 dark:bg-danger-500/[0.03]"
+                        : "border-surface-200 dark:border-surface-800"
+                    }`}
+                  >
+                    {/* Header: Colaborador y Estado */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <button
+                          onClick={() => setSelectedForProfile(record)}
+                          className="font-bold text-sm text-surface-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 text-left truncate cursor-pointer block w-full"
+                        >
+                          {record.user.firstName} {record.user.lastName}
+                        </button>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-xs text-surface-500 dark:text-surface-400">
+                          <span>{record.user.role}</span>
+                          {record.user.documentId && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono">DNI: {record.user.documentId}</span>
+                            </>
+                          )}
+                        </div>
+                        {record.user.department?.name && (
+                          <span className="inline-block mt-1 text-[11px] font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-500/10 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-500/20">
+                            {record.user.department.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        <StatusBadge status={record.status} />
+                        <RowActionMenu items={smartMenuItems} />
+                      </div>
+                    </div>
+
+                    {/* Grilla de Tiempos */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-100 dark:border-surface-800/80 text-xs">
+                      <div className="p-2.5 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200/60 dark:border-surface-800/60">
+                        <span className="text-[10px] uppercase font-bold text-surface-400">Entrada</span>
+                        <div className="font-bold text-surface-900 dark:text-white mt-0.5 font-mono">
+                          {entryFormatted}
+                        </div>
+                        {record.lateMinutes && record.lateMinutes > 0 ? (
+                          <span className="text-[10px] text-warning-600 dark:text-warning-400 font-semibold font-mono block">
+                            +{record.lateMinutes}m tardanza
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200/60 dark:border-surface-800/60">
+                        <span className="text-[10px] uppercase font-bold text-surface-400">Salida</span>
+                        <div className="font-bold text-surface-900 dark:text-white mt-0.5 font-mono">
+                          {exitFormatted || "—"}
+                        </div>
+                        {record.workedMinutes && record.workedMinutes > 0 ? (
+                          <span className="text-[10px] text-surface-500 dark:text-surface-400 font-mono block">
+                            {Math.floor(record.workedMinutes / 60)}h {record.workedMinutes % 60}m
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Sede y Kiosk */}
+                    <div className="flex items-center justify-between text-xs text-surface-500 dark:text-surface-400 pt-0.5">
+                      <span className="truncate">
+                        📍 {record.location?.name || (record as any).kiosk?.location?.name || "Sede Principal"}
+                      </span>
+                      {record.kiosk?.name && (
+                        <span className="text-[10px] font-mono shrink-0 text-surface-400">
+                          {record.kiosk.name}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Acciones directas para anomalía de DNI */}
+                    {isPendingDni && (
+                      <div className="p-2.5 rounded-xl bg-warning-100/60 dark:bg-warning-500/15 border border-warning-300 dark:border-warning-500/30 flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-warning-800 dark:text-warning-300">
+                          ⚠️ Requiere validación DNI
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleVerifyDni(record.id, "REJECT", record.user.firstName)}
+                            className="p-1.5 rounded-lg bg-danger-50 text-danger-700 hover:bg-danger-100 dark:bg-danger-500/20 dark:text-danger-300 text-xs font-bold"
+                            title="Rechazar"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleVerifyDni(record.id, "APPROVE", record.user.firstName)}
+                            className="px-2.5 py-1.5 rounded-lg bg-primary-500 text-white hover:bg-primary-600 text-xs font-bold flex items-center gap-1 shadow-xs"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Aprobar</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
+        }
         footer={
-          <div className="px-5 py-3 border-t border-surface-200 dark:border-surface-800/80 bg-surface-50 dark:bg-surface-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs transition-colors">
-            <div className="text-surface-500 dark:text-slate-400 flex items-center space-x-2">
-              <span>Mostrando <strong className="text-surface-900 dark:text-slate-200">1 - {attendances.length}</strong> de <strong className="text-surface-900 dark:text-slate-200">{summary.total}</strong> registros de dotación hotelera</span>
-              <span>•</span>
-              <span className="text-primary-600 dark:text-primary-400 font-mono font-medium">Sincronización en tiempo real activa</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button className="px-3 py-1 rounded-lg bg-surface-200 dark:bg-surface-800 text-surface-400 dark:text-slate-500 border border-surface-300 dark:border-surface-700 cursor-not-allowed text-xs transition-colors" disabled type="button">Anterior</button>
-              <button className="px-2.5 py-1 rounded-lg bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 border border-primary-300 dark:border-primary-500/30 text-xs font-bold font-mono transition-colors" type="button">1</button>
-              <button className="px-3 py-1 rounded-lg bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 text-xs transition-colors" type="button">Siguiente</button>
-            </div>
-          </div>
+          <DataTablePagination
+            currentPage={safeCurrentPage}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setCurrentPage(1);
+            }}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel="registros de dotación"
+          />
         }
       >
         <DataTableHeader>
           <DataTableHead>Colaborador / DNI / Rol</DataTableHead>
           <DataTableHead>Sede & Dispositivo</DataTableHead>
           <DataTableHead>Entrada (Marcación)</DataTableHead>
-          <DataTableHead>Salida Programada</DataTableHead>
+          <DataTableHead>Salida (Marcación / Prog.)</DataTableHead>
           <DataTableHead>Estado Operativo</DataTableHead>
           <DataTableHead>Notas y Auditoría</DataTableHead>
           <DataTableHead className="text-right">Acciones</DataTableHead>
@@ -720,19 +1120,40 @@ export default function AttendancePage() {
                   message="Sin registros para esta fecha. No se encontraron marcaciones que coincidan con la fecha o filtros seleccionados."
                 />
               ) : (
-                attendances.map((record) => {
+                paginatedAttendances.map((record) => {
                   const hasShift2 = Boolean(record.entryTime2 || record.exitTime2);
                   const isSplitSchedule = Boolean(record.user?.userSchedules?.[0]?.schedule?.isSplit);
+
+                  const sched = record.user?.userSchedules?.[0]?.schedule;
+                  const schedExitHour = sched?.exitHour ?? 17;
+                  const schedExitMin = sched?.exitMinute ?? 0;
+                  const schedExitFormatted = `${String(schedExitHour % 12 || 12).padStart(2, '0')}:${String(schedExitMin).padStart(2, '0')} ${schedExitHour >= 12 ? 'PM' : 'AM'}`;
+
+                  const schedExitHour2 = sched?.exitHour2 ?? 21;
+                  const schedExitMin2 = sched?.exitMinute2 ?? 0;
+                  const schedExit2Formatted = `${String(schedExitHour2 % 12 || 12).padStart(2, '0')}:${String(schedExitMin2).padStart(2, '0')} ${schedExitHour2 >= 12 ? 'PM' : 'AM'}`;
+
+                  const recordDateStr = typeof record.date === 'string'
+                    ? record.date.slice(0, 10)
+                    : format(new Date(record.date), 'yyyy-MM-dd');
+                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                  const isPastDate = recordDateStr < todayStr;
+                  const isTodayDate = recordDateStr === todayStr;
 
                   const entryFormatted = record.entryTime
                     ? format(new Date(record.entryTime), "hh:mm a")
                     : "-";
                   const exitFormatted = record.exitTime
-                    ? format(new Date(record.exitTime), "HH:mm 'PM'") 
-                    : "16:00 PM";
+                    ? format(new Date(record.exitTime), "hh:mm a")
+                    : null;
 
                   const isPendingDni = record.requiresManagerApproval || record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
                   
+                  const canJustify = record.status === 'TARDE' || record.status === 'AUSENTE' || record.status === 'INCOMPLETO' || record.status === 'ABANDONO_PUESTO';
+                  const isAlreadyJustified = record.status === 'JUSTIFICADO' || record.status === 'PERMISO';
+
+                  const smartMenuItems = getRecordSmartMenuItems(record);
+
                   return (
                     <DataTableRow 
                       key={record.id} 
@@ -740,20 +1161,38 @@ export default function AttendancePage() {
                     >
                       <DataTableCell>
                         <div className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 rounded-lg text-white flex items-center justify-center font-bold text-xs font-mono shadow-sm ${isPendingDni ? 'bg-gradient-to-tr from-warning-600 to-warning-400' : record.status === 'ABANDONO_PUESTO' ? 'bg-gradient-to-tr from-danger-600 to-danger-500' : 'bg-gradient-to-tr from-primary-600 to-primary-500'}`}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedForProfile(record)}
+                            title="Ver ficha del colaborador e incidencias"
+                            className={`w-8 h-8 rounded-lg text-white flex items-center justify-center font-bold text-xs font-mono shadow-sm cursor-pointer transition-transform hover:scale-105 ${isPendingDni ? 'bg-gradient-to-tr from-warning-600 to-warning-400' : record.status === 'ABANDONO_PUESTO' ? 'bg-gradient-to-tr from-danger-600 to-danger-500' : 'bg-gradient-to-tr from-primary-600 to-primary-500'}`}
+                          >
                             {record.user.firstName.charAt(0)}{record.user.lastName.charAt(0)}
-                          </div>
+                          </button>
                           <div>
                             <div className="font-bold text-surface-900 dark:text-white flex items-center space-x-2">
-                              <span>{record.user.firstName} {record.user.lastName}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedForProfile(record)}
+                                title="Ver ficha del colaborador e incidencias"
+                                className="hover:text-primary-600 dark:hover:text-primary-400 hover:underline transition-colors text-left cursor-pointer"
+                              >
+                                {record.user.firstName} {record.user.lastName}
+                              </button>
                               {isSplitSchedule && (
                                 <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-info-100 dark:bg-info-500/20 text-info-700 dark:text-info-300 border border-info-200 dark:border-info-500/30">Partido (2 Tramos)</span>
                               )}
                             </div>
-                            <div className="text-[11px] text-surface-500 dark:text-slate-400 font-mono flex items-center space-x-1.5">
-                              <span>DNI {record.user.documentId || "45892110"}</span>
+                            <div className="text-[11px] text-surface-500 dark:text-slate-400 font-mono flex items-center space-x-1.5 flex-wrap">
+                              <span>DNI {record.user.documentId || "—"}</span>
                               <span>•</span>
                               <span className="text-surface-700 dark:text-slate-300 truncate max-w-[150px]">{record.user.role}</span>
+                              {record.user.department?.name && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-primary-600 dark:text-emerald-400 font-sans font-medium">{record.user.department.name}</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -781,18 +1220,56 @@ export default function AttendancePage() {
                       <DataTableCell className="font-mono text-surface-700 dark:text-slate-300">
                         {isSplitSchedule ? (
                           <>
-                            <div>T1: 14:00 PM</div>
-                            <div className="text-[10px] text-surface-500 dark:text-slate-500">T2: 18:00 - 22:00</div>
+                            <div>T1: {record.exitTime ? format(new Date(record.exitTime), "hh:mm a") : schedExitFormatted}</div>
+                            <div className="text-[10px] text-surface-500 dark:text-slate-500">
+                              T2: {record.exitTime2 ? format(new Date(record.exitTime2), "hh:mm a") : (isTodayDate ? `T2 en curso (${schedExit2Formatted})` : `Prog: ${schedExit2Formatted}`)}
+                            </div>
                           </>
                         ) : record.status === 'ABANDONO_PUESTO' ? (
                           <>
                             <div className="font-bold text-danger-600 dark:text-danger-400">Salida No Marcada</div>
-                            <div className="text-[10px] text-danger-500 dark:text-danger-300 font-sans">Ausente desde 10:15 AM</div>
+                            <div className="text-[10px] text-danger-500 dark:text-danger-300 font-sans">
+                              {record.entryTime ? "Ausente tras ingreso" : "Ausente"}
+                            </div>
+                          </>
+                        ) : record.status === 'AUSENTE' ? (
+                          <>
+                            <div className="text-surface-400 dark:text-slate-500">-</div>
+                            <div className="text-[10px] text-surface-400 dark:text-slate-500 font-sans">No asistió</div>
+                          </>
+                        ) : record.status === 'JUSTIFICADO' || record.status === 'PERMISO' ? (
+                          <>
+                            <div className="text-surface-400 dark:text-slate-500">-</div>
+                            <div className="text-[10px] text-info-600 dark:text-info-400 font-sans">Justificado</div>
+                          </>
+                        ) : exitFormatted ? (
+                          <>
+                            <div className="font-bold text-surface-900 dark:text-white">{exitFormatted}</div>
+                            <div className="text-[10px] text-surface-500 dark:text-slate-400 font-sans">
+                              {record.lateMinutes && record.lateMinutes > 0
+                                ? `Compensa ${record.lateMinutes} min`
+                                : record.workedMinutes
+                                ? `${Math.floor(record.workedMinutes / 60)}h ${record.workedMinutes % 60}m trab. • Prog: ${schedExitFormatted}`
+                                : `Jornada finalizada • Prog: ${schedExitFormatted}`}
+                            </div>
                           </>
                         ) : (
                           <>
-                            <span>{exitFormatted}</span>
-                            <span className="block text-[10px] text-surface-500 dark:text-slate-500 font-sans">{record.lateMinutes ? `Compensa ${record.lateMinutes} min` : 'Turno en curso'}</span>
+                            <div className="text-surface-600 dark:text-slate-300">Prog: {schedExitFormatted}</div>
+                            {isTodayDate ? (
+                              <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-sans font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span>Turno en curso</span>
+                              </span>
+                            ) : isPastDate ? (
+                              <span className="block text-[10px] text-warning-600 dark:text-warning-400 font-sans font-medium">
+                                Sin marcación de salida
+                              </span>
+                            ) : (
+                              <span className="block text-[10px] text-surface-400 dark:text-slate-500 font-sans">
+                                Programada
+                              </span>
+                            )}
                           </>
                         )}
                       </DataTableCell>
@@ -904,15 +1381,24 @@ export default function AttendancePage() {
                               variant="warning"
                               icon={<Edit3 className="w-3.5 h-3.5" />}
                               title="Ajustar registro"
-                              onClick={() => setSelectedForEdit({ id: record.id })}
+                              onClick={() => setSelectedForEdit({
+                                id: record.id,
+                                userName: `${record.user.firstName} ${record.user.lastName}`,
+                                date: typeof record.date === 'string' ? record.date.slice(0, 10) : format(new Date(record.date), 'yyyy-MM-dd'),
+                                status: record.status,
+                                entryTime: record.entryTime,
+                                exitTime: record.exitTime,
+                                entryTime2: record.entryTime2,
+                                exitTime2: record.exitTime2,
+                                notes: record.notes,
+                                lateMinutes: record.lateMinutes,
+                                lateMinutes2: record.lateMinutes2,
+                              })}
                             />
                           )}
-                          <ActionButton
-                            size="sm"
-                            variant="neutral"
-                            icon={<MoreVertical className="w-3.5 h-3.5" />}
-                            title="Opciones"
-                            onClick={() => setSelectedForEdit({ id: record.id })}
+                          <RowActionMenu
+                            title="Opciones del registro"
+                            items={smartMenuItems}
                           />
                         </ActionButtonGroup>
                       </DataTableCell>
@@ -973,6 +1459,19 @@ export default function AttendancePage() {
           toast.success("Registro actualizado correctamente");
           fetchAttendance();
         }}
+      />
+
+      <EmployeeProfileModal
+        isOpen={!!selectedForProfile}
+        onClose={() => setSelectedForProfile(null)}
+        record={selectedForProfile}
+      />
+
+      {/* PDF Report Modal */}
+      <PdfReportModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        reportData={pdfReportData}
       />
     </div>
   );

@@ -21,19 +21,30 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import QRCode from "qrcode";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { KioskFormModal, KioskFormData } from "@/components/kiosks/KioskFormModal";
 import { ApiKeyModal } from "@/components/kiosks/ApiKeyModal";
 import { KioskDiagnosticModal } from "@/components/kiosks/KioskDiagnosticModal";
+import { CustomSelect, CustomSelectOption } from "@/components/ui/CustomSelect";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonTable } from "@/components/ui/Skeleton";
+import {
+  DataTableContainer,
+  DataTableHeader,
+  DataTableHead,
+  DataTableBody,
+  DataTableRow,
+  DataTableCell,
+  DataTableEmptyState,
+} from "@/components/ui/DataTable";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
@@ -60,6 +71,7 @@ export default function KiosksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   // Modals state
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -162,6 +174,13 @@ export default function KiosksPage() {
     });
   }, [kiosks, search, selectedStatus]);
 
+  const fastPairOptions: CustomSelectOption[] = useMemo(() => {
+    return kiosks.map((k) => ({
+      value: k.id,
+      label: `${k.name} (${k.location.name})`,
+    }));
+  }, [kiosks]);
+
   // Statistics
   const stats = useMemo(() => {
     const total = kiosks.length;
@@ -252,7 +271,7 @@ export default function KiosksPage() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-5 lg:space-y-6 pb-10 animate-fade-in-up">
+    <div className="space-y-6 lg:space-y-8 animate-fade-in-up pb-10">
       
       {/* BEGIN: HeaderSection */}
       <PageHeader
@@ -322,7 +341,7 @@ export default function KiosksPage() {
       </section>
 
       {/* BEGIN: OperationalHealthBanner */}
-      <section className="rounded-2xl border border-primary-200 dark:border-primary-500/20 bg-gradient-to-r from-primary-50 dark:from-primary-950/20 via-surface-50 dark:via-[#0a111c] to-info-50 dark:to-cyan-950/10 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg backdrop-blur-md">
+      <section className="rounded-2xl border border-primary-200 dark:border-primary-500/20 bg-gradient-to-r from-primary-50 dark:from-primary-950/20 via-surface-50 dark:via-surface-900 to-info-50 dark:to-cyan-950/10 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg backdrop-blur-md">
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-xl bg-primary-100 dark:bg-primary-500/20 text-primary-600 dark:text-primary-400 shrink-0 mt-0.5 border border-primary-300 dark:border-primary-500/30">
             <CheckCircle2 className="w-5 h-5" />
@@ -356,30 +375,35 @@ export default function KiosksPage() {
           setSelectedStatus("ALL");
         }}
         customFilters={
-          <div className="flex items-center p-1.5 rounded-xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 text-xs font-semibold overflow-x-auto hide-scrollbar mr-auto">
-            {[
-              { id: "ALL", label: `Todos (${stats.total})` },
-              { id: "ONLINE", label: `En Línea (${stats.online})` },
-              { id: "OFFLINE", label: `Offline / Inactivos (${stats.total - stats.online})` },
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setSelectedStatus(f.id)}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                  selectedStatus === f.id
-                    ? f.id === 'ONLINE' ? 'bg-primary-100 dark:bg-emerald-500/20 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30' : 'bg-surface-200 dark:bg-slate-800 text-surface-900 dark:text-white'
-                    : 'text-surface-500 dark:text-slate-400 hover:text-surface-900 dark:hover:text-white border border-transparent'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-3 w-full lg:w-auto">
+            <div className="flex items-center p-1.5 rounded-xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 text-xs font-semibold overflow-x-auto hide-scrollbar mr-auto">
+              {[
+                { id: "ALL", label: `Todos (${stats.total})` },
+                { id: "ONLINE", label: `En Línea (${stats.online})` },
+                { id: "OFFLINE", label: `Offline / Inactivos (${stats.total - stats.online})` },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setSelectedStatus(f.id)}
+                  className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+                    selectedStatus === f.id
+                      ? f.id === 'ONLINE' ? 'bg-primary-100 dark:bg-emerald-500/20 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30' : 'bg-surface-200 dark:bg-slate-800 text-surface-900 dark:text-white'
+                      : 'text-surface-500 dark:text-slate-400 hover:text-surface-900 dark:hover:text-white border border-transparent'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
         }
       />
 
-      {/* BEGIN: WorkspaceLayout (Cards Grid + Right Inspector) */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+      {/* BEGIN: Main Content (Cards Grid vs Data Table) */}
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
         
         {/* Left 2 Cols: Kiosk Cards Grid */}
         <div className="xl:col-span-2 space-y-4">
@@ -550,7 +574,7 @@ export default function KiosksPage() {
         <aside className="space-y-5 sticky top-24">
           
           {/* Provisioning Card */}
-          <div className="glass-panel rounded-2xl border border-primary-300 dark:border-emerald-500/30 p-5 space-y-4 bg-surface-50 dark:bg-[#0a111c]/90 backdrop-blur-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+          <div className="glass-panel rounded-2xl border border-primary-300 dark:border-emerald-500/30 p-5 space-y-4 bg-surface-50 dark:bg-surface-900/90 backdrop-blur-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse"></div>
@@ -564,17 +588,12 @@ export default function KiosksPage() {
                 <label className="text-[10px] font-semibold text-surface-500 dark:text-slate-400 uppercase tracking-wider block">
                   Kiosk Seleccionado
                 </label>
-                <select
+                <CustomSelect
                   value={activeFastPairKiosk?.id || ""}
-                  onChange={(e) => setSelectedFastPairKioskId(e.target.value)}
-                  className="w-full bg-surface-100 dark:bg-command-bg border border-surface-300 dark:border-white/10 rounded-xl px-3 py-2 text-xs text-surface-900 dark:text-white focus:outline-none focus:border-primary-500/50 cursor-pointer"
-                >
-                  {kiosks.map((k) => (
-                    <option key={k.id} value={k.id} className="bg-surface-100 dark:bg-slate-900 text-surface-900 dark:text-white">
-                      {k.name} ({k.location.name})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedFastPairKioskId(val)}
+                  options={fastPairOptions}
+                  placeholder="Seleccionar kiosk..."
+                />
               </div>
             )}
             
@@ -654,7 +673,7 @@ export default function KiosksPage() {
           </div>
 
           {/* Peripherals Status Card */}
-          <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-5 space-y-4 bg-surface-50 dark:bg-[#0a111c]/60 backdrop-blur-xl">
+          <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-5 space-y-4 bg-surface-50 dark:bg-surface-900/60 backdrop-blur-xl">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-xs uppercase tracking-wider text-surface-500 dark:text-slate-400">
                 Telemetría &amp; Periféricos
@@ -703,6 +722,156 @@ export default function KiosksPage() {
 
         </aside>
       </div>
+      ) : (
+        isLoading ? (
+          <SkeletonTable rows={5} cols={7} />
+        ) : (
+          <DataTableContainer>
+            <DataTableHeader>
+              <DataTableHead>Terminal / Tótem</DataTableHead>
+              <DataTableHead>Sede Asignada</DataTableHead>
+              <DataTableHead>Estado de Enlace</DataTableHead>
+              <DataTableHead>Último Latido</DataTableHead>
+              <DataTableHead>Marcaciones</DataTableHead>
+              <DataTableHead>IP / Conexión</DataTableHead>
+              <DataTableHead className="text-right">Acciones</DataTableHead>
+            </DataTableHeader>
+            <DataTableBody>
+              {filteredKiosks.length === 0 ? (
+                <DataTableEmptyState
+                  colSpan={7}
+                  message={search ? "Prueba cambiando los criterios de búsqueda." : "No hay terminales kiosk registrados aún."}
+                />
+              ) : (
+                filteredKiosks.map((k) => {
+                  const online = isKioskOnline(k.lastSeenAt);
+                  const isProvisioning = !k.isActive;
+                  const isSelectedForPairing = activeFastPairKiosk?.id === k.id;
+                  return (
+                    <DataTableRow key={k.id}>
+                      <DataTableCell>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                            online
+                              ? "bg-primary-50 dark:bg-emerald-500/15 text-primary-700 dark:text-emerald-400 border-primary-200 dark:border-emerald-500/30"
+                              : isProvisioning
+                              ? "bg-danger-50 dark:bg-rose-500/15 text-danger-700 dark:text-rose-400 border-danger-200 dark:border-rose-500/30"
+                              : "bg-warning-50 dark:bg-amber-500/15 text-warning-700 dark:text-amber-400 border-warning-200 dark:border-amber-500/30"
+                          }`}>
+                            <Tablet className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 font-bold text-sm text-surface-900 dark:text-white">
+                              {k.name}
+                              {isSelectedForPairing && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-info-100 dark:bg-cyan-500/20 text-info-700 dark:text-cyan-300 font-mono">
+                                  Fast-Pair
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] font-mono text-surface-500 dark:text-slate-400">
+                              ID: {k.id.slice(0, 8)}
+                            </span>
+                          </div>
+                        </div>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <div className="flex items-center gap-1.5 text-xs text-surface-700 dark:text-slate-300">
+                          <Building className="w-3.5 h-3.5 text-surface-400 shrink-0" />
+                          <span className="truncate max-w-[180px]">{k.location.name}</span>
+                        </div>
+                      </DataTableCell>
+                      <DataTableCell>
+                        {k.isActive ? (
+                          online ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 dark:bg-emerald-500/15 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse"></span>
+                              Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-warning-50 dark:bg-amber-500/15 text-warning-700 dark:text-amber-400 border border-warning-200 dark:border-amber-500/30">
+                              <span className="w-1.5 h-1.5 rounded-full bg-warning-500 dark:bg-amber-400"></span>
+                              Offline Local
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-danger-50 dark:bg-rose-500/15 text-danger-700 dark:text-rose-400 border border-danger-200 dark:border-rose-500/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-danger-500 dark:bg-rose-400"></span>
+                            Inactivo
+                          </span>
+                        )}
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="text-xs text-surface-600 dark:text-slate-400 font-mono">
+                          {k.lastSeenAt ? (
+                            formatDistanceToNow(parseISO(k.lastSeenAt), { addSuffix: true, locale: es })
+                          ) : (
+                            "Sin conexión previa"
+                          )}
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-slate-300 border border-surface-200 dark:border-surface-700 font-mono">
+                          <QrCode className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{k._count?.attendances || 0}</span>
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="text-xs font-mono text-surface-600 dark:text-slate-400 bg-surface-100 dark:bg-surface-800 px-2 py-0.5 rounded border border-surface-200 dark:border-surface-700">
+                          {k.ipAddress || "127.0.0.1"}
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell className="text-right">
+                        <ActionButtonGroup>
+                          <ActionButton
+                            variant={isSelectedForPairing ? "primary" : "neutral"}
+                            onClick={() => setSelectedFastPairKioskId(k.id)}
+                            title="Fast-Pair QR"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                          </ActionButton>
+                          <ActionButton
+                            variant="neutral"
+                            onClick={() => {
+                              setSelectedKiosk(k);
+                              setIsKeyModalOpen(true);
+                            }}
+                            title="Ver Llave API"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                          </ActionButton>
+                          <ActionButton
+                            variant="warning"
+                            onClick={() => {
+                              setEditingKiosk({
+                                id: k.id,
+                                name: k.name,
+                                locationId: k.location.id,
+                                isActive: k.isActive,
+                              });
+                              setIsFormOpen(true);
+                            }}
+                            title="Editar terminal"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </ActionButton>
+                          <ActionButton
+                            variant={k.isActive ? "danger" : "success"}
+                            onClick={() => handleToggleStatus(k)}
+                            title={k.isActive ? "Desactivar Kiosko" : "Reactivar Kiosko"}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </ActionButton>
+                        </ActionButtonGroup>
+                      </DataTableCell>
+                    </DataTableRow>
+                  );
+                })
+              )}
+            </DataTableBody>
+          </DataTableContainer>
+        )
+      )}
 
       {/* Modals */}
       <KioskFormModal

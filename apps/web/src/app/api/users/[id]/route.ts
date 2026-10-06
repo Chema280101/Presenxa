@@ -5,6 +5,13 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { logAuditEvent } from "@/lib/audit";
 
+const optionalUuidOrNull = z
+  .string()
+  .uuid()
+  .optional()
+  .nullable()
+  .or(z.literal("").transform(() => null));
+
 const UpdateUserSchema = z.object({
   firstName: z.string().min(1, "El nombre es obligatorio").optional(),
   lastName: z.string().min(1, "El apellido es obligatorio").optional(),
@@ -13,9 +20,10 @@ const UpdateUserSchema = z.object({
   documentId: z.string().optional().nullable(),
   birthDate: z.string().optional().nullable(),
   role: z.nativeEnum(UserRole).optional(),
-  locationId: z.string().uuid().optional().nullable(),
+  locationId: optionalUuidOrNull,
+  departmentId: optionalUuidOrNull,
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
-  scheduleId: z.string().uuid().optional().nullable(),
+  scheduleId: optionalUuidOrNull,
   nfcCardUid: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 });
@@ -32,6 +40,11 @@ export async function GET(
 
   const { id } = await params;
 
+  const userRole = (session.user as any).role;
+  if (userRole === "EMPLEADO" && id !== session.user.id) {
+    return NextResponse.json({ error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const user = await prisma.user.findFirst({
       where: {
@@ -40,6 +53,7 @@ export async function GET(
       },
       include: {
         location: true,
+        department: true,
         userSchedules: {
           include: {
             schedule: true,
@@ -78,6 +92,13 @@ export async function PUT(
 
   const { id } = await params;
 
+  const userRole = (session.user as any).role;
+  const isSelf = id === session.user.id;
+  
+  if (userRole === "EMPLEADO" && !isSelf) {
+    return NextResponse.json({ error: "No tienes permiso" }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const parsed = UpdateUserSchema.safeParse(body);
@@ -90,6 +111,30 @@ export async function PUT(
     }
 
     const data = parsed.data;
+    
+    // Evitar que un empleado se suba los privilegios a sí mismo
+    if (userRole === "EMPLEADO") {
+      delete data.role;
+      delete data.isActive;
+    }
+
+    // Validación jerárquica de roles al actualizar
+    if (data.role) {
+      const ROLE_HIERARCHY: Record<string, number> = {
+        EMPLEADO: 0,
+        SUPERVISOR: 1,
+        ADMIN: 2,
+        SUPER_ADMIN: 3,
+      };
+      const callerLevel = ROLE_HIERARCHY[userRole] ?? 0;
+      const targetLevel = ROLE_HIERARCHY[data.role] ?? 0;
+      if (targetLevel > callerLevel) {
+        return NextResponse.json(
+          { error: "No tienes permiso para asignar un rol superior al tuyo" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Multi-tenant: Verificar que el usuario pertenezca a la organización
     const existing = await prisma.user.findFirst({
@@ -140,6 +185,7 @@ export async function PUT(
     }
     if (data.role) updateData.role = data.role;
     if (data.locationId !== undefined) updateData.locationId = data.locationId;
+    if (data.departmentId !== undefined) updateData.departmentId = data.departmentId;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.nfcCardUid !== undefined) {
       updateData.nfcCardUid = data.nfcCardUid && data.nfcCardUid.trim() !== "" ? data.nfcCardUid.trim() : null;
@@ -223,6 +269,11 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const userRole = (session.user as any).role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole)) {
+    return NextResponse.json({ error: "No tienes permiso" }, { status: 403 });
+  }
 
   try {
     const existing = await prisma.user.findFirst({

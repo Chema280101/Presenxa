@@ -84,7 +84,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
         _avg: { lateMinutes: true },
       }),
       prisma.user.count({
-        where: { isActive: true, role: { in: ["EMPLEADO", "ALUMNO"] }, ...(organizationId ? { organizationId } : {}) },
+        where: { isActive: true, role: "EMPLEADO", ...(organizationId ? { organizationId } : {}) },
       }),
       // Stream en Vivo (últimas 8 marcaciones)
       prisma.attendance.findMany({
@@ -195,7 +195,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
     const presentUserIds = new Set(attendanceByDept.map(a => a.userId));
 
     const allUsers = await prisma.user.findMany({
-      where: { isActive: true, role: { in: ["EMPLEADO", "ALUMNO"] }, ...(organizationId ? { organizationId } : {}) },
+      where: { isActive: true, role: "EMPLEADO", ...(organizationId ? { organizationId } : {}) },
       select: { id: true, departmentId: true }
     });
     
@@ -256,7 +256,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
   const totalMarcacionesHoy = totalAsistieron + ausentes + abandonos + justificados; // Estimado
 
   return (
-    <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 scrollbar-subtle text-surface-900 dark:text-surface-100 font-sans transition-colors">
+    <div className="space-y-6 lg:space-y-8 animate-fade-in-up pb-10 text-surface-900 dark:text-surface-100 font-sans transition-colors">
       {/* 0. Executive Greeting & Live Telemetry Header */}
       <DashboardGreetingHeader
         userName={userFirstName}
@@ -510,6 +510,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
         </div>
 
       </div>
-    </main>
+    </div>
   );
 }

@@ -19,6 +19,7 @@ export async function GET(req: Request) {
   const endDateParam = searchParams.get("endDate");
   const status = searchParams.get("status") as AttendanceStatus | null;
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
   const search = searchParams.get("search") || "";
 
   const where: any = {};
@@ -51,9 +52,24 @@ export async function GET(req: Request) {
     where.status = status;
   }
 
-  // Location filtering
-  if (locationId) {
+  // RBAC Scoping & Location filtering
+  const userRole = (session.user as any).role;
+  const supervisorLocationId = (session.user as any).locationId;
+
+  if (userRole === "EMPLEADO") {
+    where.userId = session.user.id;
+  } else if (userRole === "SUPERVISOR" && supervisorLocationId) {
+    where.locationId = supervisorLocationId;
+  } else if (locationId) {
     where.locationId = locationId;
+  }
+
+  // Department filtering
+  if (departmentId && departmentId !== "ALL") {
+    where.user = {
+      ...(where.user || {}),
+      departmentId,
+    };
   }
 
   // Search filtering
@@ -83,6 +99,12 @@ export async function GET(req: Request) {
             photoUrl: true,
             documentId: true,
             role: true,
+            department: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
             userSchedules: {
               where: {
                 OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],

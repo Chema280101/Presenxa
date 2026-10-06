@@ -18,12 +18,18 @@ import {
   Check,
   Sparkles,
   Loader2,
+  FolderTree,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { ModalShell } from "@/components/ui/ModalShell";
 import { CustomSelect, CustomSelectOption } from "@/components/ui/CustomSelect";
 
 interface LocationOption {
+  id: string;
+  name: string;
+}
+
+interface DepartmentOption {
   id: string;
   name: string;
 }
@@ -56,6 +62,7 @@ export interface UserFormData {
   password?: string;
   nfcCardUid?: string;
   isActive?: boolean;
+  departmentId?: string;
 }
 
 interface UserFormModalProps {
@@ -65,11 +72,11 @@ interface UserFormModalProps {
   initialData?: UserFormData | null;
   locations: LocationOption[];
   schedules: ScheduleOption[];
+  departments: DepartmentOption[];
 }
 
 const ROLE_OPTIONS: CustomSelectOption[] = [
   { value: UserRole.EMPLEADO, label: "Empleado / Trabajador" },
-  { value: UserRole.ALUMNO, label: "Alumno / Estudiante" },
   { value: UserRole.SUPERVISOR, label: "Supervisor" },
   { value: UserRole.ADMIN, label: "Administrador" },
   { value: UserRole.SUPER_ADMIN, label: "Super Admin" },
@@ -82,6 +89,7 @@ export function UserFormModal({
   initialData,
   locations,
   schedules,
+  departments,
 }: UserFormModalProps) {
   const isEditing = !!initialData?.id;
   
@@ -98,6 +106,7 @@ export function UserFormModal({
     password: "",
     nfcCardUid: "",
     isActive: true,
+    departmentId: "",
   });
 
   const [isNfcScanning, setIsNfcScanning] = useState(false);
@@ -110,6 +119,14 @@ export function UserFormModal({
     ...locations.map((loc) => ({
       value: loc.id,
       label: loc.name,
+    })),
+  ];
+
+  const departmentOptions: CustomSelectOption[] = [
+    { value: "", label: "Sin departamento asignado" },
+    ...departments.map((dept) => ({
+      value: dept.id,
+      label: dept.name,
     })),
   ];
 
@@ -145,6 +162,7 @@ export function UserFormModal({
         password: "",
         nfcCardUid: initialData.nfcCardUid || "",
         isActive: initialData.isActive !== undefined ? initialData.isActive : true,
+        departmentId: initialData.departmentId || "",
       });
     } else {
       setFormData({
@@ -160,12 +178,13 @@ export function UserFormModal({
         password: "",
         nfcCardUid: "",
         isActive: true,
+        departmentId: "",
       });
     }
     setError("");
     setIsNfcScanning(false);
     setNfcScanSuccess(false);
-  }, [initialData, isOpen, locations, schedules]);
+  }, [initialData, isOpen, locations, schedules, departments]);
 
   const handleScanNfc = async () => {
     if (typeof window === "undefined") return;
@@ -449,6 +468,15 @@ export function UserFormModal({
               value={formData.locationId || ""}
               onChange={(val) => setFormData({ ...formData, locationId: val })}
               options={locationOptions}
+              hasLeftIcon
+            />
+          </InputWrapper>
+
+          <InputWrapper label="Departamento / Área" icon={FolderTree}>
+            <CustomSelect
+              value={formData.departmentId || ""}
+              onChange={(val) => setFormData({ ...formData, departmentId: val })}
+              options={departmentOptions}
               hasLeftIcon
             />
           </InputWrapper>

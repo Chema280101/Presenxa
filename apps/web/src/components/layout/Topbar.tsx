@@ -10,14 +10,18 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 // Mapa de rutas a títulos legibles
 const ROUTE_TITLES: Record<string, string> = {
-  "/":            "Dashboard General",
-  "/asistencias": "Control de Asistencias",
-  "/usuarios":    "Gestión de Usuarios",
-  "/sedes":       "Sedes y Ubicaciones",
-  "/horarios":    "Horarios y Turnos",
-  "/kiosks":      "Dispositivos Kiosk",
-  "/reportes":    "Métricas y Reportes",
-  "/configuracion":"Configuración General",
+  "/horarios/matriz": "Matriz Semanal de Turnos",
+  "/asistencias":     "Control de Asistencias",
+  "/ausencias":       "Permisos y Ausencias",
+  "/usuarios":        "Gestión de Usuarios",
+  "/sedes":           "Sedes y Ubicaciones",
+  "/horarios":        "Horarios y Turnos",
+  "/feriados":        "Gestor de Feriados",
+  "/kiosks":          "Dispositivos Kiosk",
+  "/reportes":        "Métricas y Reportes",
+  "/auditoria":       "Auditoría de Sistema",
+  "/configuracion":   "Configuración General",
+  "/":                "Dashboard General",
 };
 
 interface TopbarProps {

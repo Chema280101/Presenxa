@@ -86,6 +86,7 @@ export function DashboardShell({ session, children }: DashboardShellProps) {
       <Sidebar
         isMobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
+        userRole={(session.user as any)?.role}
       />
 
       {/* Área principal */}

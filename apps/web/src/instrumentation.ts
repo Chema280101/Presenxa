@@ -50,9 +50,8 @@ export async function register() {
     console.error("   node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
     console.error(`${separator}\n`);
 
-    // En producción, lanzar error para detener el servidor si el entorno
-    // requiere política estricta. Descomenta la línea siguiente:
-    // throw new Error("Abortando: secrets de producción no configurados correctamente.");
+    // En producción, detener el servidor si los secretos no son seguros
+    throw new Error("Abortando: secrets de producción no configurados correctamente.");
   } else {
     console.log("[AsistControl] ✅ Validación de secrets de producción: OK");
   }

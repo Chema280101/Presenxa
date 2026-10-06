@@ -20,8 +20,8 @@ function getRedisClient(): Redis | null {
   try {
     redisClient = new Redis(redisUrl, {
       lazyConnect: true,
-      maxRetriesPerRequest: 1,
-      retryStrategy: () => null, // No spamear si no está disponible
+      maxRetriesPerRequest: 3,
+      retryStrategy: (times) => Math.min(times * 100, 3000), // Retry con backoff hasta 3s
     });
     redisClient.connect().catch((err) => {
       console.warn("[RateLimit] Redis no disponible, usando fallback en memoria:", err.message);

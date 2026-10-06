@@ -9,8 +9,10 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = (Get-Item $PSScriptRoot).Parent.FullName
 $BatSOD = Join-Path $RootDir "scripts\run_daily_sod.bat"
+$BatNotifySOD = Join-Path $RootDir "scripts\run_notify_sod.bat"
 $BatLate = Join-Path $RootDir "scripts\run_late_monitor.bat"
 $BatEOD = Join-Path $RootDir "scripts\run_daily_eod.bat"
+$BatNotifyEOD = Join-Path $RootDir "scripts\run_notify_eod.bat"
 
 Write-Host "==================================================================" -ForegroundColor Cyan
 Write-Host " Configurando Tareas Programadas de AsistControl en Windows" -ForegroundColor Cyan
@@ -25,12 +27,28 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "   [OK] Tarea $TaskNameSOD registrada exitosamente." -ForegroundColor Green
 }
 
+# 1.b. Tarea de Notificación Previa SOD — 05:50 AM (Lun-Sáb)
+$TaskNameNotifySOD = "AsistControl_NotifySOD"
+Write-Host "`n1.b. Configurando $TaskNameNotifySOD (05:50 AM Lun-Sáb)..." -ForegroundColor Yellow
+schtasks /Create /F /TN $TaskNameNotifySOD /TR "`"$BatNotifySOD`"" /SC WEEKLY /D MON,TUE,WED,THU,FRI,SAT /ST 05:50 /RL HIGHEST
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "   [OK] Tarea $TaskNameNotifySOD registrada exitosamente." -ForegroundColor Green
+}
+
 # 2. Tarea de Cierre de Día (EOD) — 23:59 PM (Todos los días)
 $TaskNameEOD = "AsistControl_DailyEOD"
 Write-Host "`n2. Configurando $TaskNameEOD (23:59 PM Diario)..." -ForegroundColor Yellow
 schtasks /Create /F /TN $TaskNameEOD /TR "`"$BatEOD`"" /SC DAILY /ST 23:59 /RL HIGHEST
 if ($LASTEXITCODE -eq 0) {
     Write-Host "   [OK] Tarea $TaskNameEOD registrada exitosamente." -ForegroundColor Green
+}
+
+# 2.b. Tarea de Notificación Previa EOD — 23:49 PM (Todos los días)
+$TaskNameNotifyEOD = "AsistControl_NotifyEOD"
+Write-Host "`n2.b. Configurando $TaskNameNotifyEOD (23:49 PM Diario)..." -ForegroundColor Yellow
+schtasks /Create /F /TN $TaskNameNotifyEOD /TR "`"$BatNotifyEOD`"" /SC DAILY /ST 23:49 /RL HIGHEST
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "   [OK] Tarea $TaskNameNotifyEOD registrada exitosamente." -ForegroundColor Green
 }
 
 # 3. Tarea de Monitoreo de Tardanzas — Cada 15 min entre 08:00 y 11:30 (Lun-Vie)

@@ -13,7 +13,9 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 
-// GET /api/reports/export?period=TODAY|WEEK|MONTH|CUSTOM&startDate=...&endDate=...&locationId=...&role=...
+import { generateAttendanceExcelWorkbook } from "@/lib/exportAttendanceExcel";
+
+// GET /api/reports/export?period=TODAY|WEEK|MONTH|CUSTOM&startDate=...&endDate=...&locationId=...&role=...&format=xlsx|csv
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
@@ -26,6 +28,7 @@ export async function GET(req: Request) {
   const endDateParam = searchParams.get("endDate");
   const locationId = searchParams.get("locationId");
   const roleParam = searchParams.get("role");
+  const formatParam = (searchParams.get("format") || "xlsx").toLowerCase();
 
   const now = new Date();
   let start: Date;
@@ -111,7 +114,31 @@ export async function GET(req: Request) {
     const companyName = organization?.name || "Empresa";
     const ruc = orgSettings.ruc ? `RUC: ${orgSettings.ruc}` : "";
 
-    // Generate CSV UTF-8 with BOM for Excel compatibility
+    const sanitizedOrg = companyName.replace(/[^a-zA-Z0-9]/g, "_");
+
+    // Si se solicita formato XLSX (predeterminado)
+    if (formatParam !== "csv") {
+      const workbook = await generateAttendanceExcelWorkbook({
+        attendances: attendances as any,
+        companyName,
+        ruc: orgSettings.ruc || undefined,
+        periodLabel,
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const filename = `Reporte_Asistencia_${sanitizedOrg}_${format(now, "yyyyMMdd_HHmm")}.xlsx`;
+
+      return new Response(buffer, {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+        },
+      });
+    }
+
+    // Formato CSV UTF-8 con BOM para sistemas legados o externos
     const metaHeader = [
       `"REPORTE OFICIAL DE ASISTENCIA - ${companyName.toUpperCase()}"`,
       `"${ruc} - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}"`,
@@ -169,7 +196,6 @@ export async function GET(req: Request) {
     });
 
     const csvContent = "\uFEFF" + [...metaHeader, tableHeader, ...rows].join("\r\n");
-    const sanitizedOrg = companyName.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = `Reporte_${sanitizedOrg}_${format(now, "yyyyMMdd_HHmm")}.csv`;
 
     return new Response(csvContent, {

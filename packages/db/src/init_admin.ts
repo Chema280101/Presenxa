@@ -47,7 +47,7 @@ async function main() {
   console.log("=======================================================\n");
 
   // 1. Datos de la Organización
-  const orgName = await ask("1. Nombre de tu Empresa / Institución", "Mi Empresa");
+  const orgName = await ask("1. Nombre de tu Empresa", "Mi Empresa");
   const orgSlug = orgName
     .toLowerCase()
     .normalize("NFD")
@@ -55,8 +55,7 @@ async function main() {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  const orgTypeStr = await ask("Tipo de organización (EMPRESA / COLEGIO)", "EMPRESA");
-  const orgType = orgTypeStr.toUpperCase() === "COLEGIO" ? OrgType.COLEGIO : OrgType.EMPRESA;
+  const orgType = OrgType.EMPRESA;
 
   // 2. Datos de la Sede Principal
   const locationName = await ask("2. Nombre de la Sede Principal", "Sede Central");

@@ -3,6 +3,7 @@
 import React from "react";
 import { Search, Filter, X, ChevronDown } from "lucide-react";
 import { clsx } from "clsx";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 
 export interface FilterOption {
   label: string;
@@ -29,6 +30,7 @@ export interface FilterToolbarProps {
   // Filters
   filters?: FilterDefinition[];
   customFilters?: React.ReactNode;
+  viewModeToggle?: React.ReactNode;
 
   // Actions
   onReset?: () => void;
@@ -41,6 +43,7 @@ export function FilterToolbar({
   searchPlaceholder = "Buscar...",
   filters = [],
   customFilters,
+  viewModeToggle,
   onReset,
 }: FilterToolbarProps) {
   return (
@@ -48,10 +51,10 @@ export function FilterToolbar({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
 
         {/* Left Side: Search & Dynamic Select Filters */}
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full lg:w-auto">
           {/* Search Input */}
           {onSearchChange && (
-            <div className="relative min-w-[220px] flex-1 max-w-sm">
+            <div className="relative w-full sm:w-auto sm:min-w-[220px] flex-1 sm:max-w-sm">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-surface-400 dark:text-surface-500 z-10">
                 <Search className="w-4 h-4" />
               </div>
@@ -77,36 +80,29 @@ export function FilterToolbar({
               <div
                 key={filter.id}
                 className={clsx(
-                  "relative h-10 min-w-[150px] sm:min-w-[170px] flex-shrink-0",
+                  "w-full sm:w-auto sm:min-w-[160px] flex-1 sm:flex-initial",
                   filter.className
                 )}
               >
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-surface-400 dark:text-surface-500 z-10">
-                  <FilterIcon className="w-3.5 h-3.5" />
-                </div>
-                <select
+                <CustomSelect
                   value={filter.value}
-                  onChange={(e) => filter.onChange(e.target.value)}
-                  className="w-full h-10 pl-9 pr-8 text-xs appearance-none font-medium cursor-pointer input-standard rounded-xl text-surface-900 dark:text-surface-100"
-                >
-                  {filter.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-surface-400 dark:text-surface-500 z-10">
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </div>
+                  onChange={filter.onChange}
+                  options={filter.options}
+                  placeholder={filter.placeholder}
+                  hasLeftIcon={Boolean(filter.icon)}
+                  leftIcon={FilterIcon}
+                  className="h-10 text-xs w-full"
+                />
               </div>
             );
           })}
         </div>
 
-        {/* Right Side: Custom Filters & Reset Action */}
-        {(customFilters || onReset) && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {/* Right Side: Custom Filters, View Toggle & Reset Action */}
+        {(customFilters || viewModeToggle || onReset) && (
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end shrink-0 pt-1 lg:pt-0 border-t lg:border-0 border-surface-200/60 dark:border-surface-800/60">
             {customFilters}
+            {viewModeToggle}
 
             {onReset && (
               <button

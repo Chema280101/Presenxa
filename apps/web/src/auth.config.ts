@@ -33,7 +33,13 @@ export const authConfig = {
   },
   providers: [],
   trustHost: true,
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "presenxa_prod_fallback_secret_auth_jwt_key_2026",
+  secret: (() => {
+    const s = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+    if (!s && process.env.NODE_ENV === "production") {
+      throw new Error("FATAL: AUTH_SECRET o NEXTAUTH_SECRET no configurado en producción");
+    }
+    return s || "dev-only-secret-not-for-production";
+  })(),
 } satisfies NextAuthConfig;
 
 

@@ -21,7 +21,7 @@ export type AttendanceStatusKey =
   | "FERIADO"
   | "PERMISO";
 
-export type RoleKey = "ADMIN" | "SUPERVISOR" | "EMPLEADO" | "ALUMNO";
+export type RoleKey = "ADMIN" | "SUPERVISOR" | "EMPLEADO";
 
 interface StatusBadgeProps {
   status: AttendanceStatusKey | string;
@@ -307,18 +307,6 @@ export function RoleBadge({ role, size = "md", className }: RoleBadgeProps) {
           )}
         >
           Supervisor
-        </span>
-      );
-    case "ALUMNO":
-      return (
-        <span
-          className={clsx(
-            "inline-flex items-center rounded-md bg-danger-50 dark:bg-danger-500/15 text-danger-700 dark:text-danger-300 border border-danger-200 dark:border-danger-500/30 uppercase font-mono font-bold",
-            sizeClasses,
-            className
-          )}
-        >
-          Alumno
         </span>
       );
     case "EMPLEADO":

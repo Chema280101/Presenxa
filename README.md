@@ -1,6 +1,6 @@
 # AsistControl 🏢
 
-Sistema inteligente de control de asistencia con QR y geofencing para empresas y colegios.
+Sistema inteligente de control de asistencia con QR y geofencing para empresas y organizaciones corporativas.
 
 ## Stack
 

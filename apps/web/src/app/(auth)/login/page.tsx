@@ -14,16 +14,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [demoFeedback, setDemoFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
-
-  const handleDemoClick = (demoEmail: string, demoPass: string, roleName: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError("");
-    setDemoFeedback(`✓ Modo cargado: ${roleName}`);
-    setTimeout(() => setDemoFeedback(""), 2400);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,48 +186,6 @@ function LoginForm() {
             </button>
           </div>
         </form>
-
-        {/* Demo Roles Section */}
-        <div className="mt-8 pt-5 border-t border-surface-200 dark:border-surface-800 relative">
-          <p className="text-center text-[11px] font-medium text-surface-500 dark:text-surface-400 mb-3 tracking-wide">
-            Accesos de prueba:
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <button 
-              type="button" 
-              onClick={() => handleDemoClick('admin@demo.com', 'password123', 'Admin')}
-              className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-primary-600 dark:text-primary-400 border border-primary-200 dark:border-primary-500/30 hover:border-primary-300 dark:hover:border-primary-400/60 shadow-sm transition-all duration-150 active:scale-95"
-            >
-              <svg className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" strokeLinecap="round" strokeLinejoin="round"></path>
-              </svg>
-              <span>Admin</span>
-            </button>
-            <button 
-              type="button" 
-              onClick={() => handleDemoClick('carlos.mendoza@demo.com', 'password123', 'Empleado')}
-              className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-info-600 dark:text-info-400 border border-info-200 dark:border-info-500/30 hover:border-info-300 dark:hover:border-info-400/60 shadow-sm transition-all duration-150 active:scale-95"
-            >
-              <svg className="w-3.5 h-3.5 text-info-500 dark:text-info-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" strokeLinecap="round" strokeLinejoin="round"></path>
-              </svg>
-              <span>Empleado</span>
-            </button>
-            <button 
-              type="button" 
-              onClick={() => handleDemoClick('luis.quispe@demo.com', 'password123', 'Supervisor')}
-              className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-warning-600 dark:text-warning-400 border border-warning-200 dark:border-warning-500/30 hover:border-warning-300 dark:hover:border-warning-400/60 shadow-sm transition-all duration-150 active:scale-95"
-            >
-              <svg className="w-3.5 h-3.5 text-warning-500 dark:text-warning-400 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round" strokeLinejoin="round"></path>
-              </svg>
-              <span>Supervisor</span>
-            </button>
-          </div>
-          <p className={`mt-2 text-center text-[10px] text-primary-600 dark:text-primary-400 font-mono transition-opacity duration-200 ${demoFeedback ? 'opacity-100' : 'opacity-0'}`}>
-            {demoFeedback || "..."}
-          </p>
-        </div>
       </div>
     </div>
   );

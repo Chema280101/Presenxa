@@ -17,7 +17,9 @@ import {
   MapPinOff,
   Activity,
   ArrowRight,
+  Power,
 } from "lucide-react";
+import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import {
   LocationFormModal,
   LocationFormData,
@@ -30,6 +32,17 @@ import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
+import {
+  DataTableContainer,
+  DataTableHeader,
+  DataTableHead,
+  DataTableBody,
+  DataTableRow,
+  DataTableCell,
+  DataTableEmptyState,
+} from "@/components/ui/DataTable";
+import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
+import { SkeletonTable } from "@/components/ui/Skeleton";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
@@ -51,6 +64,7 @@ export default function LocationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -175,56 +189,39 @@ export default function LocationsPage() {
   return (
     <div className="space-y-6 lg:space-y-8 animate-fade-in-up pb-10">
 
-      {/* 1. EXECUTIVE OPERATIONAL TOPBAR & BREADCRUMBS */}
-      <header className="flex flex-col gap-4">
-        {/* Telemetry meta-strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-2">
-          {/* Breadcrumb path */}
-          <div className="flex items-center gap-2 text-sm font-mono text-surface-500 dark:text-slate-400">
-            <span className="text-primary-600 dark:text-emerald-400 font-bold uppercase tracking-wider">SEDES Y UBICACIONES</span>
-            <span className="text-surface-300 dark:text-white/20">/</span>
-            <span className="text-surface-900 dark:text-white">Panel de Control</span>
-          </div>
-          {/* Realtime telemetry indicators */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-200/70 dark:bg-white/[0.04] border border-surface-300/80 dark:border-white/[0.08] shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse shadow-[0_0_8px_#10b981]"></span>
-              <span className="font-mono text-xs font-semibold text-surface-900 dark:text-white">Live Sync</span>
-              <span className="font-mono text-xs font-bold text-primary-600 dark:text-emerald-400">12ms</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Section Main Title & Action Triggers */}
-        <PageHeader 
-          title="Sedes y Zonas Operativas"
-          subtitle="Administra las sedes, terminales kiosk y puntos físicos de marcación de la organización."
-          icon={Building}
-          iconVariant="emerald"
-          actionButtons={
-            <>
-              <Button
-                variant="secondary"
-                onClick={fetchLocations}
-                isLoading={isLoading}
-                icon={<RefreshCw className="w-4 h-4" />}
-              >
-                Actualizar
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setEditingLocation(null);
-                  setIsModalOpen(true);
-                }}
-                icon={<Plus className="w-4 h-4" />}
-              >
-                Nueva Sede
-              </Button>
-            </>
-          }
-        />
-      </header>
+      <PageHeader 
+        title="Sedes y Zonas Operativas"
+        titleBadge={
+          <span className="text-[10px] font-mono font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 whitespace-nowrap">
+            {stats.active} / {stats.total} Sedes Activas
+          </span>
+        }
+        subtitle="Administra las sedes, terminales kiosk y puntos físicos de marcación de la organización."
+        icon={Building}
+        iconVariant="emerald"
+        actionButtons={
+          <>
+            <Button
+              variant="secondary"
+              onClick={fetchLocations}
+              isLoading={isLoading}
+              icon={<RefreshCw className="w-4 h-4" />}
+            >
+              Actualizar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditingLocation(null);
+                setIsModalOpen(true);
+              }}
+              icon={<Plus className="w-4 h-4" />}
+            >
+              Nueva Sede
+            </Button>
+          </>
+        }
+      />
 
       {/* 2. HIGH PRIORITY OPERATIONAL KPIS */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -307,53 +304,165 @@ export default function LocationsPage() {
             ]
           }
         ]}
+        viewModeToggle={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
       />
 
-      {/* 5. MAIN CONTENT SPLIT: SITES GRID (LEFT) + RIGHT SIDEBAR */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-        
-        {/* SITES CARDS GRID (8 COLS) */}
-        <div className="lg:col-span-8 flex flex-col gap-5">
-          {isLoading ? (
-            <div className="text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800">
-              <RefreshCw className="w-8 h-8 text-primary-500 dark:text-primary-400 animate-spin mx-auto mb-4" />
-              <p className="text-surface-600 dark:text-surface-400 font-medium text-sm">Cargando sedes...</p>
-            </div>
-          ) : filteredLocations.length === 0 ? (
-            <div className="text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-dashed border-surface-200 dark:border-surface-800 p-8">
-              <MapPinOff className="w-12 h-12 text-surface-400 dark:text-surface-500 mx-auto mb-4" />
-              <p className="text-surface-900 dark:text-surface-100 text-base font-bold">Sin sedes encontradas</p>
-              <p className="text-surface-500 dark:text-surface-400 text-xs mt-1">Prueba cambiando los filtros o registra una nueva sede.</p>
-            </div>
-          ) : (
-            filteredLocations.map((loc) => (
-              <LocationCard
-                key={loc.id}
-                location={loc}
-                onEdit={(locData) => {
-                  setEditingLocation({
-                    id: locData.id,
-                    name: locData.name,
-                    address: locData.address || "",
-                    timezone: locData.timezone,
-                    isActive: locData.isActive,
-                  });
-                  setIsModalOpen(true);
-                }}
-                onToggleStatus={handleToggleStatus}
-              />
-            ))
-          )}
-        </div>
+      {/* 5. MAIN CONTENT: GRID OR TABLE */}
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* SITES CARDS GRID (8 COLS) */}
+          <div className="lg:col-span-8 flex flex-col gap-5">
+            {isLoading ? (
+              <div className="text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-surface-200 dark:border-surface-800">
+                <RefreshCw className="w-8 h-8 text-primary-500 dark:text-primary-400 animate-spin mx-auto mb-4" />
+                <p className="text-surface-600 dark:text-surface-400 font-medium text-sm">Cargando sedes...</p>
+              </div>
+            ) : filteredLocations.length === 0 ? (
+              <div className="text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-dashed border-surface-200 dark:border-surface-800 p-8">
+                <MapPinOff className="w-12 h-12 text-surface-400 dark:text-surface-500 mx-auto mb-4" />
+                <p className="text-surface-900 dark:text-surface-100 text-base font-bold">Sin sedes encontradas</p>
+                <p className="text-surface-500 dark:text-surface-400 text-xs mt-1">Prueba cambiando los filtros o registra una nueva sede.</p>
+              </div>
+            ) : (
+              filteredLocations.map((loc) => (
+                <LocationCard
+                  key={loc.id}
+                  location={loc}
+                  onEdit={(locData) => {
+                    setEditingLocation({
+                      id: locData.id,
+                      name: locData.name,
+                      address: locData.address || "",
+                      timezone: locData.timezone,
+                      isActive: locData.isActive,
+                    });
+                    setIsModalOpen(true);
+                  }}
+                  onToggleStatus={handleToggleStatus}
+                />
+              ))
+            )}
+          </div>
 
-        {/* 6. RIGHT SIDEBAR: GEOCERCA INSPECTOR & HEALTH MONITOR */}
-        <div className="lg:col-span-4">
-          <LocationSidebar 
-            totalLocations={locations.length}
-            totalKiosks={stats.totalKiosks}
-          />
+          {/* 6. RIGHT SIDEBAR: GEOCERCA INSPECTOR & HEALTH MONITOR */}
+          <div className="lg:col-span-4">
+            <LocationSidebar 
+              totalLocations={locations.length}
+              totalKiosks={stats.totalKiosks}
+            />
+          </div>
         </div>
-      </div>
+      ) : (
+        isLoading ? (
+          <SkeletonTable rows={5} cols={6} />
+        ) : (
+          <DataTableContainer>
+            <DataTableHeader>
+              <DataTableHead>Sede Operativa</DataTableHead>
+              <DataTableHead>Dirección & Ciudad</DataTableHead>
+              <DataTableHead>Zona Horaria</DataTableHead>
+              <DataTableHead>Colaboradores</DataTableHead>
+              <DataTableHead>Tótems Kiosk</DataTableHead>
+              <DataTableHead>Estado</DataTableHead>
+              <DataTableHead className="text-right">Acciones</DataTableHead>
+            </DataTableHeader>
+            <DataTableBody>
+              {filteredLocations.length === 0 ? (
+                <DataTableEmptyState
+                  colSpan={7}
+                  message={search ? "Prueba cambiando los términos de búsqueda." : "No hay sedes registradas todavía."}
+                />
+              ) : (
+                filteredLocations.map((loc) => {
+                  return (
+                    <DataTableRow key={loc.id}>
+                      <DataTableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200/80 dark:border-primary-500/20 flex items-center justify-center shrink-0">
+                            <Building className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-sm text-surface-900 dark:text-white">
+                              {loc.name}
+                            </span>
+                            <p className="text-[11px] font-mono text-surface-500 dark:text-slate-400">
+                              ID: {loc.id.slice(0, 8)}
+                            </p>
+                          </div>
+                        </div>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <div className="flex items-center gap-1.5 text-xs text-surface-700 dark:text-slate-300">
+                          <MapPin className="w-3.5 h-3.5 text-surface-400 shrink-0" />
+                          <span className="truncate max-w-[220px]">{loc.address || "Sin dirección registrada"}</span>
+                        </div>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <div className="flex items-center gap-1.5 text-xs font-mono text-surface-600 dark:text-slate-400">
+                          <Globe className="w-3.5 h-3.5 text-surface-400 shrink-0" />
+                          <span>{loc.timezone}</span>
+                        </div>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-slate-300 border border-surface-200 dark:border-surface-700">
+                          <Users className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>{loc._count?.users || 0}</span>
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-slate-300 border border-surface-200 dark:border-surface-700">
+                          <QrCode className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{loc._count?.kiosks || 0}</span>
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell>
+                        {loc.isActive ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-300 border border-primary-200/80 dark:border-primary-500/20">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-primary-400 animate-pulse"></span>
+                            Activa
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border border-surface-200 dark:border-surface-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-surface-400"></span>
+                            Inactiva
+                          </span>
+                        )}
+                      </DataTableCell>
+                      <DataTableCell className="text-right">
+                        <ActionButtonGroup>
+                          <ActionButton
+                            variant="warning"
+                            onClick={() => {
+                              setEditingLocation({
+                                id: loc.id,
+                                name: loc.name,
+                                address: loc.address || "",
+                                timezone: loc.timezone,
+                                isActive: loc.isActive,
+                              });
+                              setIsModalOpen(true);
+                            }}
+                            title="Editar sede"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </ActionButton>
+                          <ActionButton
+                            variant={loc.isActive ? "danger" : "primary"}
+                            onClick={() => handleToggleStatus(loc)}
+                            title={loc.isActive ? "Desactivar sede" : "Activar sede"}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </ActionButton>
+                        </ActionButtonGroup>
+                      </DataTableCell>
+                    </DataTableRow>
+                  );
+                })
+              )}
+            </DataTableBody>
+          </DataTableContainer>
+        )
+      )}
 
       {/* Modal Form */}
       <LocationFormModal

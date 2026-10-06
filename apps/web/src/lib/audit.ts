@@ -22,8 +22,16 @@ export async function logAuditEvent(params: LogAuditParams): Promise<void> {
     let ua = params.userAgent || null;
 
     if (params.req) {
+      const cfIp = params.req.headers.get("cf-connecting-ip");
+      const realIp = params.req.headers.get("x-real-ip");
       const forwarded = params.req.headers.get("x-forwarded-for");
-      ip = forwarded ? forwarded.split(",")[0].trim() : ip || "127.0.0.1";
+
+      ip =
+        cfIp ||
+        realIp ||
+        (forwarded ? forwarded.split(",")[0].trim() : null) ||
+        ip ||
+        "127.0.0.1";
       ua = params.req.headers.get("user-agent") || ua;
     }
 

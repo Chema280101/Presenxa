@@ -4,7 +4,7 @@ import { prisma } from "@asistencias/db";
 // Configure VAPID details if environment variables are available
 const vapidPublicKey =
   process.env.VAPID_PUBLIC_KEY ||
-  process.env.VAPID_PUBLIC_KEY ||
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
   "";
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "";
 const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@asistcontrol.com";
@@ -124,6 +124,37 @@ export async function sendPushToSupervisors(
     return { sent: totalSent, failed: totalFailed };
   } catch (err) {
     console.error("[WebPush] Error al enviar a supervisores:", err);
+    return { sent: 0, failed: 0 };
+  }
+}
+
+/**
+ * Enviar notificación push a todos los supervisores y administradores del sistema (Global).
+ */
+export async function sendPushToAllAdmins(
+  payload: PushNotificationPayload
+): Promise<{ sent: number; failed: number }> {
+  try {
+    const admins = await prisma.user.findMany({
+      where: {
+        role: { in: ["ADMIN", "SUPERVISOR", "SUPER_ADMIN"] },
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    let totalSent = 0;
+    let totalFailed = 0;
+
+    for (const admin of admins) {
+      const res = await sendPushToUser(admin.id, payload);
+      totalSent += res.sent;
+      totalFailed += res.failed;
+    }
+
+    return { sent: totalSent, failed: totalFailed };
+  } catch (err) {
+    console.error("[WebPush] Error al enviar a todos los admins:", err);
     return { sent: 0, failed: 0 };
   }
 }

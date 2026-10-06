@@ -14,6 +14,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const monthParam = searchParams.get("month"); // "YYYY-MM"
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
 
   const baseDate = monthParam ? parseISO(`${monthParam}-01`) : new Date();
   const monthStart = startOfMonth(baseDate);
@@ -29,8 +30,12 @@ export async function GET(req: Request) {
     },
   };
 
-  if (locationId) {
+  if (locationId && locationId !== "ALL") {
     where.locationId = locationId;
+  }
+
+  if (departmentId && departmentId !== "ALL") {
+    where.user.departmentId = departmentId;
   }
 
   try {
@@ -49,6 +54,8 @@ export async function GET(req: Request) {
         where: {
           organizationId: session.user.organizationId,
           isActive: true,
+          ...(departmentId && departmentId !== "ALL" ? { departmentId } : {}),
+          ...(locationId && locationId !== "ALL" ? { locationId } : {}),
         },
       }),
     ]);

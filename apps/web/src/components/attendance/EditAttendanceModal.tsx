@@ -6,15 +6,16 @@ import { AttendanceStatus } from "@asistencias/db";
 import { format } from "date-fns";
 import { clsx } from "clsx";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { CustomSelect, CustomSelectOption } from "@/components/ui/CustomSelect";
 
 interface EditAttendanceModalProps {
   isOpen: boolean;
   onClose: () => void;
   attendance: {
     id: string;
-    userName: string;
-    date: string;
-    status: AttendanceStatus;
+    userName?: string;
+    date?: string;
+    status?: AttendanceStatus;
     entryTime?: string | null;
     exitTime?: string | null;
     entryTime2?: string | null;
@@ -32,6 +33,8 @@ export function EditAttendanceModal({
   attendance,
   onSuccess,
 }: EditAttendanceModalProps) {
+  const [userName, setUserName] = useState("");
+  const [date, setDate] = useState("");
   const [status, setStatus] = useState<AttendanceStatus>(AttendanceStatus.PRESENTE);
   const [entryTime, setEntryTime] = useState("");
   const [exitTime, setExitTime] = useState("");
@@ -41,26 +44,53 @@ export function EditAttendanceModal({
   const [lateMinutes, setLateMinutes] = useState(0);
   const [lateMinutes2, setLateMinutes2] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (attendance) {
-      setStatus(attendance.status);
-      setEntryTime(
-        attendance.entryTime ? format(new Date(attendance.entryTime), "HH:mm") : ""
-      );
-      setExitTime(
-        attendance.exitTime ? format(new Date(attendance.exitTime), "HH:mm") : ""
-      );
-      setEntryTime2(
-        attendance.entryTime2 ? format(new Date(attendance.entryTime2), "HH:mm") : ""
-      );
-      setExitTime2(
-        attendance.exitTime2 ? format(new Date(attendance.exitTime2), "HH:mm") : ""
-      );
-      setNotes(attendance.notes || "");
-      setLateMinutes(attendance.lateMinutes || 0);
-      setLateMinutes2(attendance.lateMinutes2 || 0);
+    if (!isOpen || !attendance) return;
+
+    if (attendance.userName) setUserName(attendance.userName);
+    if (attendance.date) setDate(attendance.date);
+    if (attendance.status) setStatus(attendance.status);
+    if (attendance.entryTime !== undefined) {
+      setEntryTime(attendance.entryTime ? format(new Date(attendance.entryTime), "HH:mm") : "");
+    }
+    if (attendance.exitTime !== undefined) {
+      setExitTime(attendance.exitTime ? format(new Date(attendance.exitTime), "HH:mm") : "");
+    }
+    if (attendance.entryTime2 !== undefined) {
+      setEntryTime2(attendance.entryTime2 ? format(new Date(attendance.entryTime2), "HH:mm") : "");
+    }
+    if (attendance.exitTime2 !== undefined) {
+      setExitTime2(attendance.exitTime2 ? format(new Date(attendance.exitTime2), "HH:mm") : "");
+    }
+    if (attendance.notes !== undefined) setNotes(attendance.notes || "");
+    if (attendance.lateMinutes !== undefined) setLateMinutes(attendance.lateMinutes || 0);
+    if (attendance.lateMinutes2 !== undefined) setLateMinutes2(attendance.lateMinutes2 || 0);
+
+    // If attendance object lacks details, fetch full record by ID
+    if (!attendance.userName || !attendance.status || attendance.entryTime === undefined) {
+      setIsLoadingData(true);
+      fetch(`/api/attendance/${attendance.id}`)
+        .then((res) => res.json())
+        .then((resData) => {
+          if (resData.attendance) {
+            const att = resData.attendance;
+            setUserName(`${att.user?.firstName || ""} ${att.user?.lastName || ""}`.trim());
+            setDate(att.date ? format(new Date(att.date), "yyyy-MM-dd") : "");
+            setStatus(att.status);
+            setEntryTime(att.entryTime ? format(new Date(att.entryTime), "HH:mm") : "");
+            setExitTime(att.exitTime ? format(new Date(att.exitTime), "HH:mm") : "");
+            setEntryTime2(att.entryTime2 ? format(new Date(att.entryTime2), "HH:mm") : "");
+            setExitTime2(att.exitTime2 ? format(new Date(att.exitTime2), "HH:mm") : "");
+            setNotes(att.notes || "");
+            setLateMinutes(att.lateMinutes || 0);
+            setLateMinutes2(att.lateMinutes2 || 0);
+          }
+        })
+        .catch((err) => console.error("Error cargando registro:", err))
+        .finally(() => setIsLoadingData(false));
     }
     setError("");
   }, [attendance, isOpen]);
@@ -73,8 +103,8 @@ export function EditAttendanceModal({
     setError("");
 
     try {
-      const res = await fetch(`/api/attendance/${attendance.id}/edit`, {
-        method: "PUT",
+      const res = await fetch(`/api/attendance/${attendance.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status,
@@ -138,7 +168,11 @@ export function EditAttendanceModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Editar Registro de Asistencia"
-      description={`Colaborador: ${attendance.userName} · Fecha: ${attendance.date}`}
+      description={
+        isLoadingData
+          ? "Cargando datos de la marcación..."
+          : `Colaborador: ${userName || attendance.userName || "Colaborador"} · Fecha: ${date || attendance.date || ""}`
+      }
       icon={Edit3}
       iconVariant="primary"
       maxWidth="3xl"
@@ -165,20 +199,20 @@ export function EditAttendanceModal({
             <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
               Estado Calculado / Manual
             </label>
-            <select
+            <CustomSelect
               value={status}
-              onChange={(e) => setStatus(e.target.value as AttendanceStatus)}
-              className={clsx(premiumInputClass, "cursor-pointer")}
-            >
-              <option value={AttendanceStatus.PRESENTE}>Presente (Completado)</option>
-              <option value={AttendanceStatus.TARDE}>Tardanza</option>
-              <option value={AttendanceStatus.AUSENTE}>Ausente (Falta)</option>
-              <option value={AttendanceStatus.ABANDONO_PUESTO}>Abandono de Puesto</option>
-              <option value={AttendanceStatus.INCOMPLETO}>Incompleto (Sin salida)</option>
-              <option value={AttendanceStatus.PENDIENTE}>Pendiente (En curso)</option>
-              <option value={AttendanceStatus.JUSTIFICADO}>Justificado</option>
-              <option value={AttendanceStatus.PERMISO}>Permiso</option>
-            </select>
+              onChange={(val) => setStatus(val as AttendanceStatus)}
+              options={[
+                { value: AttendanceStatus.PRESENTE, label: "Presente (Completado)", badge: "OK" },
+                { value: AttendanceStatus.TARDE, label: "Tardanza", badge: "Tarde" },
+                { value: AttendanceStatus.AUSENTE, label: "Ausente (Falta)", badge: "Falta" },
+                { value: AttendanceStatus.ABANDONO_PUESTO, label: "Abandono de Puesto" },
+                { value: AttendanceStatus.INCOMPLETO, label: "Incompleto (Sin salida)" },
+                { value: AttendanceStatus.PENDIENTE, label: "Pendiente (En curso)" },
+                { value: AttendanceStatus.JUSTIFICADO, label: "Justificado" },
+                { value: AttendanceStatus.PERMISO, label: "Permiso" },
+              ]}
+            />
           </div>
         </div>
 

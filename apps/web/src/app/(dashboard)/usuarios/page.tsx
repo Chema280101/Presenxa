@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import Image from "next/image";
 import QRCode from "qrcode";
@@ -15,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   Building,
+  FolderTree,
   Shield,
   Clock,
   RefreshCw,
@@ -27,6 +29,7 @@ import {
   Download,
   Calendar,
   MapPin,
+  Printer,
 } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 import { QrModal } from "@/components/users/QrModal";
@@ -45,10 +48,20 @@ import {
   DataTableBody, 
   DataTableRow, 
   DataTableCell, 
-  DataTableEmptyState 
+  DataTableEmptyState,
+  DataTableCheckbox
 } from "@/components/ui/DataTable";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { Button } from "@/components/ui/Button";
+import { BulkActionBar } from "@/components/users/BulkActionBar";
+import { BulkEditModal } from "@/components/users/BulkEditModal";
+import { BulkDeactivateModal } from "@/components/users/BulkDeactivateModal";
+import { BulkImportModal } from "@/components/users/BulkImportModal";
+import { BulkPrintModal } from "@/components/users/BulkPrintModal";
+import { ExportUsersDropdown } from "@/components/users/ExportUsersDropdown";
+import { UsersPdfModal } from "@/components/users/UsersPdfModal";
+import { exportUsersToExcel, exportUsersToCsv } from "@/lib/exportUsersExcel";
+import { FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
@@ -59,13 +72,17 @@ interface UserItem {
   email: string;
   phone?: string | null;
   documentId?: string | null;
+  birthDate?: string | Date | null;
   role: UserRole;
   isActive: boolean;
   qrToken: string;
   qrGeneratedAt: string;
   signedQrPayload?: string | null;
   nfcCardUid?: string | null;
+  locationId?: string | null;
   location?: { id: string; name: string } | null;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
   userSchedules?: Array<{
     schedule: {
       id: string;
@@ -83,21 +100,47 @@ interface UserItem {
   }>;
 }
 
-export default function UsersPage() {
+function UsersPageContent() {
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams?.get("search") || "";
+
   const fetcher = (url: string) => fetch(url).then((res) => res.json());
   const { data: usersData, isLoading, mutate: mutateUsers } = useSWR('/api/users', fetcher, {
     revalidateOnFocus: true,
   });
+  const { data: orgData } = useSWR('/api/organization', fetcher);
   const users: UserItem[] = usersData?.users || [];
 
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
   const [schedules, setSchedules] = useState<Array<any>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
 
   // Filters
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlSearch);
   const [selectedRole, setSelectedRole] = useState<string>("ALL");
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+
+  useEffect(() => {
+    if (urlSearch) {
+      setSearch(urlSearch);
+    }
+  }, [urlSearch]);
+
+  useEffect(() => {
+    if (urlSearch && users.length > 0) {
+      const match = users.find(
+        (u) =>
+          u.documentId === urlSearch ||
+          `${u.firstName} ${u.lastName}`.toLowerCase().includes(urlSearch.toLowerCase()) ||
+          u.email.toLowerCase() === urlSearch.toLowerCase()
+      );
+      if (match) {
+        setSelectedUserForQr(match);
+      }
+    }
+  }, [urlSearch, users]);
 
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -108,11 +151,21 @@ export default function UsersPage() {
   const [editingUserData, setEditingUserData] = useState<UserFormData | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
 
+  // Bulk actions state
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const [isBulkDeactivateOpen, setIsBulkDeactivateOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isBulkPrintOpen, setIsBulkPrintOpen] = useState(false);
+  const [printUsersOverride, setPrintUsersOverride] = useState<any[] | null>(null);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+
   const { toast } = useToast();
   const { confirm } = useConfirm();
 
   useEffect(() => {
-    const payloadToEncode = selectedUserForQr?.signedQrPayload || selectedUserForQr?.qrToken || "";
+    // Para la credencial oficial fija (impresión y vista previa), se utiliza el qrToken permanente.
+    const payloadToEncode = selectedUserForQr?.qrToken || "";
     if (payloadToEncode) {
       QRCode.toDataURL(payloadToEncode, {
         width: 400,
@@ -128,7 +181,7 @@ export default function UsersPage() {
     } else {
       setQrDataUrl("");
     }
-  }, [selectedUserForQr?.signedQrPayload, selectedUserForQr?.qrToken, selectedUserForQr?.id]);
+  }, [selectedUserForQr?.qrToken, selectedUserForQr?.id]);
 
   const fetchUsers = async () => {
     await mutateUsers();
@@ -136,14 +189,17 @@ export default function UsersPage() {
 
   const fetchLocationsAndSchedules = async () => {
     try {
-      const [locRes, schRes] = await Promise.all([
+      const [locRes, schRes, deptRes] = await Promise.all([
         fetch("/api/locations"),
         fetch("/api/schedules"),
+        fetch("/api/departments"),
       ]);
       const locData = await locRes.json();
       const schData = await schRes.json();
+      const deptData = await deptRes.json();
       if (locData.locations) setLocations(locData.locations);
       if (schData.schedules) setSchedules(schData.schedules);
+      if (deptData.departments) setDepartments(deptData.departments);
     } catch (err) {
       console.error("Error fetching locations or schedules:", err);
     }
@@ -166,20 +222,92 @@ export default function UsersPage() {
 
       const matchesRole = selectedRole === "ALL" || u.role === selectedRole;
       const matchesLoc = selectedLocation === "ALL" || u.location?.id === selectedLocation;
+      const matchesDept = selectedDepartment === "ALL" || u.department?.id === selectedDepartment;
       const matchesStatus =
         selectedStatus === "ALL" ||
         (selectedStatus === "ACTIVE" && u.isActive) ||
         (selectedStatus === "INACTIVE" && !u.isActive);
 
-      return matchesSearch && matchesRole && matchesLoc && matchesStatus;
+      return matchesSearch && matchesRole && matchesLoc && matchesDept && matchesStatus;
     });
-  }, [users, search, selectedRole, selectedLocation, selectedStatus]);
+  }, [users, search, selectedRole, selectedLocation, selectedDepartment, selectedStatus]);
+
+  // Colaboradores preparados para el estudio de credenciales
+  const selectedUsersForPrint = useMemo(() => {
+    const targetUsers =
+      selectedUserIds.length > 0
+        ? users.filter((u) => selectedUserIds.includes(u.id))
+        : filteredUsers;
+
+    return targetUsers.map((u) => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email,
+      role: u.role,
+      documentId: u.documentId,
+      qrToken: u.qrToken,
+      signedQrPayload: u.signedQrPayload,
+      locationName: u.location?.name || null,
+    }));
+  }, [users, selectedUserIds, filteredUsers]);
+
+  // Usuarios objetivo para exportación (seleccionados o filtrados actuales)
+  const usersToExport = useMemo(() => {
+    if (selectedUserIds.length > 0) {
+      return users.filter((u) => selectedUserIds.includes(u.id));
+    }
+    return filteredUsers;
+  }, [users, selectedUserIds, filteredUsers]);
+
+  // Exportar a Excel (.xlsx)
+  const handleExportExcel = async () => {
+    if (usersToExport.length === 0) {
+      toast.error("No hay colaboradores para exportar");
+      return;
+    }
+    const orgName = orgData?.organization?.name || "Empresa";
+    const ruc = orgData?.organization?.settings?.ruc || undefined;
+    try {
+      await exportUsersToExcel(usersToExport, orgName, ruc);
+      toast.success(`Padrón de ${usersToExport.length} colaboradores exportado a Excel`);
+    } catch (err) {
+      console.error("Error al exportar Excel:", err);
+      toast.error("Error al generar el archivo Excel");
+    }
+  };
+
+  // Abrir vista previa PDF oficial
+  const handleOpenPdf = () => {
+    if (usersToExport.length === 0) {
+      toast.error("No hay colaboradores para exportar");
+      return;
+    }
+    setIsPdfModalOpen(true);
+  };
+
+  // Exportar a CSV plano (.csv)
+  const handleExportCsv = () => {
+    if (usersToExport.length === 0) {
+      toast.error("No hay colaboradores para exportar");
+      return;
+    }
+    const orgName = orgData?.organization?.name || "Empresa";
+    const ruc = orgData?.organization?.settings?.ruc || undefined;
+    try {
+      exportUsersToCsv(usersToExport, orgName, ruc);
+      toast.success(`Padrón de ${usersToExport.length} colaboradores exportado a CSV`);
+    } catch (err) {
+      console.error("Error al exportar CSV:", err);
+      toast.error("Error al generar el archivo CSV");
+    }
+  };
 
   // Statistics
   const stats = useMemo(() => {
     const total = users.length;
     const active = users.filter((u) => u.isActive).length;
-    const employees = users.filter((u) => u.role === UserRole.EMPLEADO || u.role === UserRole.ALUMNO).length;
+    const employees = users.filter((u) => u.role === UserRole.EMPLEADO).length;
     const supervisors = users.filter((u) => u.role === UserRole.ADMIN || u.role === UserRole.SUPERVISOR || u.role === UserRole.SUPER_ADMIN).length;
     return { total, active, employees, supervisors };
   }, [users]);
@@ -231,8 +359,31 @@ export default function UsersPage() {
       signedQrPayload: user.signedQrPayload,
       locationName: user.location?.name,
       nfcCardUid: user.nfcCardUid,
+      department: user.department?.name,
     });
     setIsQrModalOpen(true);
+  };
+
+  // Abrir estudio de impresión enfocado en una credencial individual
+  const handlePrintSingleUser = (u: any) => {
+    if (!u) return;
+    setIsQrModalOpen(false);
+    setPrintUsersOverride([
+      {
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        role: u.role,
+        documentId: u.documentId,
+        qrToken: u.qrToken,
+        signedQrPayload: u.signedQrPayload,
+        locationName: u.locationName || u.location?.name || null,
+        department: u.department?.name || (typeof u.department === "string" ? u.department : null),
+        avatarUrl: u.avatarUrl || null,
+      },
+    ]);
+    setIsBulkPrintOpen(true);
   };
 
   // Handle Regenerate QR Token
@@ -301,18 +452,39 @@ export default function UsersPage() {
               onClick={fetchUsers}
               isLoading={isLoading}
               icon={<RefreshCw className="w-4 h-4" />}
+              title="Actualizar listado de colaboradores"
             >
-              Actualizar
+              <span className="hidden sm:inline">Actualizar</span>
             </Button>
+            
+            <ExportUsersDropdown
+              onExportExcel={handleExportExcel}
+              onOpenPdf={handleOpenPdf}
+              onExportCsv={handleExportCsv}
+              selectedCount={selectedUserIds.length}
+              totalCount={filteredUsers.length}
+            />
             
             <Button
               variant="secondary"
-              href="/api/reports/export"
-              icon={<Download className="w-4 h-4" />}
+              onClick={() => setIsBulkImportOpen(true)}
+              icon={<FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
             >
-              Exportar
+              <span className="hidden sm:inline">Importar en Lote</span>
+              <span className="sm:hidden">Importar</span>
             </Button>
-            
+
+            <Button
+              variant="secondary"
+              onClick={() => setIsBulkPrintOpen(true)}
+              icon={<Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+              title="Estudio de diseño e impresión masiva de credenciales y fotochecks"
+            >
+              <span className="hidden sm:inline">Credenciales</span>
+              <span className="sm:hidden">Pases</span>
+              <span>{selectedUserIds.length > 0 ? ` (${selectedUserIds.length})` : ` (${filteredUsers.length})`}</span>
+            </Button>
+
             <Button
               variant="primary"
               onClick={() => {
@@ -321,7 +493,7 @@ export default function UsersPage() {
               }}
               icon={<UserPlus className="w-4 h-4 stroke-[2.5]" />}
             >
-              Nuevo Usuario
+              <span className="hidden xs:inline">Nuevo</span> Usuario
             </Button>
           </>
         }
@@ -371,6 +543,7 @@ export default function UsersPage() {
           setSearch("");
           setSelectedRole("ALL");
           setSelectedLocation("ALL");
+          setSelectedDepartment("ALL");
           setSelectedStatus("ALL");
         }}
         filters={[
@@ -383,7 +556,6 @@ export default function UsersPage() {
               { value: UserRole.EMPLEADO, label: "Empleados" },
               { value: UserRole.SUPERVISOR, label: "Supervisores" },
               { value: UserRole.ADMIN, label: "Administradores" },
-              { value: UserRole.ALUMNO, label: "Alumnos / Prácticas" },
             ]
           },
           {
@@ -394,6 +566,16 @@ export default function UsersPage() {
             options: [
               { value: "ALL", label: "Todas las sedes" },
               ...locations.map(l => ({ value: l.id, label: l.name }))
+            ]
+          },
+          {
+            id: "department",
+            icon: FolderTree,
+            value: selectedDepartment,
+            onChange: setSelectedDepartment,
+            options: [
+              { value: "ALL", label: "Todos los departamentos" },
+              ...departments.map(d => ({ value: d.id, label: d.name }))
             ]
           },
           {
@@ -412,8 +594,200 @@ export default function UsersPage() {
 
       {/* Layout Grid: Main Users Table + Live Credential Side Inspector */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start mt-6">
-        <DataTableContainer className="xl:col-span-8 2xl:col-span-9">
+        <DataTableContainer 
+          className="xl:col-span-8 2xl:col-span-9"
+          mobileContent={
+            isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="p-4 rounded-2xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 animate-pulse space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-surface-200 dark:bg-surface-800"></div>
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-4 bg-surface-200 dark:bg-surface-800 rounded w-1/2"></div>
+                        <div className="h-3 bg-surface-200 dark:bg-surface-800 rounded w-1/3"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="p-8 text-center text-surface-500 text-xs">
+                No hay colaboradores que coincidan con los filtros.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredUsers.map((user) => {
+                  const schedule = user.userSchedules?.[0]?.schedule;
+                  const isSelected = selectedUserForQr?.id === user.id;
+                  const isChecked = selectedUserIds.includes(user.id);
+
+                  return (
+                    <div
+                      key={`mobile-${user.id}`}
+                      onClick={() => {
+                        setSelectedUserForQr({
+                          id: user.id,
+                          firstName: user.firstName,
+                          lastName: user.lastName,
+                          email: user.email,
+                          role: user.role,
+                          documentId: user.documentId,
+                          qrToken: user.qrToken,
+                          signedQrPayload: user.signedQrPayload,
+                          locationName: user.location?.name,
+                          nfcCardUid: user.nfcCardUid,
+                          department: user.department?.name,
+                        });
+                      }}
+                      className={`p-4 rounded-2xl border bg-white dark:bg-surface-900 shadow-xs transition-all space-y-3 cursor-pointer ${
+                        isSelected || isChecked
+                          ? "border-primary-500/60 bg-primary-50/20 dark:bg-primary-950/20 ring-1 ring-primary-500/30"
+                          : "border-surface-200 dark:border-surface-800"
+                      }`}
+                    >
+                      {/* Header: Checkbox + Avatar + Name + Badges */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          <div onClick={(e) => e.stopPropagation()} className="pt-0.5">
+                            <DataTableCheckbox
+                              checked={isChecked}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (isChecked) {
+                                  setSelectedUserIds((prev) => prev.filter((id) => id !== user.id));
+                                } else {
+                                  setSelectedUserIds((prev) => [...prev, user.id]);
+                                }
+                              }}
+                              ariaLabel={`Seleccionar a ${user.firstName} ${user.lastName}`}
+                            />
+                          </div>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${isSelected ? 'bg-gradient-to-tr from-info-600 to-info-500 text-white ring-1 ring-primary-500/40' : 'bg-gradient-to-tr from-primary-600 to-primary-500 text-white'}`}>
+                            {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-sm text-surface-900 dark:text-white truncate">
+                              {user.firstName} {user.lastName}
+                            </h4>
+                            <p className="text-[11px] text-surface-500 dark:text-slate-400 font-mono truncate">
+                              {user.email}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              <RoleBadge role={user.role} />
+                              <StatusBadge status={user.isActive ? "ACTIVO" : "INACTIVO"} size="sm" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons on mobile */}
+                        <div className="shrink-0 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <ActionButton
+                            size="sm"
+                            variant="primary"
+                            icon={<QrCode className="w-3.5 h-3.5" />}
+                            title="Ver QR"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenQr(user);
+                            }}
+                          />
+                          <ActionButton
+                            size="sm"
+                            variant="warning"
+                            icon={<Edit2 className="w-3.5 h-3.5" />}
+                            title="Editar Perfil"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingUserData({
+                                id: user.id,
+                                firstName: user.firstName,
+                                lastName: user.lastName,
+                                email: user.email,
+                                phone: user.phone || "",
+                                documentId: user.documentId || "",
+                                birthDate: user.birthDate ? String(user.birthDate).split("T")[0] : "",
+                                role: user.role,
+                                locationId: user.location?.id || user.locationId || "",
+                                departmentId: user.department?.id || user.departmentId || "",
+                                scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
+                                nfcCardUid: user.nfcCardUid || "",
+                                isActive: user.isActive,
+                              });
+                              setIsFormModalOpen(true);
+                            }}
+                          />
+                          <ActionButton
+                            size="sm"
+                            variant={user.isActive ? "danger" : "success"}
+                            icon={user.isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+                            title={user.isActive ? "Desactivar" : "Reactivar"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStatus(user);
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Metadata details grid */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-surface-100 dark:border-surface-800 text-xs">
+                        <div className="p-2 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200/60 dark:border-surface-800/60">
+                          <span className="text-[10px] uppercase font-bold text-surface-400">DNI / Documento</span>
+                          <div className="font-semibold text-surface-900 dark:text-white font-mono mt-0.5 truncate">
+                            {user.documentId || "Sin DNI"}
+                          </div>
+                          {user.nfcCardUid && (
+                            <span className="text-[10px] text-info-600 dark:text-info-400 font-mono block">
+                              NFC: {user.nfcCardUid}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200/60 dark:border-surface-800/60">
+                          <span className="text-[10px] uppercase font-bold text-surface-400">Sede & Dpto.</span>
+                          <div className="font-semibold text-surface-900 dark:text-white mt-0.5 truncate">
+                            {user.location?.name || "Sin sede"}
+                          </div>
+                          <span className="text-[10px] text-surface-500 dark:text-slate-400 truncate block">
+                            {user.department?.name || "General"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Horario info footer */}
+                      {schedule && (
+                        <div className="flex items-center justify-between text-xs text-surface-500 dark:text-surface-400 pt-0.5">
+                          <span className="truncate">
+                            🕒 {schedule.name}
+                          </span>
+                          <span className="text-[10px] font-mono shrink-0">
+                            {String(schedule.entryHour).padStart(2, "0")}:{String(schedule.entryMinute).padStart(2, "0")} - {String(schedule.exitHour).padStart(2, "0")}:{String(schedule.exitMinute).padStart(2, "0")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          }
+        >
           <DataTableHeader>
+            <DataTableHead className="w-10 px-3">
+              <DataTableCheckbox
+                checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                indeterminate={selectedUserIds.length > 0 && selectedUserIds.length < filteredUsers.length}
+                onChange={() => {
+                  if (selectedUserIds.length === filteredUsers.length) {
+                    setSelectedUserIds([]);
+                  } else {
+                    setSelectedUserIds(filteredUsers.map((u) => u.id));
+                  }
+                }}
+                ariaLabel="Seleccionar todos los colaboradores"
+              />
+            </DataTableHead>
             <DataTableHead>Colaborador / Identidad</DataTableHead>
             <DataTableHead>Documento</DataTableHead>
             <DataTableHead>Rol & Dpto.</DataTableHead>
@@ -424,17 +798,18 @@ export default function UsersPage() {
           </DataTableHeader>
           <DataTableBody>
             {isLoading ? (
-              <DataTableEmptyState colSpan={7} message="Cargando usuarios..." />
+              <DataTableEmptyState colSpan={8} message="Cargando usuarios..." />
             ) : filteredUsers.length === 0 ? (
-              <DataTableEmptyState colSpan={7} message="No hay colaboradores que coincidan con los filtros." />
+              <DataTableEmptyState colSpan={8} message="No hay colaboradores que coincidan con los filtros." />
             ) : (
               filteredUsers.map((user) => {
                 const schedule = user.userSchedules?.[0]?.schedule;
                 const isSelected = selectedUserForQr?.id === user.id;
+                const isChecked = selectedUserIds.includes(user.id);
                 return (
                   <DataTableRow
                     key={user.id}
-                    isSelected={isSelected}
+                    isSelected={isSelected || isChecked}
                     onClick={() => {
                       setSelectedUserForQr({
                         id: user.id,
@@ -447,9 +822,24 @@ export default function UsersPage() {
                         signedQrPayload: user.signedQrPayload,
                         locationName: user.location?.name,
                         nfcCardUid: user.nfcCardUid,
+                        department: user.department?.name,
                       });
                     }}
                   >
+                    <DataTableCell className="w-10 px-3" onClick={(e) => e?.stopPropagation()}>
+                      <DataTableCheckbox
+                        checked={isChecked}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (isChecked) {
+                            setSelectedUserIds((prev) => prev.filter((id) => id !== user.id));
+                          } else {
+                            setSelectedUserIds((prev) => [...prev, user.id]);
+                          }
+                        }}
+                        ariaLabel={`Seleccionar a ${user.firstName} ${user.lastName}`}
+                      />
+                    </DataTableCell>
                     <DataTableCell>
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${isSelected ? 'bg-gradient-to-tr from-info-600 to-info-500 text-white ring-1 ring-primary-500/40' : 'bg-gradient-to-tr from-primary-600 to-primary-500 text-white'}`}>
@@ -476,9 +866,8 @@ export default function UsersPage() {
 
                     <DataTableCell>
                       <RoleBadge role={user.role} size="sm" />
-                      <p className="text-[10px] text-surface-500 dark:text-slate-400 mt-0.5 truncate max-w-[120px]">
-                        {user.role === UserRole.EMPLEADO ? "Operaciones" : 
-                         user.role === UserRole.SUPERVISOR ? "Supervisión" : "Administración"}
+                      <p className="text-[10px] text-surface-500 dark:text-slate-400 mt-0.5 truncate max-w-[130px] font-medium" title={user.department?.name || "Sin departamento"}>
+                        {user.department?.name || (user.role === UserRole.EMPLEADO ? "Sin departamento" : "General")}
                       </p>
                     </DataTableCell>
 
@@ -528,7 +917,12 @@ export default function UsersPage() {
                           title="Excepción Rotativa 1 Día"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedUserForOverride({ id: user.id, name: `${user.firstName} ${user.lastName}` });
+                            setSelectedUserForOverride({
+                              id: user.id,
+                              name: `${user.firstName} ${user.lastName}`,
+                              locationId: user.location?.id,
+                              locationName: user.location?.name,
+                            });
                             setIsOverrideModalOpen(true);
                           }}
                         />
@@ -546,8 +940,10 @@ export default function UsersPage() {
                               email: user.email,
                               phone: user.phone || "",
                               documentId: user.documentId || "",
+                              birthDate: user.birthDate ? String(user.birthDate).split("T")[0] : "",
                               role: user.role,
-                              locationId: user.location?.id || "",
+                              locationId: user.location?.id || user.locationId || "",
+                              departmentId: user.department?.id || user.departmentId || "",
                               scheduleId: user.userSchedules?.[0]?.schedule?.id || "",
                               nfcCardUid: user.nfcCardUid || "",
                               isActive: user.isActive,
@@ -650,6 +1046,13 @@ export default function UsersPage() {
                       <span>Ver y Validar Credencial QR</span>
                     </button>
                     <button
+                      onClick={() => handlePrintSingleUser(selectedUserForQr)}
+                      className="w-full py-2 px-3 rounded-xl bg-surface-100 dark:bg-surface-800/80 hover:bg-surface-200 dark:hover:bg-surface-700 border border-surface-200 dark:border-surface-700 text-xs font-bold text-surface-800 dark:text-slate-200 flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                      <span>Imprimir Credencial Oficial</span>
+                    </button>
+                    <button
                       onClick={() => handleRegenerateQr(selectedUserForQr.id)}
                       className="w-full py-2 px-3 rounded-xl bg-warning-50 dark:bg-amber-500/10 hover:bg-warning-100 dark:hover:bg-amber-500/20 border border-warning-200 dark:border-amber-500/30 text-xs font-bold text-warning-700 dark:text-amber-300 flex items-center justify-center gap-2 transition cursor-pointer"
                     >
@@ -687,6 +1090,7 @@ export default function UsersPage() {
         onClose={() => setIsQrModalOpen(false)}
         user={selectedUserForQr}
         onRegenerateQr={handleRegenerateQr}
+        onPrint={handlePrintSingleUser}
       />
 
       {selectedUserForOverride && (
@@ -695,6 +1099,9 @@ export default function UsersPage() {
           onClose={() => setIsOverrideModalOpen(false)}
           userId={selectedUserForOverride.id}
           userName={selectedUserForOverride.name}
+          userLocationId={selectedUserForOverride.locationId}
+          userLocationName={selectedUserForOverride.locationName}
+          locations={locations}
           schedules={schedules}
           onSuccess={() => {
             toast.success("Excepción programada correctamente");
@@ -710,7 +1117,89 @@ export default function UsersPage() {
         initialData={editingUserData}
         locations={locations}
         schedules={schedules}
+        departments={departments}
+      />
+
+      {/* Barra de acciones flotante para selección masiva */}
+      <BulkActionBar
+        selectedCount={selectedUserIds.length}
+        onClearSelection={() => setSelectedUserIds([])}
+        onOpenBulkEdit={() => setIsBulkEditOpen(true)}
+        onOpenBulkDeactivate={() => setIsBulkDeactivateOpen(true)}
+        onOpenBulkPrint={() => {
+          setPrintUsersOverride(null);
+          setIsBulkPrintOpen(true);
+        }}
+      />
+
+      {/* Estudio de diseño e impresión masiva o individual de credenciales */}
+      <BulkPrintModal
+        isOpen={isBulkPrintOpen}
+        onClose={() => {
+          setIsBulkPrintOpen(false);
+          setPrintUsersOverride(null);
+        }}
+        users={printUsersOverride ?? selectedUsersForPrint}
+        defaultOrgName={
+          printUsersOverride?.[0]?.locationName
+            ? printUsersOverride[0].locationName
+            : selectedLocation !== "ALL"
+            ? locations.find((l) => l.id === selectedLocation)?.name || "Hotel Italia"
+            : "Hotel Italia"
+        }
+      />
+
+      {/* Modal de edición masiva */}
+      <BulkEditModal
+        isOpen={isBulkEditOpen}
+        onClose={() => setIsBulkEditOpen(false)}
+        selectedUserIds={selectedUserIds}
+        locations={locations}
+        schedules={schedules}
+        onSuccess={() => {
+          mutateUsers();
+          setSelectedUserIds([]);
+        }}
+      />
+
+      {/* Modal de baja masiva */}
+      <BulkDeactivateModal
+        isOpen={isBulkDeactivateOpen}
+        onClose={() => setIsBulkDeactivateOpen(false)}
+        selectedUserIds={selectedUserIds}
+        onSuccess={() => {
+          mutateUsers();
+          setSelectedUserIds([]);
+        }}
+      />
+
+      {/* Wizard de importación masiva */}
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        locations={locations}
+        schedules={schedules}
+        onSuccess={() => {
+          mutateUsers();
+        }}
+      />
+
+      {/* Modal oficial de exportación e impresión a PDF */}
+      <UsersPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        users={usersToExport}
+        organization={orgData?.organization || null}
       />
     </div>
   );
 }
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-sans">Cargando gestión de colaboradores...</div>}>
+      <UsersPageContent />
+    </Suspense>
+  );
+}
+

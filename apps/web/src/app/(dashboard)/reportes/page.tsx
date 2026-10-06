@@ -20,6 +20,7 @@ import {
   Printer,
   FileText,
   Filter,
+  FolderTree,
 } from "lucide-react";
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
@@ -34,6 +35,7 @@ import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
 import { AttendanceHeatmap } from "@/components/reports/AttendanceHeatmap";
 import { DailyTrendChart } from "@/components/reports/DailyTrendChart";
 import { LateSeverityChart } from "@/components/reports/LateSeverityChart";
+import { ExportReportDropdown } from "@/components/reports/ExportReportDropdown";
 
 interface DailyRecord {
   date: string;
@@ -80,8 +82,10 @@ export default function ReportsPage() {
   );
 
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
   const [selectedRole, setSelectedRole] = useState<string>("ALL");
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [heatmapData, setHeatmapData] = useState<{
     peakHoursMatrix: any[];
@@ -101,13 +105,18 @@ export default function ReportsPage() {
   const [nominalStatusFilter, setNominalStatusFilter] = useState<StatusFilter>("ALL");
   const [isLoadingNominal, setIsLoadingNominal] = useState(false);
 
-  const fetchLocations = async () => {
+  const fetchLocationsAndDepartments = async () => {
     try {
-      const res = await fetch("/api/locations");
-      const data = await res.json();
-      if (data.locations) setLocations(data.locations);
+      const [locRes, deptRes] = await Promise.all([
+        fetch("/api/locations"),
+        fetch("/api/departments"),
+      ]);
+      const locData = await locRes.json();
+      const deptData = await deptRes.json();
+      if (locData.locations) setLocations(locData.locations);
+      if (deptData.departments) setDepartments(deptData.departments);
     } catch (err) {
-      console.error("Error fetching locations:", err);
+      console.error("Error fetching locations or departments:", err);
     }
   };
 
@@ -140,6 +149,10 @@ export default function ReportsPage() {
         summaryParams.append("locationId", selectedLocation);
         heatmapParams.append("locationId", selectedLocation);
       }
+      if (selectedDepartment !== "ALL") {
+        summaryParams.append("departmentId", selectedDepartment);
+        heatmapParams.append("departmentId", selectedDepartment);
+      }
       if (selectedRole !== "ALL") {
         heatmapParams.append("role", selectedRole);
       }
@@ -171,12 +184,12 @@ export default function ReportsPage() {
   };
 
   useEffect(() => {
-    fetchLocations();
+    fetchLocationsAndDepartments();
   }, []);
 
   useEffect(() => {
     fetchReports();
-  }, [selectedMonth, selectedLocation, selectedRole, periodType, customStartDate, customEndDate]);
+  }, [periodType, selectedMonth, customStartDate, customEndDate, selectedLocation, selectedDepartment, selectedRole]);
 
   // Generar Reporte PDF
   const handleOpenPdfModal = async () => {
@@ -255,10 +268,11 @@ export default function ReportsPage() {
     }
   };
 
-  // Exportar Excel / CSV
-  const handleExportCsv = () => {
+  // Construcción unificada de URL de exportación (XLSX o CSV)
+  const buildExportUrl = (format: "xlsx" | "csv") => {
     const params = new URLSearchParams({
       period: periodType,
+      format,
     });
 
     if (periodType === "MONTH") {
@@ -276,7 +290,15 @@ export default function ReportsPage() {
     if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
     if (selectedRole !== "ALL") params.append("role", selectedRole);
 
-    window.open(`/api/reports/export?${params.toString()}`, "_blank");
+    return `/api/reports/export?${params.toString()}`;
+  };
+
+  const handleExportExcel = () => {
+    window.open(buildExportUrl("xlsx"), "_blank");
+  };
+
+  const handleExportCsv = () => {
+    window.open(buildExportUrl("csv"), "_blank");
   };
 
   return (
@@ -305,13 +327,13 @@ export default function ReportsPage() {
         iconVariant="emerald"
         actionButtons={
           <>
-            <Button
-              variant="secondary"
-              onClick={handleExportCsv}
-              icon={<FileSpreadsheet className="w-4 h-4 text-primary-600 dark:text-emerald-400" />}
-            >
-              Exportar Excel
-            </Button>
+            <ExportReportDropdown
+              onExportExcel={handleExportExcel}
+              onExportPdf={handleOpenPdfModal}
+              onExportCsv={handleExportCsv}
+              periodLabel={periodType === "MONTH" ? selectedMonth : undefined}
+              isLoadingPdf={isGeneratingPdf}
+            />
             <Button
               variant="primary"
               onClick={handleOpenPdfModal}
@@ -408,14 +430,23 @@ export default function ReportsPage() {
             ]
           },
           {
+            id: "department",
+            icon: FolderTree,
+            value: selectedDepartment,
+            onChange: setSelectedDepartment,
+            options: [
+              { value: "ALL", label: "Todos los Departamentos" },
+              ...departments.map((d) => ({ value: d.id, label: d.name }))
+            ]
+          },
+          {
             id: "role",
             value: selectedRole,
             onChange: setSelectedRole,
             options: [
               { value: "ALL", label: "Todos los Roles" },
               { value: "EMPLEADO", label: "Solo Empleados" },
-              { value: "SUPERVISOR", label: "Supervisores" },
-              { value: "ALUMNO", label: "Alumnos" }
+              { value: "SUPERVISOR", label: "Supervisores" }
             ]
           }
         ]}
@@ -502,7 +533,7 @@ export default function ReportsPage() {
 
           {/* ── Visual Heatmaps & Peak Hours Analytics ──────────────── */}
           {heatmapData && (
-            <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 bg-surface-50/50 dark:bg-[#0a111c]/40 backdrop-blur-md overflow-hidden">
+            <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 bg-surface-50/50 dark:bg-surface-900/40 backdrop-blur-md overflow-hidden">
               <AttendanceHeatmap
                 matrix={heatmapData.peakHoursMatrix}
                 locationPatterns={heatmapData.locationPatterns}
@@ -517,7 +548,7 @@ export default function ReportsPage() {
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* Left Col: Distribución de Estados (5 Cols) */}
-            <div className="lg:col-span-5 glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-6 flex flex-col justify-between bg-surface-50 dark:bg-[#0a111c]/60 shadow-lg backdrop-blur-xl">
+            <div className="lg:col-span-5 glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-6 flex flex-col justify-between bg-surface-50 dark:bg-surface-900/60 shadow-lg backdrop-blur-xl">
               <div>
                 <div className="flex items-center justify-between border-b border-surface-200 dark:border-white/5 pb-4">
                   <div className="flex items-center space-x-3">
@@ -631,7 +662,7 @@ export default function ReportsPage() {
             {/* Right Col: Consola de Exportación & Auditoría (7 Cols) */}
             <div className="lg:col-span-7 flex flex-col gap-6">
               
-              <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-6 flex flex-col justify-between bg-surface-50 dark:bg-[#0a111c]/60 shadow-lg backdrop-blur-xl h-full">
+              <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-6 flex flex-col justify-between bg-surface-50 dark:bg-surface-900/60 shadow-lg backdrop-blur-xl h-full">
                 <div>
                   <div className="flex items-center justify-between border-b border-surface-200 dark:border-white/5 pb-4">
                     <div className="flex items-center space-x-3">
@@ -687,7 +718,7 @@ export default function ReportsPage() {
                 <div className="mt-6 pt-4 border-t border-surface-200 dark:border-white/5 flex flex-wrap items-center justify-end gap-3">
                   <button
                     onClick={handleExportCsv}
-                    className="px-4 py-2.5 rounded-xl bg-surface-200 dark:bg-[#0a111c] hover:bg-surface-300 dark:hover:bg-[#131b26] border border-surface-300 dark:border-white/10 text-xs font-semibold text-surface-800 dark:text-slate-200 transition flex items-center space-x-2 cursor-pointer active:scale-95 shadow-md"
+                    className="px-4 py-2.5 rounded-xl bg-surface-200 dark:bg-surface-800 hover:bg-surface-300 dark:hover:bg-surface-700 border border-surface-300 dark:border-white/10 text-xs font-semibold text-surface-800 dark:text-slate-200 transition flex items-center space-x-2 cursor-pointer active:scale-95 shadow-md"
                   >
                     <FileSpreadsheet className="w-4 h-4 text-primary-600 dark:text-emerald-400" />
                     <span>Descargar Nómina (.csv)</span>

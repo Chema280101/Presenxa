@@ -46,9 +46,9 @@ export function PageHeader({
   const v = ICON_VARIANT_MAP[iconVariant] || ICON_VARIANT_MAP.emerald;
 
   return (
-    <section className={clsx("flex flex-col md:flex-row md:items-center justify-between gap-4", className)}>
-      <div className="space-y-1">
-        <div className="flex items-center gap-3">
+    <section className={clsx("flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4", className)}>
+      <div className="space-y-1 min-w-0 flex-1">
+        <div className="flex items-center gap-3 min-w-0">
           <div
             className={clsx(
               "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0",
@@ -58,12 +58,12 @@ export function PageHeader({
           >
             <Icon className="w-5 h-5" strokeWidth={2} />
           </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-surface-900 dark:text-white tracking-tight flex items-center gap-2">
-              {title}
-              {titleBadge && titleBadge}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-surface-900 dark:text-white tracking-tight flex flex-wrap items-center gap-2">
+              <span className="truncate">{title}</span>
+              {titleBadge && <span className="shrink-0">{titleBadge}</span>}
             </h1>
-            <p className="text-xs text-surface-500 dark:text-surface-400 font-normal">
+            <p className="text-xs text-surface-500 dark:text-surface-400 font-normal truncate sm:whitespace-normal">
               {subtitle}
             </p>
           </div>
@@ -71,7 +71,7 @@ export function PageHeader({
       </div>
 
       {actionButtons && (
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full md:w-auto justify-start md:justify-end">
           {actionButtons}
         </div>
       )}

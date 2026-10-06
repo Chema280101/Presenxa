@@ -28,15 +28,15 @@ export function OperationalCompliance({
       {/* Encabezado */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-bold text-white tracking-tight">
+          <h3 className="text-base font-bold text-surface-900 dark:text-white tracking-tight">
             Cumplimiento Operativo por Área
           </h3>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-surface-500 dark:text-surface-400">
             Control de dotación presencial mínima según estándares de servicio
           </p>
         </div>
 
-        <span className="px-3 py-1 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 font-bold text-xs self-start sm:self-auto font-tabular">
+        <span className="px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 font-bold text-xs self-start sm:self-auto font-tabular">
           Dotación Global: {overallCompliance.toFixed(1)}%
         </span>
       </div>
@@ -49,30 +49,30 @@ export function OperationalCompliance({
           return (
             <div
               key={area.id}
-              className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/15 transition-all flex flex-col justify-between gap-2.5"
+              className="p-3.5 rounded-xl bg-surface-100/60 hover:bg-surface-100 dark:bg-white/[0.02] border border-surface-200/80 hover:border-surface-300 dark:border-white/[0.06] dark:hover:border-white/15 transition-all flex flex-col justify-between gap-2.5"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 ${
                       area.accentColor === "emerald"
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30"
                         : area.accentColor === "cyan"
-                        ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                        : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                        ? "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30"
+                        : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30"
                     }`}
                   >
                     {area.code}
                   </div>
 
-                  <span className="text-xs font-semibold text-slate-200 truncate">
+                  <span className="text-xs font-semibold text-surface-800 dark:text-slate-200 truncate">
                     {area.name}
                   </span>
                 </div>
 
                 <span
                   className={`text-xs font-bold font-tabular flex-shrink-0 ${
-                    isComplete ? "text-emerald-400" : "text-amber-400"
+                    isComplete ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
                   }`}
                 >
                   {area.percentage}%
@@ -81,20 +81,20 @@ export function OperationalCompliance({
 
               {/* Barra de progreso */}
               <div className="space-y-1">
-                <div className="w-full bg-slate-800/90 rounded-full h-1.5 overflow-hidden">
+                <div className="w-full bg-surface-200 dark:bg-slate-800/90 rounded-full h-1.5 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       area.accentColor === "emerald"
-                        ? "bg-emerald-400"
+                        ? "bg-emerald-500"
                         : area.accentColor === "cyan"
-                        ? "bg-cyan-400"
-                        : "bg-amber-400"
+                        ? "bg-cyan-500"
+                        : "bg-amber-500"
                     }`}
                     style={{ width: `${area.percentage}%` }}
                   />
                 </div>
 
-                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <div className="flex justify-between text-[10px] text-surface-500 dark:text-surface-400 font-mono">
                   <span>Presentes: {area.current}</span>
                   <span>Meta: {area.required}</span>
                 </div>

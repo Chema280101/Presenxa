@@ -19,6 +19,7 @@ import {
   MapPin,
   ChevronDown,
 } from "lucide-react";
+import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import {
   ScheduleFormModal,
   ScheduleFormData,
@@ -31,7 +32,16 @@ import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonTable } from "@/components/ui/Skeleton";
+import {
+  DataTableContainer,
+  DataTableHeader,
+  DataTableHead,
+  DataTableBody,
+  DataTableRow,
+  DataTableCell,
+  DataTableEmptyState,
+} from "@/components/ui/DataTable";
 import Link from "next/link";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
@@ -52,10 +62,12 @@ interface ScheduleItem {
   exitMinute2?: number | null;
   toleranceMinutes2?: number | null;
   isActive: boolean;
+  locationId?: string | null;
   location?: {
     id: string;
     name: string;
   } | null;
+  isTemplate?: boolean;
   _count?: {
     userSchedules: number;
   };
@@ -78,6 +90,7 @@ export default function SchedulesPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -321,7 +334,7 @@ export default function SchedulesPage() {
       </section>
 
       {/* BEGIN: OperationalAuditBanner */}
-      <section className="glass-panel p-5 rounded-2xl border border-primary-200 dark:border-emerald-500/20 bg-gradient-to-r from-primary-50 dark:from-emerald-950/20 via-surface-50 dark:via-[#0a111c] to-info-50 dark:to-cyan-950/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-primary-500/5 dark:shadow-emerald-500/5">
+      <section className="glass-panel p-5 rounded-2xl border border-primary-200 dark:border-emerald-500/20 bg-gradient-to-r from-primary-50 dark:from-emerald-950/20 via-surface-50 dark:via-surface-900 to-info-50 dark:to-cyan-950/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg shadow-primary-500/5 dark:shadow-emerald-500/5">
         <div className="flex items-center space-x-4">
           <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-emerald-500/20 border border-primary-200 dark:border-emerald-500/40 flex items-center justify-center text-primary-700 dark:text-emerald-400 shrink-0">
             <ClockAlert className="w-5 h-5" />
@@ -355,6 +368,7 @@ export default function SchedulesPage() {
           setSelectedStatus("ALL");
           setSelectedLocation("ALL");
         }}
+        viewModeToggle={<ViewModeToggle value={viewMode} onChange={setViewMode} />}
         filters={[
           {
             id: "status",
@@ -381,251 +395,438 @@ export default function SchedulesPage() {
       />
       {/* END: FilterToolBar */}
 
-      {/* BEGIN: MainContentSplitLayout */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-        
-        {/* Left Column: Schedules Catalog List (7 cols) */}
-        <div className="lg:col-span-7 space-y-5">
-          {isLoading ? (
-            <div className="text-center py-12">
-              <RefreshCw className="w-8 h-8 text-primary-500 dark:text-emerald-500 animate-spin mx-auto mb-4" />
-              <p className="text-surface-500 dark:text-slate-400">Cargando horarios...</p>
+      {/* BEGIN: MainContent */}
+      {viewMode === "grid" ? (
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* Left Column: Schedules Catalog List (7 cols) */}
+          <div className="lg:col-span-7 space-y-5">
+            {isLoading ? (
+              <div className="text-center py-12">
+                <RefreshCw className="w-8 h-8 text-primary-500 dark:text-emerald-500 animate-spin mx-auto mb-4" />
+                <p className="text-surface-500 dark:text-slate-400">Cargando horarios...</p>
+              </div>
+            ) : filteredSchedules.length === 0 ? (
+              <div className="text-center py-12 bg-surface-50 dark:bg-white/[0.02] rounded-3xl border border-dashed border-surface-200 dark:border-white/10">
+                <ClockAlert className="w-12 h-12 text-surface-400 dark:text-slate-600 mx-auto mb-4" />
+                <p className="text-surface-500 dark:text-slate-400 text-lg font-semibold">Sin horarios encontrados</p>
+              </div>
+            ) : (
+              filteredSchedules.map((sch) => {
+                const isNightShift = sch.exitHour < sch.entryHour || sch.entryHour >= 18;
+                let accentColor = sch.isSplit ? "cyan" : isNightShift ? "indigo" : "emerald";
+                let IconComp = sch.isSplit ? Sun : isNightShift ? Moon : Sun;
+
+                const entryStr = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")}`;
+                const exitStr = `${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
+                
+                const entryStr2 = sch.entryHour2 !== null && sch.entryHour2 !== undefined
+                  ? `${String(sch.entryHour2).padStart(2, "0")}:${String(sch.entryMinute2 || 0).padStart(2, "0")}`
+                  : null;
+                const exitStr2 = sch.exitHour2 !== null && sch.exitHour2 !== undefined
+                  ? `${String(sch.exitHour2).padStart(2, "0")}:${String(sch.exitMinute2 || 0).padStart(2, "0")}`
+                  : null;
+
+                const duration = calculateHours(
+                  sch.entryHour, sch.entryMinute, sch.exitHour, sch.exitMinute,
+                  sch.isSplit, sch.entryHour2, sch.entryMinute2, sch.exitHour2, sch.exitMinute2
+                );
+
+                return (
+                  <article key={sch.id} className={`glass-panel p-6 rounded-3xl border-l-4 relative bg-surface-50 dark:bg-command-card/80 backdrop-blur-2xl border border-surface-200 dark:border-white/5 hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-all duration-300 shadow-xl ${
+                    accentColor === 'cyan' ? 'border-l-info-400 dark:border-l-cyan-400 hover:border-info-500/40 dark:hover:border-cyan-500/40' :
+                    accentColor === 'indigo' ? 'border-l-indigo-500 dark:border-l-indigo-400 hover:border-indigo-600/40 dark:hover:border-indigo-500/40' :
+                    'border-l-primary-500 dark:border-l-emerald-400 hover:border-primary-600/40 dark:hover:border-emerald-500/40'
+                  }`}>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-bold text-surface-900 dark:text-white tracking-tight">{sch.name}</h3>
+                          {sch.isActive ? (
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+                              accentColor === 'cyan' ? 'bg-info-50 dark:bg-cyan-500/15 text-info-700 dark:text-cyan-300 border-info-200 dark:border-cyan-500/30' :
+                              accentColor === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/30' :
+                              'bg-primary-50 dark:bg-emerald-500/15 text-primary-700 dark:text-emerald-300 border-primary-200 dark:border-emerald-500/30'
+                            }`}>Activo</span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-surface-200 dark:bg-slate-800 text-surface-600 dark:text-slate-400 border border-surface-300 dark:border-slate-700">Inactivo</span>
+                          )}
+                          {sch.isSplit && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-info-50 dark:bg-cyan-500/20 text-info-700 dark:text-cyan-300 border border-info-200 dark:border-cyan-500/30">Partido (2 Tramos)</span>
+                          )}
+                          {isNightShift && !sch.isSplit && (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">Nocturno</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-surface-500 dark:text-slate-400 mt-1">
+                          Sede: <span className="text-surface-800 dark:text-slate-200 font-medium">{sch.location ? sch.location.name : "Global"}</span> • Jornada neta: <span className={`font-semibold ${
+                            accentColor === 'cyan' ? 'text-info-600 dark:text-cyan-400' : accentColor === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' : 'text-primary-600 dark:text-emerald-400'
+                          }`}>{duration}</span> • Tol: <span className="text-warning-600 dark:text-amber-300 font-mono">{sch.toleranceMinutes} min</span>
+                        </p>
+                      </div>
+                      <ActionButtonGroup align="right" className="ml-2">
+                        <ActionButton 
+                          size="md"
+                          variant="warning"
+                          title="Editar Horario"
+                          icon={<Edit2 className="w-4 h-4" />}
+                          onClick={() => {
+                            setEditingSchedule({
+                              id: sch.id, name: sch.name, workdaysMask: sch.workdaysMask, entryHour: sch.entryHour, entryMinute: sch.entryMinute, exitHour: sch.exitHour, exitMinute: sch.exitMinute, toleranceMinutes: sch.toleranceMinutes, isSplit: sch.isSplit, entryHour2: sch.entryHour2, entryMinute2: sch.entryMinute2, exitHour2: sch.exitHour2, exitMinute2: sch.exitMinute2, toleranceMinutes2: sch.toleranceMinutes2, locationId: sch.location?.id || sch.locationId || null, isTemplate: sch.isTemplate || false, isActive: sch.isActive,
+                            });
+                            setIsModalOpen(true);
+                          }}
+                        />
+                        <ActionButton 
+                          size="md"
+                          variant={sch.isActive ? "danger" : "success"}
+                          title={sch.isActive ? "Desactivar Horario" : "Reactivar Horario"}
+                          icon={<Trash2 className="w-4 h-4" />}
+                          onClick={() => handleToggleStatus(sch)}
+                        />
+                      </ActionButtonGroup>
+                    </div>
+
+                    {/* Time Blocks */}
+                    {sch.isSplit ? (
+                      <div className="my-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Tramo 1 */}
+                        <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold uppercase text-info-600 dark:text-cyan-400 tracking-wider">Tramo 1 (Ingreso)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Entrada 1</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{entryStr}</span></div>
+                            <span className="text-xs text-surface-400 dark:text-slate-600">→</span>
+                            <div className="text-right"><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Salida 1</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{exitStr}</span></div>
+                          </div>
+                        </div>
+                        {/* Tramo 2 */}
+                        <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold uppercase text-primary-600 dark:text-emerald-400 tracking-wider">Tramo 2 (Retorno)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Entrada 2</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{entryStr2 || "--:--"}</span></div>
+                            <span className="text-xs text-surface-400 dark:text-slate-600">→</span>
+                            <div className="text-right"><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Salida 2</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{exitStr2 || "--:--"}</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="my-5 grid grid-cols-2 gap-4">
+                        {/* Official Entry */}
+                        <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5 flex items-center space-x-4">
+                          <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
+                            isNightShift ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-warning-50 dark:bg-amber-500/10 border-warning-200 dark:border-amber-500/20 text-warning-600 dark:text-amber-400'
+                          }`}>
+                            {isNightShift ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-surface-500 dark:text-slate-400 block tracking-wider">Entrada Oficial</span>
+                            <div className="flex items-baseline space-x-2">
+                              <span className="text-2xl font-black text-surface-900 dark:text-white font-mono">{entryStr}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Official Exit */}
+                        <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5 flex items-center space-x-4">
+                          <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
+                            isNightShift ? 'bg-warning-50 dark:bg-amber-500/10 border-warning-200 dark:border-amber-500/20 text-warning-600 dark:text-amber-400' : 'bg-primary-50 dark:bg-emerald-500/10 border-primary-200 dark:border-emerald-500/20 text-primary-600 dark:text-emerald-400'
+                          }`}>
+                            {isNightShift ? <Sun className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-surface-500 dark:text-slate-400 block tracking-wider">Salida Oficial</span>
+                            <div className="flex items-baseline space-x-2">
+                              <span className="text-2xl font-black text-surface-900 dark:text-white font-mono">{exitStr}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Days Badges & Assignment Footer */}
+                    <div className="pt-4 border-t border-surface-200 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-xs text-surface-500 dark:text-slate-400 mr-2 font-medium">Días:</span>
+                        {DAYS.map((d) => {
+                          const active = Boolean(sch.workdaysMask & d.bit);
+                          return (
+                            <span
+                              key={d.bit}
+                              className={`w-7 h-7 rounded-lg font-mono text-[11px] font-bold flex items-center justify-center transition-colors ${
+                                active
+                                  ? `bg-primary-100 dark:bg-emerald-500/20 text-primary-700 dark:text-emerald-300 border border-primary-300 dark:border-emerald-500/30`
+                                  : `bg-surface-100 dark:bg-white/[0.02] text-surface-400 dark:text-slate-600 border border-surface-200 dark:border-white/5`
+                              }`}
+                            >
+                              {d.label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2 text-sm text-surface-800 dark:text-slate-300">
+                          <Users className={`w-4 h-4 ${
+                            accentColor === 'cyan' ? 'text-info-600 dark:text-cyan-400' : accentColor === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' : 'text-primary-600 dark:text-emerald-400'
+                          }`} />
+                          <span className="font-bold text-surface-900 dark:text-white">{sch._count?.userSchedules || 0}</span>
+                          <span className="text-surface-500 dark:text-slate-400 text-xs">asignados</span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })
+            )}
+          </div>
+
+          <div className="lg:col-span-5 space-y-6 sticky top-24">
+            <div className="glass-panel p-6 rounded-3xl border border-primary-200 dark:border-emerald-500/20 shadow-primary-500/5 dark:shadow-[0_0_20px_rgba(16,185,129,0.05)] bg-surface-50 dark:bg-surface-900/90 backdrop-blur-2xl space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-white/5">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse"></div>
+                  <h3 className="text-base font-extrabold text-surface-900 dark:text-white">Inspector &amp; Reglas Operativas</h3>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary-50 dark:bg-emerald-500/10 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30">EN VIVO</span>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <h4 className="text-xs font-bold uppercase text-surface-500 dark:text-slate-400 tracking-wider">Reglas de Control &amp; Tolerancia</h4>
+                
+                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
+                  <div className="w-8 h-8 rounded-xl bg-warning-50 dark:bg-amber-500/10 text-warning-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <ClockAlert className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs">
+                    <span className="font-bold text-surface-900 dark:text-white block text-sm">Cálculo de Tardanza Automático</span>
+                    <p className="text-surface-500 dark:text-slate-400 mt-1">El Totem Kiosk marca tardanza inmediatamente post-tolerancia y registra los minutos acumulados para cálculo automático de reportes.</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
+                  <div className="w-8 h-8 rounded-xl bg-info-50 dark:bg-cyan-500/10 text-info-600 dark:text-cyan-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs">
+                    <span className="font-bold text-surface-900 dark:text-white block text-sm">Validación de Turno Partido</span>
+                    <p className="text-surface-500 dark:text-slate-400 mt-1">Exige 4 marcaciones obligatorias. Si falta 1 registro, el cierre nocturno SOD lo categoriza como "JORNADA INCOMPLETA".</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
+                  <div className="w-8 h-8 rounded-xl bg-primary-50 dark:bg-emerald-500/10 text-primary-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs">
+                    <span className="font-bold text-surface-900 dark:text-white block text-sm">Validación Antifraude Activa</span>
+                    <p className="text-surface-500 dark:text-slate-400 mt-1">Marcación validada con sello de tiempo criptográfico del hardware, independiente de la hora local del dispositivo del usuario.</p>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setIsBulkAssignModalOpen(true)}
+                className="w-full py-3.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm shadow-md shadow-primary-500/20 dark:shadow-[0_0_20px_rgba(16,185,129,0.2)] transition duration-200 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <Users className="w-5 h-5" />
+                <span>Asignar Masivamente a Colaboradores</span>
+              </button>
+
+              <div className="p-4 rounded-2xl bg-surface-200 dark:bg-slate-900/50 border border-surface-300 dark:border-slate-800 flex items-start space-x-3 text-xs text-surface-600 dark:text-slate-400">
+                <Sliders className="w-4 h-4 text-primary-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong className="text-surface-800 dark:text-slate-300">Control de Asistencia:</strong> Las tolerancias configuradas determinan el cálculo automático de tardanzas y los minutos efectivos trabajados en cada jornada.</span>
+              </div>
             </div>
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-6">
+          {isLoading ? (
+            <SkeletonTable rows={5} cols={8} />
           ) : filteredSchedules.length === 0 ? (
             <div className="text-center py-12 bg-surface-50 dark:bg-white/[0.02] rounded-3xl border border-dashed border-surface-200 dark:border-white/10">
               <ClockAlert className="w-12 h-12 text-surface-400 dark:text-slate-600 mx-auto mb-4" />
               <p className="text-surface-500 dark:text-slate-400 text-lg font-semibold">Sin horarios encontrados</p>
             </div>
           ) : (
-            filteredSchedules.map((sch) => {
-              const isNightShift = sch.exitHour < sch.entryHour || sch.entryHour >= 18;
-              let accentColor = sch.isSplit ? "cyan" : isNightShift ? "indigo" : "emerald";
-              let IconComp = sch.isSplit ? Sun : isNightShift ? Moon : Sun;
+            <DataTableContainer>
+              <DataTableHeader>
+                <DataTableHead>Horario / Turno</DataTableHead>
+                <DataTableHead>Modalidad / Sede</DataTableHead>
+                <DataTableHead>Días Laborables</DataTableHead>
+                <DataTableHead>Jornada &amp; Horas</DataTableHead>
+                <DataTableHead>Tolerancia</DataTableHead>
+                <DataTableHead>Asignados</DataTableHead>
+                <DataTableHead>Estado</DataTableHead>
+                <DataTableHead align="right">Acciones</DataTableHead>
+              </DataTableHeader>
+              <DataTableBody>
+                  {filteredSchedules.map((sch) => {
+                    const isNightShift = sch.exitHour < sch.entryHour || sch.entryHour >= 18;
+                    const accentColor = sch.isSplit ? "cyan" : isNightShift ? "indigo" : "emerald";
+                    const IconComp = sch.isSplit ? Sun : isNightShift ? Moon : Sun;
 
-              const entryStr = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")}`;
-              const exitStr = `${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
-              
-              const entryStr2 = sch.entryHour2 !== null && sch.entryHour2 !== undefined
-                ? `${String(sch.entryHour2).padStart(2, "0")}:${String(sch.entryMinute2 || 0).padStart(2, "0")}`
-                : null;
-              const exitStr2 = sch.exitHour2 !== null && sch.exitHour2 !== undefined
-                ? `${String(sch.exitHour2).padStart(2, "0")}:${String(sch.exitMinute2 || 0).padStart(2, "0")}`
-                : null;
+                    const entryStr = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")}`;
+                    const exitStr = `${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
+                    
+                    const entryStr2 = sch.entryHour2 !== null && sch.entryHour2 !== undefined
+                      ? `${String(sch.entryHour2).padStart(2, "0")}:${String(sch.entryMinute2 || 0).padStart(2, "0")}`
+                      : null;
+                    const exitStr2 = sch.exitHour2 !== null && sch.exitHour2 !== undefined
+                      ? `${String(sch.exitHour2).padStart(2, "0")}:${String(sch.exitMinute2 || 0).padStart(2, "0")}`
+                      : null;
 
-              const duration = calculateHours(
-                sch.entryHour, sch.entryMinute, sch.exitHour, sch.exitMinute,
-                sch.isSplit, sch.entryHour2, sch.entryMinute2, sch.exitHour2, sch.exitMinute2
-              );
+                    const duration = calculateHours(
+                      sch.entryHour, sch.entryMinute, sch.exitHour, sch.exitMinute,
+                      sch.isSplit, sch.entryHour2, sch.entryMinute2, sch.exitHour2, sch.exitMinute2
+                    );
 
-              return (
-                <article key={sch.id} className={`glass-panel p-6 rounded-3xl border-l-4 relative bg-surface-50 dark:bg-command-card/80 backdrop-blur-2xl border border-surface-200 dark:border-white/5 hover:bg-surface-100 dark:hover:bg-[#0d1624] transition-all duration-300 shadow-xl ${
-                  accentColor === 'cyan' ? 'border-l-info-400 dark:border-l-cyan-400 hover:border-info-500/40 dark:hover:border-cyan-500/40' :
-                  accentColor === 'indigo' ? 'border-l-indigo-500 dark:border-l-indigo-400 hover:border-indigo-600/40 dark:hover:border-indigo-500/40' :
-                  'border-l-primary-500 dark:border-l-emerald-400 hover:border-primary-600/40 dark:hover:border-emerald-500/40'
-                }`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-bold text-surface-900 dark:text-white tracking-tight">{sch.name}</h3>
-                        {sch.isActive ? (
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-                            accentColor === 'cyan' ? 'bg-info-50 dark:bg-cyan-500/15 text-info-700 dark:text-cyan-300 border-info-200 dark:border-cyan-500/30' :
-                            accentColor === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/30' :
-                            'bg-primary-50 dark:bg-emerald-500/15 text-primary-700 dark:text-emerald-300 border-primary-200 dark:border-emerald-500/30'
-                          }`}>Activo</span>
-                        ) : (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-surface-200 dark:bg-slate-800 text-surface-600 dark:text-slate-400 border border-surface-300 dark:border-slate-700">Inactivo</span>
-                        )}
-                        {sch.isSplit && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-info-50 dark:bg-cyan-500/20 text-info-700 dark:text-cyan-300 border border-info-200 dark:border-cyan-500/30">Partido (2 Tramos)</span>
-                        )}
-                        {isNightShift && !sch.isSplit && (
-                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">Nocturno</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-surface-500 dark:text-slate-400 mt-1">
-                        Sede: <span className="text-surface-800 dark:text-slate-200 font-medium">{sch.location ? sch.location.name : "Global"}</span> • Jornada neta: <span className={`font-semibold ${
-                          accentColor === 'cyan' ? 'text-info-600 dark:text-cyan-400' : accentColor === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' : 'text-primary-600 dark:text-emerald-400'
-                        }`}>{duration}</span> • Tol: <span className="text-warning-600 dark:text-amber-300 font-mono">{sch.toleranceMinutes} min</span>
-                      </p>
-                    </div>
-                    <ActionButtonGroup align="right" className="ml-2">
-                      <ActionButton 
-                        size="md"
-                        variant="warning"
-                        title="Editar Horario"
-                        icon={<Edit2 className="w-4 h-4" />}
-                        onClick={() => {
-                          setEditingSchedule({
-                            id: sch.id, name: sch.name, workdaysMask: sch.workdaysMask, entryHour: sch.entryHour, entryMinute: sch.entryMinute, exitHour: sch.exitHour, exitMinute: sch.exitMinute, toleranceMinutes: sch.toleranceMinutes, isSplit: sch.isSplit, entryHour2: sch.entryHour2, entryMinute2: sch.entryMinute2, exitHour2: sch.exitHour2, exitMinute2: sch.exitMinute2, toleranceMinutes2: sch.toleranceMinutes2, locationId: sch.location?.id || null, isActive: sch.isActive,
-                          });
-                          setIsModalOpen(true);
-                        }}
-                      />
-                      <ActionButton 
-                        size="md"
-                        variant={sch.isActive ? "danger" : "success"}
-                        title={sch.isActive ? "Desactivar Horario" : "Reactivar Horario"}
-                        icon={<Trash2 className="w-4 h-4" />}
-                        onClick={() => handleToggleStatus(sch)}
-                      />
-                    </ActionButtonGroup>
-                  </div>
-
-                  {/* Time Blocks */}
-                  {sch.isSplit ? (
-                    <div className="my-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Tramo 1 */}
-                      <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold uppercase text-info-600 dark:text-cyan-400 tracking-wider">Tramo 1 (Ingreso)</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Entrada 1</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{entryStr}</span></div>
-                          <span className="text-xs text-surface-400 dark:text-slate-600">→</span>
-                          <div className="text-right"><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Salida 1</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{exitStr}</span></div>
-                        </div>
-                      </div>
-                      {/* Tramo 2 */}
-                      <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold uppercase text-primary-600 dark:text-emerald-400 tracking-wider">Tramo 2 (Retorno)</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Entrada 2</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{entryStr2 || "--:--"}</span></div>
-                          <span className="text-xs text-surface-400 dark:text-slate-600">→</span>
-                          <div className="text-right"><span className="text-[10px] text-surface-500 dark:text-slate-400 block">Salida 2</span><span className="text-xl font-black text-surface-900 dark:text-white font-mono">{exitStr2 || "--:--"}</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="my-5 grid grid-cols-2 gap-4">
-                      {/* Official Entry */}
-                      <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5 flex items-center space-x-4">
-                        <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
-                          isNightShift ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-warning-50 dark:bg-amber-500/10 border-warning-200 dark:border-amber-500/20 text-warning-600 dark:text-amber-400'
-                        }`}>
-                          {isNightShift ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-surface-500 dark:text-slate-400 block tracking-wider">Entrada Oficial</span>
-                          <div className="flex items-baseline space-x-2">
-                            <span className="text-2xl font-black text-surface-900 dark:text-white font-mono">{entryStr}</span>
+                    return (
+                      <DataTableRow key={sch.id}>
+                        <DataTableCell>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                              accentColor === 'cyan' ? 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-500/20' :
+                              accentColor === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-500/20' :
+                              'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+                            }`}>
+                              <IconComp className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="font-semibold text-surface-900 dark:text-white block">{sch.name}</span>
+                              <span className="text-xs text-surface-500 dark:text-surface-400 font-mono">ID: {sch.id.slice(0, 8)}...</span>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      {/* Official Exit */}
-                      <div className="bg-surface-100 dark:bg-command-bg p-4 rounded-2xl border border-surface-200 dark:border-white/5 flex items-center space-x-4">
-                        <div className={`w-12 h-12 rounded-xl border flex items-center justify-center shrink-0 ${
-                          isNightShift ? 'bg-warning-50 dark:bg-amber-500/10 border-warning-200 dark:border-amber-500/20 text-warning-600 dark:text-amber-400' : 'bg-primary-50 dark:bg-emerald-500/10 border-primary-200 dark:border-emerald-500/20 text-primary-600 dark:text-emerald-400'
-                        }`}>
-                          {isNightShift ? <Sun className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
-                        </div>
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-surface-500 dark:text-slate-400 block tracking-wider">Salida Oficial</span>
-                          <div className="flex items-baseline space-x-2">
-                            <span className="text-2xl font-black text-surface-900 dark:text-white font-mono">{exitStr}</span>
+                        </DataTableCell>
+                        <DataTableCell>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              {sch.isSplit && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-info-50 dark:bg-cyan-500/20 text-info-700 dark:text-cyan-300 border border-info-200 dark:border-cyan-500/30">Partido</span>
+                              )}
+                              {isNightShift && !sch.isSplit && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">Nocturno</span>
+                              )}
+                              {!sch.isSplit && !isNightShift && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-primary-50 dark:bg-emerald-500/20 text-primary-700 dark:text-emerald-300 border border-primary-200 dark:border-emerald-500/30">Ordinario</span>
+                              )}
+                            </div>
+                            <span className="text-xs text-surface-500 dark:text-surface-400 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {sch.location ? sch.location.name : "Global"}
+                            </span>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Days Badges & Assignment Footer */}
-                  <div className="pt-4 border-t border-surface-200 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-xs text-surface-500 dark:text-slate-400 mr-2 font-medium">Días:</span>
-                      {DAYS.map((d) => {
-                        const active = Boolean(sch.workdaysMask & d.bit);
-                        return (
-                          <span
-                            key={d.bit}
-                            className={`w-7 h-7 rounded-lg font-mono text-[11px] font-bold flex items-center justify-center transition-colors ${
-                              active
-                                ? `bg-primary-100 dark:bg-emerald-500/20 text-primary-700 dark:text-emerald-300 border border-primary-300 dark:border-emerald-500/30`
-                                : `bg-surface-100 dark:bg-white/[0.02] text-surface-400 dark:text-slate-600 border border-surface-200 dark:border-white/5`
-                            }`}
-                          >
-                            {d.label}
+                        </DataTableCell>
+                        <DataTableCell>
+                          <div className="flex items-center gap-1">
+                            {DAYS.map((d) => {
+                              const active = Boolean(sch.workdaysMask & d.bit);
+                              return (
+                                <span
+                                  key={d.bit}
+                                  className={`w-6 h-6 rounded text-[10px] font-mono font-bold flex items-center justify-center ${
+                                    active
+                                      ? `bg-primary-100 dark:bg-emerald-500/20 text-primary-700 dark:text-emerald-300 border border-primary-300 dark:border-emerald-500/30`
+                                      : `bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-600`
+                                  }`}
+                                >
+                                  {d.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </DataTableCell>
+                        <DataTableCell>
+                          <div className="font-mono text-xs">
+                            {sch.isSplit ? (
+                              <div className="space-y-0.5">
+                                <div className="text-surface-900 dark:text-white font-medium">T1: {entryStr} - {exitStr}</div>
+                                <div className="text-surface-900 dark:text-white font-medium">T2: {entryStr2} - {exitStr2}</div>
+                                <div className="text-[11px] text-surface-500 dark:text-surface-400 font-sans font-semibold">Jornada: {duration}</div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-surface-900 dark:text-white font-semibold">{entryStr} - {exitStr}</span>
+                                <div className="text-[11px] text-surface-500 dark:text-surface-400 font-sans font-semibold">Jornada: {duration}</div>
+                              </div>
+                            )}
+                          </div>
+                        </DataTableCell>
+                        <DataTableCell>
+                          <span className="font-mono text-xs font-semibold text-warning-600 dark:text-amber-400 bg-warning-50 dark:bg-amber-500/10 px-2 py-0.5 rounded border border-warning-200 dark:border-amber-500/20">
+                            {sch.toleranceMinutes} min
                           </span>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="flex items-center space-x-2 text-sm text-surface-800 dark:text-slate-300">
-                        <Users className={`w-4 h-4 ${
-                          accentColor === 'cyan' ? 'text-info-600 dark:text-cyan-400' : accentColor === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' : 'text-primary-600 dark:text-emerald-400'
-                        }`} />
-                        <span className="font-bold text-surface-900 dark:text-white">{sch._count?.userSchedules || 0}</span>
-                        <span className="text-surface-500 dark:text-slate-400 text-xs">asignados</span>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })
+                        </DataTableCell>
+                        <DataTableCell>
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Users className="w-3.5 h-3.5 text-surface-400" />
+                            <span className="font-bold text-surface-900 dark:text-white">{sch._count?.userSchedules || 0}</span>
+                            <span className="text-surface-500 dark:text-surface-400">usuarios</span>
+                          </div>
+                        </DataTableCell>
+                        <DataTableCell>
+                          {sch.isActive ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                              Activo
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border border-surface-200 dark:border-surface-700">
+                              Inactivo
+                            </span>
+                          )}
+                        </DataTableCell>
+                        <DataTableCell align="right">
+                          <ActionButtonGroup align="right">
+                            <ActionButton 
+                              size="sm"
+                              variant="warning"
+                              title="Editar Horario"
+                              icon={<Edit2 className="w-3.5 h-3.5" />}
+                              onClick={() => {
+                                setEditingSchedule({
+                                  id: sch.id, name: sch.name, workdaysMask: sch.workdaysMask, entryHour: sch.entryHour, entryMinute: sch.entryMinute, exitHour: sch.exitHour, exitMinute: sch.exitMinute, toleranceMinutes: sch.toleranceMinutes, isSplit: sch.isSplit, entryHour2: sch.entryHour2, entryMinute2: sch.entryMinute2, exitHour2: sch.exitHour2, exitMinute2: sch.exitMinute2, toleranceMinutes2: sch.toleranceMinutes2, locationId: sch.location?.id || sch.locationId || null, isTemplate: sch.isTemplate || false, isActive: sch.isActive,
+                                });
+                                setIsModalOpen(true);
+                              }}
+                            />
+                            <ActionButton 
+                              size="sm"
+                              variant={sch.isActive ? "danger" : "success"}
+                              title={sch.isActive ? "Desactivar Horario" : "Reactivar Horario"}
+                              icon={<Trash2 className="w-3.5 h-3.5" />}
+                              onClick={() => handleToggleStatus(sch)}
+                            />
+                          </ActionButtonGroup>
+                        </DataTableCell>
+                      </DataTableRow>
+                    );
+                  })}
+                </DataTableBody>
+            </DataTableContainer>
           )}
-        </div>
 
-        <div className="lg:col-span-5 space-y-6 sticky top-24">
-          <div className="glass-panel p-6 rounded-3xl border border-primary-200 dark:border-emerald-500/20 shadow-primary-500/5 dark:shadow-[0_0_20px_rgba(16,185,129,0.05)] bg-surface-50 dark:bg-[#0a111c]/90 backdrop-blur-2xl space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-white/5">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse"></div>
-                <h3 className="text-base font-extrabold text-surface-900 dark:text-white">Inspector &amp; Reglas Operativas</h3>
+          {/* Quick Inspector & Bulk Actions Banner in Table View */}
+          <div className="glass-panel p-5 rounded-2xl border border-surface-200 dark:border-white/5 bg-surface-50 dark:bg-surface-900/80 backdrop-blur-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-emerald-500/20 text-primary-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary-50 dark:bg-emerald-500/10 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30">EN VIVO</span>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <h4 className="text-xs font-bold uppercase text-surface-500 dark:text-slate-400 tracking-wider">Reglas de Control &amp; Tolerancia</h4>
-              
-              <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
-                <div className="w-8 h-8 rounded-xl bg-warning-50 dark:bg-amber-500/10 text-warning-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <ClockAlert className="w-4 h-4" />
-                </div>
-                <div className="text-xs">
-                  <span className="font-bold text-surface-900 dark:text-white block text-sm">Cálculo de Tardanza Automático</span>
-                  <p className="text-surface-500 dark:text-slate-400 mt-1">El Totem Kiosk marca tardanza inmediatamente post-tolerancia y registra los minutos acumulados para cálculo automático de reportes.</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
-                <div className="w-8 h-8 rounded-xl bg-info-50 dark:bg-cyan-500/10 text-info-600 dark:text-cyan-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <Calendar className="w-4 h-4" />
-                </div>
-                <div className="text-xs">
-                  <span className="font-bold text-surface-900 dark:text-white block text-sm">Validación de Turno Partido</span>
-                  <p className="text-surface-500 dark:text-slate-400 mt-1">Exige 4 marcaciones obligatorias. Si falta 1 registro, el cierre nocturno SOD lo categoriza como "JORNADA INCOMPLETA".</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
-                <div className="w-8 h-8 rounded-xl bg-primary-50 dark:bg-emerald-500/10 text-primary-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div className="text-xs">
-                  <span className="font-bold text-surface-900 dark:text-white block text-sm">Validación Antifraude Activa</span>
-                  <p className="text-surface-500 dark:text-slate-400 mt-1">Marcación validada con sello de tiempo criptográfico del hardware, independiente de la hora local del dispositivo del usuario.</p>
-                </div>
+              <div>
+                <h4 className="text-sm font-bold text-surface-900 dark:text-white">Asignación Masiva de Horarios</h4>
+                <p className="text-xs text-surface-500 dark:text-slate-400">Distribuye turnos y rotaciones de forma simultánea a múltiples colaboradores por sede o departamento.</p>
               </div>
             </div>
-
             <button 
               onClick={() => setIsBulkAssignModalOpen(true)}
-              className="w-full py-3.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm shadow-md shadow-primary-500/20 dark:shadow-[0_0_20px_rgba(16,185,129,0.2)] transition duration-200 flex items-center justify-center space-x-2 cursor-pointer"
+              className="py-2.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-xs shadow-md shadow-primary-500/20 transition duration-200 flex items-center gap-2 cursor-pointer shrink-0"
             >
-              <Users className="w-5 h-5" />
+              <Users className="w-4 h-4" />
               <span>Asignar Masivamente a Colaboradores</span>
             </button>
-
-            <div className="p-4 rounded-2xl bg-surface-200 dark:bg-slate-900/50 border border-surface-300 dark:border-slate-800 flex items-start space-x-3 text-xs text-surface-600 dark:text-slate-400">
-              <Sliders className="w-4 h-4 text-primary-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong className="text-surface-800 dark:text-slate-300">Control de Asistencia:</strong> Las tolerancias configuradas determinan el cálculo automático de tardanzas y los minutos efectivos trabajados en cada jornada.</span>
-            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Modal Form */}
       <ScheduleFormModal

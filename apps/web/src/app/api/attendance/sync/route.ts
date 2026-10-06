@@ -141,7 +141,7 @@ export async function POST(req: Request) {
             if (schedule) {
               const scheduledMinutes = schedule.entryHour * 60 + schedule.entryMinute;
               const diff = actualTotalMinutes - (scheduledMinutes + (schedule.toleranceMinutes || 0));
-              if (diff > 0) diffLate = diff;
+              if (diff > 0) diffLate = actualTotalMinutes - scheduledMinutes;
             }
             status = diffLate > 0 ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
             lateMinutes = diffLate;
@@ -219,7 +219,7 @@ export async function POST(req: Request) {
             if (schedule) {
               const scheduledMinutes = schedule.entryHour * 60 + schedule.entryMinute;
               const diff = actualTotalMinutes - (scheduledMinutes + (schedule.toleranceMinutes || 0));
-              if (diff > 0) diffLate = diff;
+              if (diff > 0) diffLate = actualTotalMinutes - scheduledMinutes;
             }
             status = diffLate > 0 ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
             lateMinutes = diffLate;

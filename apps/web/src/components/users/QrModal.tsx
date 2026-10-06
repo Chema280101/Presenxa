@@ -19,18 +19,22 @@ interface QrModalProps {
     qrToken: string;
     signedQrPayload?: string | null;
     locationName?: string | null;
+    department?: string | null;
+    avatarUrl?: string | null;
   } | null;
   onRegenerateQr: (userId: string) => Promise<string | null>;
+  onPrint?: (user: NonNullable<QrModalProps["user"]>) => void;
 }
 
-export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps) {
+export function QrModal({ isOpen, onClose, user, onRegenerateQr, onPrint }: QrModalProps) {
   const { confirm } = useConfirm();
   const [dataUrl, setDataUrl] = useState<string>("");
   const [isCopied, setIsCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const payloadToEncode = user?.signedQrPayload || user?.qrToken || "";
+  // Para credencial oficial física, descarga en imagen e impresión, se usa SIEMPRE el QR fijo (permanente).
+  const payloadToEncode = user?.qrToken || "";
 
   useEffect(() => {
     if (!payloadToEncode) return;
@@ -67,6 +71,11 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
   };
 
   const handlePrint = () => {
+    if (onPrint && user) {
+      onPrint(user);
+      return;
+    }
+
     const printContent = printRef.current;
     if (!printContent) return;
 
@@ -74,31 +83,171 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
     if (!win) return;
 
     win.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Credencial QR - ${user.firstName} ${user.lastName}</title>
+          <title>Credencial Oficial - ${user.firstName} ${user.lastName}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
           <style>
-            body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #fff; }
-            .badge { border: 2px solid #102a43; border-radius: 16px; padding: 24px; text-align: center; width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-            .org { font-size: 14px; font-weight: bold; color: #102a43; text-transform: uppercase; margin-bottom: 4px; }
-            .name { font-size: 20px; font-weight: bold; color: #060e17; margin: 8px 0 2px; }
-            .role { font-size: 13px; color: #64748b; margin-bottom: 16px; font-weight: 500; }
-            .qr-img { width: 220px; height: 220px; margin: 0 auto 12px; display: block; }
-            .token { font-size: 10px; font-family: monospace; color: #94a3b8; word-break: break-all; }
-            .footer { font-size: 11px; color: #64748b; margin-top: 16px; border-top: 1px dashed #cbd5e1; padding-top: 12px; }
+            @page {
+              size: auto;
+              margin: 10mm;
+            }
+            * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            body {
+              font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              background: #f8fafc;
+              color: #0f172a;
+            }
+            .badge-wrapper {
+              position: relative;
+              background: #ffffff;
+              width: 66mm;
+              min-height: 100mm;
+              border: 1px dashed #cbd5e1;
+              border-radius: 16px;
+              overflow: hidden;
+              box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              text-align: center;
+            }
+            .header {
+              padding: 10px 12px 6px;
+              background: #f8fafc;
+              border-bottom: 1px solid #f1f5f9;
+            }
+            .punch-hole {
+              width: 30px;
+              height: 7px;
+              border-radius: 9999px;
+              border: 1px solid #cbd5e1;
+              background: #e2e8f0;
+              margin: 0 auto 6px;
+            }
+            .org {
+              font-size: 10px;
+              font-weight: 900;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              color: #334155;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 4px;
+            }
+            .dot {
+              width: 7px;
+              height: 7px;
+              background: #059669;
+              border-radius: 9999px;
+              display: inline-block;
+            }
+            .accent-bar {
+              height: 4px;
+              width: 100%;
+              background: #059669;
+            }
+            .content {
+              padding: 14px 12px 6px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              flex: 1;
+            }
+            .name {
+              font-size: 15px;
+              font-weight: 900;
+              color: #0f172a;
+              line-height: 1.2;
+              margin-bottom: 4px;
+            }
+            .role-badge {
+              display: inline-block;
+              padding: 2px 8px;
+              background: #ecfdf5;
+              color: #065f46;
+              border: 1px solid #a7f3d0;
+              border-radius: 6px;
+              font-size: 9px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.05em;
+              margin-bottom: 4px;
+            }
+            .doc {
+              font-size: 9px;
+              color: #64748b;
+              font-weight: 600;
+              margin-bottom: 10px;
+            }
+            .qr-box {
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px;
+              padding: 8px;
+              margin: 0 auto 6px;
+              box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            }
+            .qr-img {
+              width: 120px;
+              height: 120px;
+              display: block;
+            }
+            .qr-label {
+              font-size: 8px;
+              font-weight: 800;
+              color: #94a3b8;
+              text-transform: uppercase;
+              letter-spacing: 0.08em;
+              margin-top: 4px;
+            }
+            .footer {
+              padding: 6px 10px;
+              background: #f8fafc;
+              border-top: 1px solid #f1f5f9;
+              font-size: 7.5px;
+              color: #64748b;
+              font-weight: 500;
+            }
+            @media print {
+              body { background: transparent; }
+              .badge-wrapper { box-shadow: none; }
+            }
           </style>
         </head>
         <body>
-          <div class="badge">
-            <div class="org">Presenxa ID</div>
-            <div class="name">${user.firstName} ${user.lastName}</div>
-            <div class="role">${user.role} ${user.documentId ? `· Doc: ${user.documentId}` : ""}</div>
-            <img class="qr-img" src="${dataUrl}" alt="QR" />
-            <div class="token">TOKEN: ${user.qrToken}</div>
-            <div class="footer">Escanee en el kiosco de acceso para registrar asistencia</div>
+          <div class="badge-wrapper">
+            <div class="header">
+              <div class="punch-hole"></div>
+              <div class="org"><span class="dot"></span> ${user.locationName || "Hotel Italia"} · PASE OFICIAL</div>
+            </div>
+            <div class="accent-bar"></div>
+            <div class="content">
+              <div class="name">${user.firstName} ${user.lastName}</div>
+              <div class="role-badge">${user.role}</div>
+              ${user.documentId ? `<div class="doc">DOC: ${user.documentId}</div>` : ""}
+              <div class="qr-box">
+                <img class="qr-img" src="${dataUrl}" alt="QR" />
+                <div class="qr-label">Acceso Kiosco</div>
+              </div>
+            </div>
+            <div class="footer">Credencial Oficial · Registro de Asistencia</div>
           </div>
           <script>
-            window.onload = function() { window.print(); window.close(); }
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 300);
+            }
           </script>
         </body>
       </html>
@@ -157,8 +306,8 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
-      title="Credencial QR Digital"
-      description="Pase oficial para marcaciones en kiosco"
+      title="Credencial QR Oficial"
+      description="Pase oficial permanente para marcaciones en kiosco (no expira)"
       icon={QrCode}
       iconVariant="primary"
       maxWidth="md"
@@ -168,7 +317,7 @@ export function QrModal({ isOpen, onClose, user, onRegenerateQr }: QrModalProps)
         <div ref={printRef} className="w-full bg-white dark:bg-[#1A2333] rounded-2xl p-6 flex flex-col items-center shadow-sm border border-surface-200 dark:border-white/10">
           <div className="flex items-center gap-1.5 text-xs font-bold text-surface-900 dark:text-white tracking-wider uppercase mb-1">
             <Shield className="w-3.5 h-3.5 text-primary-500" />
-            Presenxa · Pase Oficial
+            Presenxa · Pase Oficial Permanente
           </div>
           <h4 className="text-xl font-black text-surface-900 dark:text-white text-center leading-tight">
             {user.firstName} {user.lastName}

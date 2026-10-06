@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const UpdateOrganizationSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-  type: z.enum(["EMPRESA", "COLEGIO"]).default("EMPRESA"),
+  type: z.enum(["EMPRESA"]).default("EMPRESA"),
   logoUrl: z.string().nullable().optional(),
   settings: z
     .object({
@@ -85,7 +85,7 @@ export async function PATCH(req: Request) {
   }
 
   const userRole = (session.user.role || "").toUpperCase();
-  const isAllowed = ["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole);
+  const isAllowed = ["ADMIN", "SUPER_ADMIN"].includes(userRole);
 
   if (!isAllowed) {
     return NextResponse.json(

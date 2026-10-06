@@ -21,10 +21,12 @@ import {
   Sun,
   X,
   History,
+  FileText,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { PresenxaIcon } from "@/components/ui/PresenxaLogo";
+import { TimeOffRequestModal } from "@/components/employee/TimeOffRequestModal";
 
 interface UserProfile {
   id: string;
@@ -131,6 +133,7 @@ export default function EmployeeAppPage() {
 
   // Mounted flag to avoid SSR hydration mismatches
   const [mounted, setMounted] = useState(false);
+  const [isTimeOffModalOpen, setIsTimeOffModalOpen] = useState(false);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -596,7 +599,7 @@ export default function EmployeeAppPage() {
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-16 space-y-6">
           {/* Welcome Greeting Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1 border-b border-slate-200/60 dark:border-white/5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-slate-200/60 dark:border-white/5">
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                 {getGreeting()},{" "}
@@ -615,6 +618,15 @@ export default function EmployeeAppPage() {
                     }).format(new Date()).replace(/^\w/, (c) => c.toUpperCase())
                   : "Bienvenido a tu portal de asistencia"}
               </p>
+            </div>
+            <div className="mt-2 sm:mt-0 pt-1 sm:pt-0 border-t sm:border-0 border-slate-200/50 dark:border-white/5">
+              <button 
+                onClick={() => setIsTimeOffModalOpen(true)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs tracking-wide shadow-lg transition active:scale-95 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+              >
+                <FileText className="w-4 h-4" />
+                Reportar Ausencia / Pedir Permiso
+              </button>
             </div>
           </div>
 
@@ -1009,6 +1021,11 @@ export default function EmployeeAppPage() {
           </div>
         </div>
       )}
+
+      <TimeOffRequestModal 
+        isOpen={isTimeOffModalOpen}
+        onClose={() => setIsTimeOffModalOpen(false)}
+      />
     </div>
   );
 }

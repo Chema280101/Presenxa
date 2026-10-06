@@ -32,7 +32,7 @@ export function CommandCenterHeader({
   sedeId = "LIM-01",
   userRole = "Administrador Principal",
   userName = "Administrador",
-  userEmail = "admin@demo.com",
+  userEmail = "admin@hotelitalia.com",
 }: CommandCenterHeaderProps) {
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");

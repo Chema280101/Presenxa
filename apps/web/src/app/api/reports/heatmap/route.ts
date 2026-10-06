@@ -16,6 +16,7 @@ export async function GET(req: Request) {
   const startDateParam = searchParams.get("startDate"); // "YYYY-MM-DD"
   const endDateParam = searchParams.get("endDate"); // "YYYY-MM-DD"
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
   const role = searchParams.get("role");
 
   let startDate: Date;
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
     user: {
       organizationId: session.user.organizationId,
       ...(role && role !== "ALL" ? { role: role as any } : {}),
+      ...(departmentId && departmentId !== "ALL" ? { departmentId } : {}),
     },
     date: {
       gte: startDate,
@@ -78,6 +80,7 @@ export async function GET(req: Request) {
           isActive: true,
           ...(role && role !== "ALL" ? { role: role as any } : {}),
           ...(locationId && locationId !== "ALL" ? { locationId } : {}),
+          ...(departmentId && departmentId !== "ALL" ? { departmentId } : {}),
         },
       }),
     ]);
@@ -241,7 +244,6 @@ export async function GET(req: Request) {
     > = {
       EMPLEADO: { role: "Empleado", totalRecords: 0, presentCount: 0, lateCount: 0, absentCount: 0, abandonedCount: 0, daysBreakdown: {} },
       SUPERVISOR: { role: "Supervisor", totalRecords: 0, presentCount: 0, lateCount: 0, absentCount: 0, abandonedCount: 0, daysBreakdown: {} },
-      ALUMNO: { role: "Alumno", totalRecords: 0, presentCount: 0, lateCount: 0, absentCount: 0, abandonedCount: 0, daysBreakdown: {} },
       ADMIN: { role: "Administrador", totalRecords: 0, presentCount: 0, lateCount: 0, absentCount: 0, abandonedCount: 0, daysBreakdown: {} },
     };
 

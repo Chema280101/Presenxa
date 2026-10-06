@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { format } from "date-fns";
 import { ModalShell } from "@/components/ui/ModalShell";
@@ -77,7 +78,7 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
     window.print();
   };
 
-  const getStatusBadgeStyle = (status: string, exitTime: string | null) => {
+  const getStatusBadgeStyle = (status: string) => {
     switch (status) {
       case "PRESENTE":
         return "bg-emerald-100 text-emerald-800 border-emerald-300";
@@ -127,243 +128,246 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
     </div>
   );
 
-  return (
-    <ModalShell
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Vista Previa de Reporte PDF Oficial"
-      description="Diseñado para impresión profesional en tamaño Carta / A4"
-      icon={Printer}
-      iconVariant="success"
-      maxWidth="6xl"
-      footer={footer}
+  const renderReportContent = (isPrint: boolean) => (
+    <div
+      className={
+        isPrint
+          ? "w-full bg-white text-slate-900 p-0 space-y-4 font-sans text-xs"
+          : "w-full max-w-[1020px] mx-auto bg-white text-slate-900 rounded-2xl shadow-sm p-6 sm:p-8 space-y-5 font-sans text-xs border border-slate-200"
+      }
     >
-      <div className="flex-1 overflow-y-auto bg-surface-50 dark:bg-black/50 p-4 sm:p-8 rounded-b-3xl max-h-[70vh] custom-scrollbar print:bg-white print:p-0 print:overflow-visible">
-        {/* A4 Sheet Container */}
-        <div
-          id="printable-report"
-          className="w-full max-w-[850px] mx-auto bg-white text-slate-900 rounded-2xl shadow-sm p-8 sm:p-10 space-y-6 font-sans text-xs border border-slate-200 print:border-none print:shadow-none print:p-6 print:rounded-none"
-        >
-          {/* Top Corporate Accent Bar */}
-          <div className="h-2 w-full bg-gradient-to-r from-emerald-600 via-lime-500 to-teal-700 rounded-full mb-4 print:rounded-none" />
+      {/* Top Corporate Accent Bar */}
+      <div
+        className={`h-2 w-full bg-gradient-to-r from-emerald-600 via-lime-500 to-teal-700 mb-3 ${
+          isPrint ? "rounded-none" : "rounded-full"
+        }`}
+      />
 
-          {/* Header: Company Info + Co-Branding Presenxa */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-            {/* Left: Client Company Logo & Info */}
-            <div className="flex items-center gap-4">
-              {organization?.logoUrl ? (
-                <img
-                  src={organization.logoUrl}
-                  alt={organization.name}
-                  className="h-14 max-w-[150px] object-contain rounded-lg border border-slate-100 p-1 bg-white"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-2xl bg-slate-900 text-lime-400 flex items-center justify-center font-black text-xl shadow-md">
-                  {organization?.name ? organization.name.charAt(0).toUpperCase() : "P"}
-                </div>
-              )}
-              <div>
-                <h1 className="text-lg font-black text-slate-900 leading-tight">
-                  {organization?.name || "Empresa"}
-                </h1>
-                {orgSettings.ruc && (
-                  <p className="text-xs font-bold text-slate-700">RUC / NIF: {orgSettings.ruc}</p>
-                )}
-                {orgSettings.address && (
-                  <p className="text-[11px] text-slate-500">{orgSettings.address}</p>
-                )}
-                {orgSettings.phone && (
-                  <p className="text-[11px] text-slate-500">Tel: {orgSettings.phone}</p>
-                )}
-              </div>
+      {/* Header: Company Info + Co-Branding Presenxa */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+        {/* Left: Client Company Logo & Info */}
+        <div className="flex items-center gap-3.5">
+          {organization?.logoUrl ? (
+            <img
+              src={organization.logoUrl}
+              alt={organization.name}
+              className="h-12 max-w-[140px] object-contain rounded-lg border border-slate-100 p-1 bg-white"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-slate-900 text-lime-400 flex items-center justify-center font-black text-lg shadow-sm">
+              {organization?.name ? organization.name.charAt(0).toUpperCase() : "P"}
             </div>
-
-            {/* Right: Report Title & Security Co-Branding */}
-            <div className="text-left sm:text-right space-y-1">
-              <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px] tracking-wider uppercase border border-emerald-200">
-                Reporte Oficial de Asistencia
-              </span>
-              <p className="text-xs font-bold text-slate-800">{periodLabel}</p>
-              <p className="text-[10px] text-slate-500">Emisión: {generatedAt}</p>
-              <p className="text-[9px] text-slate-400 font-medium">
-                Validado por <strong className="text-emerald-700 font-bold">Presenxa Intelligent Control</strong>
-              </p>
-            </div>
-          </div>
-
-          {/* KPI Summary Grid (Executive Metrics) */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 py-2">
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-              <p className="text-[10px] text-slate-500 font-medium">Registros</p>
-              <p className="text-base font-black text-slate-900">{metrics.totalRecords}</p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-              <p className="text-[10px] text-emerald-700 font-medium">Puntuales</p>
-              <p className="text-base font-black text-emerald-800">{metrics.presentCount}</p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-center">
-              <p className="text-[10px] text-amber-700 font-medium">Tardanzas</p>
-              <p className="text-base font-black text-amber-800">{metrics.lateCount}</p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
-              <p className="text-[10px] text-rose-700 font-medium">Faltas / Aband.</p>
-              <p className="text-base font-black text-rose-800">
-                {metrics.absentCount + metrics.abandonedCount}
-              </p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-center">
-              <p className="text-[10px] text-sky-700 font-medium">Horas Trab.</p>
-              <p className="text-base font-black text-sky-800">{metrics.totalWorkedHours}h</p>
-            </div>
-            <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-center">
-              <p className="text-[10px] text-teal-700 font-medium">Puntualidad</p>
-              <p className="text-base font-black text-teal-800">{metrics.punctualPercentage}%</p>
-            </div>
-          </div>
-
-          {/* Attendance Detail Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left border-collapse text-[11px]">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
-                  <th className="py-2 px-2.5 w-8 text-center">#</th>
-                  <th className="py-2 px-2.5">Fecha</th>
-                  <th className="py-2 px-2.5">Empleado</th>
-                  <th className="py-2 px-2.5">DNI / Doc</th>
-                  <th className="py-2 px-2.5">Sede</th>
-                  <th className="py-2 px-2.5 text-center">Entrada</th>
-                  <th className="py-2 px-2.5 text-center">Salida</th>
-                  <th className="py-2 px-2.5 text-center">Horas</th>
-                  <th className="py-2 px-2.5 text-center">Estado</th>
-                  <th className="py-2 px-2.5">Observación</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {attendances.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="py-8 text-center text-slate-400">
-                      No se encontraron registros de asistencia para el período seleccionado.
-                    </td>
-                  </tr>
-                ) : (
-                  attendances.map((a, idx) => {
-                    const dateFormatted = format(new Date(a.date), "dd/MM/yyyy");
-                    const entryFormatted = a.entryTime
-                      ? format(new Date(a.entryTime), "HH:mm")
-                      : "--:--";
-                    const exitFormatted = a.exitTime
-                      ? format(new Date(a.exitTime), "HH:mm")
-                      : "--:--";
-                    const workedHoursStr = a.workedMinutes
-                      ? `${(a.workedMinutes / 60).toFixed(1)}h`
-                      : "--";
-
-                    return (
-                      <tr
-                        key={a.id}
-                        className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"}
-                      >
-                        <td className="py-2 px-2.5 text-center text-slate-400 font-mono text-[10px]">
-                          {idx + 1}
-                        </td>
-                        <td className="py-2 px-2.5 font-mono text-slate-700 whitespace-nowrap">
-                          {dateFormatted}
-                        </td>
-                        <td className="py-2 px-2.5 font-semibold text-slate-900 whitespace-nowrap">
-                          {a.user.lastName}, {a.user.firstName}
-                        </td>
-                        <td className="py-2 px-2.5 font-mono text-slate-600">
-                          {a.user.documentId || "—"}
-                        </td>
-                        <td className="py-2 px-2.5 text-slate-600 truncate max-w-[90px]">
-                          {a.location?.name || "—"}
-                        </td>
-                        <td className="py-2 px-2.5 text-center font-mono font-medium text-slate-900">
-                          {entryFormatted}
-                        </td>
-                        <td className="py-2 px-2.5 text-center font-mono font-medium text-slate-900">
-                          {exitFormatted}
-                        </td>
-                        <td className="py-2 px-2.5 text-center font-mono text-slate-600">
-                          {workedHoursStr}
-                        </td>
-                        <td className="py-2 px-2.5 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(
-                              a.status,
-                              a.exitTime
-                            )}`}
-                          >
-                            {getStatusLabel(a.status, a.exitTime, a.lateMinutes)}
-                          </span>
-                        </td>
-                        <td className="py-2 px-2.5 text-[10px] text-slate-500 max-w-[120px] truncate">
-                          {a.notes || a.statusChangedBy ? `${a.notes || ""} ${a.statusChangedBy ? `(${a.statusChangedBy})` : ""}` : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Official Signature Boxes */}
-          <div className="pt-8 grid grid-cols-2 gap-12 text-center text-slate-600">
-            <div className="space-y-1">
-              <div className="border-t border-slate-300 w-4/5 mx-auto pt-2" />
-              <p className="font-bold text-[11px] text-slate-800">
-                Responsable de RRHH / Gerencia
-              </p>
-              <p className="text-[10px] text-slate-400">Firma y Sello de la Empresa</p>
-            </div>
-            <div className="space-y-1">
-              <div className="border-t border-slate-300 w-4/5 mx-auto pt-2" />
-              <p className="font-bold text-[11px] text-slate-800">
-                Revisión y Conformidad
-              </p>
-              <p className="text-[10px] text-slate-400">Firma de Auditoría / Control</p>
-            </div>
-          </div>
-
-          {/* Document Footer */}
-          <div className="border-t border-slate-200 pt-4 text-center space-y-1 text-[10px] text-slate-400">
-            {orgSettings.footerText && (
-              <p className="italic text-slate-600 font-medium">{orgSettings.footerText}</p>
+          )}
+          <div>
+            <h1 className="text-base font-black text-slate-900 leading-tight">
+              {organization?.name || "Empresa"}
+            </h1>
+            {orgSettings.ruc && (
+              <p className="text-[11px] font-bold text-slate-700">RUC / NIF: {orgSettings.ruc}</p>
             )}
-            <p>
-              Documento oficial generado a través de la plataforma <strong>Presenxa</strong> · Sistema Digital de Control de Asistencia
-            </p>
+            {orgSettings.address && (
+              <p className="text-[10px] text-slate-500">{orgSettings.address}</p>
+            )}
+            {orgSettings.phone && (
+              <p className="text-[10px] text-slate-500">Tel: {orgSettings.phone}</p>
+            )}
           </div>
+        </div>
+
+        {/* Right: Report Title & Security Co-Branding */}
+        <div className="text-left sm:text-right space-y-1">
+          <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px] tracking-wider uppercase border border-emerald-200">
+            Reporte Oficial de Asistencia
+          </span>
+          <p className="text-xs font-bold text-slate-800">{periodLabel}</p>
+          <p className="text-[10px] text-slate-500">Emisión: {generatedAt}</p>
+          <p className="text-[9px] text-slate-400 font-medium">
+            Validado por <strong className="text-emerald-700 font-bold">Presenxa Intelligent Control</strong>
+          </p>
         </div>
       </div>
 
-      {/* Print Specific CSS Style Injection */}
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-report,
-          #printable-report * {
-            visibility: visible;
-          }
-          #printable-report {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0;
-            padding: 20px;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          @page {
-            size: A4 portrait;
-            margin: 12mm;
-          }
-        }
-      `}</style>
-    </ModalShell>
+      {/* KPI Summary Grid (Executive Metrics) */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 py-1 print-avoid-break">
+        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-center">
+          <p className="text-[10px] text-slate-500 font-medium">Registros</p>
+          <p className="text-base font-black text-slate-900">{metrics.totalRecords}</p>
+        </div>
+        <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+          <p className="text-[10px] text-emerald-700 font-medium">Puntuales</p>
+          <p className="text-base font-black text-emerald-800">{metrics.presentCount}</p>
+        </div>
+        <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
+          <p className="text-[10px] text-amber-700 font-medium">Tardanzas</p>
+          <p className="text-base font-black text-amber-800">{metrics.lateCount}</p>
+        </div>
+        <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-center">
+          <p className="text-[10px] text-rose-700 font-medium">Faltas / Aband.</p>
+          <p className="text-base font-black text-rose-800">
+            {metrics.absentCount + metrics.abandonedCount}
+          </p>
+        </div>
+        <div className="p-2 rounded-xl bg-sky-50 border border-sky-200 text-center">
+          <p className="text-[10px] text-sky-700 font-medium">Horas Trab.</p>
+          <p className="text-base font-black text-sky-800">{metrics.totalWorkedHours}h</p>
+        </div>
+        <div className="p-2 rounded-xl bg-teal-50 border border-teal-200 text-center">
+          <p className="text-[10px] text-teal-700 font-medium">Puntualidad</p>
+          <p className="text-base font-black text-teal-800">{metrics.punctualPercentage}%</p>
+        </div>
+      </div>
+
+      {/* Attendance Detail Table */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden print:overflow-visible print:border-slate-300">
+        <table className="w-full text-left border-collapse text-[10.5px]">
+          <thead>
+            <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
+              <th className="py-2 px-2 w-8 text-center">#</th>
+              <th className="py-2 px-2.5 whitespace-nowrap">Fecha</th>
+              <th className="py-2 px-2.5">Empleado</th>
+              <th className="py-2 px-2 whitespace-nowrap">DNI / Doc</th>
+              <th className="py-2 px-2">Sede</th>
+              <th className="py-2 px-2 text-center whitespace-nowrap">Entrada</th>
+              <th className="py-2 px-2 text-center whitespace-nowrap">Salida</th>
+              <th className="py-2 px-2 text-center whitespace-nowrap">Horas</th>
+              <th className="py-2 px-2 text-center whitespace-nowrap">Estado</th>
+              <th className="py-2 px-2.5">Observación</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {attendances.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="py-8 text-center text-slate-400">
+                  No se encontraron registros de asistencia para el período seleccionado.
+                </td>
+              </tr>
+            ) : (
+              attendances.map((a, idx) => {
+                const dateFormatted = format(new Date(a.date), "dd/MM/yyyy");
+                const entryFormatted = a.entryTime
+                  ? format(new Date(a.entryTime), "HH:mm")
+                  : "--:--";
+                const exitFormatted = a.exitTime
+                  ? format(new Date(a.exitTime), "HH:mm")
+                  : "--:--";
+                const workedHoursStr = a.workedMinutes
+                  ? `${(a.workedMinutes / 60).toFixed(1)}h`
+                  : "--";
+
+                return (
+                  <tr
+                    key={a.id}
+                    className={`print-avoid-break ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/70"}`}
+                  >
+                    <td className="py-1.5 px-2 text-center text-slate-400 font-mono text-[10px]">
+                      {idx + 1}
+                    </td>
+                    <td className="py-1.5 px-2.5 font-mono text-slate-700 whitespace-nowrap">
+                      {dateFormatted}
+                    </td>
+                    <td className="py-1.5 px-2.5 font-semibold text-slate-900 min-w-[140px]">
+                      {a.user.lastName}, {a.user.firstName}
+                    </td>
+                    <td className="py-1.5 px-2 font-mono text-slate-600 whitespace-nowrap">
+                      {a.user.documentId || "—"}
+                    </td>
+                    <td className="py-1.5 px-2 text-slate-600 truncate max-w-[110px]">
+                      {a.location?.name || "—"}
+                    </td>
+                    <td className="py-1.5 px-2 text-center font-mono font-medium text-slate-900 whitespace-nowrap">
+                      {entryFormatted}
+                    </td>
+                    <td className="py-1.5 px-2 text-center font-mono font-medium text-slate-900 whitespace-nowrap">
+                      {exitFormatted}
+                    </td>
+                    <td className="py-1.5 px-2 text-center font-mono text-slate-600 whitespace-nowrap">
+                      {workedHoursStr}
+                    </td>
+                    <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[9.5px] font-bold border ${getStatusBadgeStyle(
+                          a.status
+                        )}`}
+                      >
+                        {getStatusLabel(a.status, a.exitTime, a.lateMinutes)}
+                      </span>
+                    </td>
+                    <td className="py-1.5 px-2.5 text-[10px] text-slate-500 max-w-[140px] truncate">
+                      {a.notes || a.statusChangedBy
+                        ? `${a.notes || ""} ${a.statusChangedBy ? `(${a.statusChangedBy})` : ""}`
+                        : "—"}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Official Signature Boxes */}
+      <div className="pt-6 grid grid-cols-2 gap-12 text-center text-slate-600 print-avoid-break">
+        <div className="space-y-1">
+          <div className="border-t border-slate-300 w-4/5 mx-auto pt-2" />
+          <p className="font-bold text-[11px] text-slate-800">
+            Responsable de RRHH / Gerencia
+          </p>
+          <p className="text-[10px] text-slate-400">Firma y Sello de la Empresa</p>
+        </div>
+        <div className="space-y-1">
+          <div className="border-t border-slate-300 w-4/5 mx-auto pt-2" />
+          <p className="font-bold text-[11px] text-slate-800">
+            Revisión y Conformidad
+          </p>
+          <p className="text-[10px] text-slate-400">Firma de Auditoría / Control</p>
+        </div>
+      </div>
+
+      {/* Document Footer */}
+      <div className="border-t border-slate-200 pt-3 text-center space-y-1 text-[10px] text-slate-400 print-avoid-break">
+        {orgSettings.footerText && (
+          <p className="italic text-slate-600 font-medium">{orgSettings.footerText}</p>
+        )}
+        <p>
+          Documento oficial generado a través de la plataforma <strong>Presenxa</strong> · Sistema Digital de Control de Asistencia
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <ModalShell
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Vista Previa de Reporte PDF Oficial"
+        description="Diseñado para impresión y exportación profesional en hoja A4 (Horizontal)"
+        icon={Printer}
+        iconVariant="success"
+        maxWidth="7xl"
+        footer={footer}
+      >
+        <div className="flex-1 overflow-y-auto bg-surface-50 dark:bg-black/50 p-4 sm:p-6 rounded-b-3xl max-h-[70vh] custom-scrollbar">
+          {renderReportContent(false)}
+        </div>
+      </ModalShell>
+
+      {/* Portal de Impresión Físico Montado Directamente en body */}
+      {mounted &&
+        createPortal(
+          <div id="printable-report-portal" className="hidden print:block w-full">
+            {renderReportContent(true)}
+            <style jsx global>{`
+              @media print {
+                @page {
+                  size: A4 landscape;
+                  margin: 8mm 10mm;
+                }
+              }
+            `}</style>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }

@@ -63,7 +63,7 @@ export function JustifyModal({
   };
 
   const premiumInputClass =
-    "w-full h-11 px-4 text-sm bg-white dark:bg-white text-surface-900 placeholder:text-surface-400 font-medium rounded-xl border border-surface-200 dark:border-transparent shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all";
+    "w-full h-11 px-4 text-sm bg-white dark:bg-white/[0.05] dark:hover:bg-white/[0.08] text-surface-900 dark:text-white placeholder:text-surface-400 dark:placeholder:text-surface-500 font-medium rounded-xl border border-surface-200 dark:border-white/10 dark:hover:border-white/20 shadow-xs focus:border-primary-500 dark:focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-400/20 outline-none transition-all";
 
   const footer = (
     <>

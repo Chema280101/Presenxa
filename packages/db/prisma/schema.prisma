@@ -31,18 +31,19 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  locations    Location[]
-  users        User[]
-  schedules    Schedule[]
-  auditLogs    AuditLog[]
-  departments  Department[]
+  locations       Location[]
+  users           User[]
+  schedules       Schedule[]
+  auditLogs       AuditLog[]
+  departments     Department[]
+  timeOffRequests TimeOffRequest[]
+  holidays        Holiday[]
 
   @@map("organizations")
 }
 
 enum OrgType {
   EMPRESA
-  COLEGIO
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -61,6 +62,30 @@ model Department {
   updatedAt      DateTime     @updatedAt
 
   @@map("departments")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  FERIADOS Y DÍAS NO LABORABLES
+// ─────────────────────────────────────────────────────────────
+
+model Holiday {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  name           String       // Ej: "Navidad", "Día de la Independencia"
+  date           DateTime     @db.Date
+  
+  // Opcional: Si aplica solo a una sede específica
+  locationId     String?      @db.Uuid
+  
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, date, locationId])
+  @@index([organizationId, date])
+  @@map("holidays")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -130,6 +155,7 @@ model User {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   auditLogs         AuditLog[]
+  timeOffRequests   TimeOffRequest[]
 
   @@index([qrToken])
   @@index([nfcCardUid])
@@ -143,7 +169,6 @@ enum UserRole {
   ADMIN
   SUPERVISOR
   EMPLEADO
-  ALUMNO
 }
 
 enum PunchMethod {
@@ -211,14 +236,18 @@ model UserSchedule {
 }
 
 model ShiftOverride {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String   @db.Uuid
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scheduleId String   @db.Uuid
-  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  date       DateTime @db.Date
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  scheduleId String?   @db.Uuid
+  schedule   Schedule? @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  
+  date       DateTime  @db.Date
+  
+  isDayOff   Boolean   @default(false)
 
-  createdAt DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@unique([userId, date])
   @@map("shift_overrides")
@@ -316,6 +345,56 @@ enum AttendanceStatus {
   JUSTIFICADO // Falta con justificación aprobada por admin
   FERIADO // Día no laborable
   PERMISO // Permiso aprobado previamente
+  DIA_LIBRE // Día de descanso (rotativo o fijo)
+  VACACIONES // Vacaciones aprobadas
+  DESCANSO_MEDICO // Licencia o incapacidad médica
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SOLICITUDES DE AUSENCIA / VACACIONES
+// ─────────────────────────────────────────────────────────────
+
+model TimeOffRequest {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String        @db.Uuid
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String        @db.Uuid
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  type           TimeOffType
+  status         RequestStatus @default(PENDING)
+  
+  startDate      DateTime      @db.Date
+  endDate        DateTime      @db.Date
+  
+  reason         String?
+  documentUrl    String?       // URL a S3/R2 para el certificado médico
+  
+  reviewedBy     String?       @db.Uuid // ID del Admin que aprobó/rechazó
+  reviewedAt     DateTime?
+  rejectionReason String?
+  
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@map("time_off_requests")
+}
+
+enum TimeOffType {
+  VACACIONES
+  DESCANSO_MEDICO
+  PERMISO_PERSONAL
+  MATERNIDAD_PATERNIDAD
+  LUTO
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -406,4 +485,7 @@ enum AuditAction {
   USER_UPDATED
   USER_DEACTIVATED
   JOB_EXECUTED
+  TIME_OFF_REQUESTED
+  TIME_OFF_APPROVED
+  TIME_OFF_REJECTED
 }

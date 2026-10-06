@@ -15,6 +15,7 @@ export async function GET(req: Request) {
   const startDateStr = searchParams.get("startDate");
   const endDateStr = searchParams.get("endDate");
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
 
   if (!startDateStr || !endDateStr) {
     return NextResponse.json({ error: "startDate y endDate son requeridos" }, { status: 400 });
@@ -33,6 +34,10 @@ export async function GET(req: Request) {
       whereUser.locationId = locationId === "GLOBAL" ? null : locationId;
     }
 
+    if (departmentId && departmentId !== "ALL") {
+      whereUser.departmentId = departmentId;
+    }
+
     const users = await prisma.user.findMany({
       where: whereUser,
       select: {
@@ -41,6 +46,7 @@ export async function GET(req: Request) {
         lastName: true,
         email: true,
         location: { select: { id: true, name: true } },
+        department: { select: { id: true, name: true } },
         userSchedules: {
           where: {
             OR: [

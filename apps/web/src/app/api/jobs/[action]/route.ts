@@ -3,8 +3,15 @@ import { auth } from "@/auth";
 import { runDailyStarter } from "@/lib/jobs/dailyStarter";
 import { runDailyCloser } from "@/lib/jobs/dailyCloser";
 import { runLateMonitor } from "@/lib/jobs/lateMonitor";
+import { sendPushToAllAdmins } from "@/lib/webPush";
 
-const CRON_SECRET = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET || "dev-cron-secret";
+const CRON_SECRET = (() => {
+  const s = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!s && process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: CRON_SECRET no configurado en producción");
+  }
+  return s || "dev-cron-secret";
+})();
 
 async function isAuthorized(request: Request): Promise<boolean> {
   // 1. Verificar header de autorización (para llamadas desde Windows Scheduler / Linux Cron)
@@ -65,9 +72,29 @@ async function handleAction(action: string, targetDate?: Date) {
       const result = await runLateMonitor(targetDate);
       return NextResponse.json(result);
     }
+    case "notify-sod": {
+      const result = await sendPushToAllAdmins({
+        title: "🌅 Preparando Apertura (SOD)",
+        body: "La apertura automática de jornada comenzará en 10 minutos. Revisa que todos los horarios estén listos.",
+        icon: "/brand/logo.png",
+        badge: "/brand/logo.png",
+        tag: "sod-alert",
+      });
+      return NextResponse.json({ success: true, action: "notify-sod", ...result });
+    }
+    case "notify-eod": {
+      const result = await sendPushToAllAdmins({
+        title: "🌙 Preparando Cierre (EOD)",
+        body: "El cierre automático de jornada comenzará en 10 minutos. Último aviso para justificaciones manuales.",
+        icon: "/brand/logo.png",
+        badge: "/brand/logo.png",
+        tag: "eod-alert",
+      });
+      return NextResponse.json({ success: true, action: "notify-eod", ...result });
+    }
     default:
       return NextResponse.json(
-        { error: `Acción '${action}' no válida. Use: daily-start, daily-close, check-late` },
+        { error: `Acción '${action}' no válida. Use: daily-start, daily-close, check-late, notify-sod, notify-eod` },
         { status: 400 }
       );
   }
@@ -94,7 +121,7 @@ export async function GET(
     });
   }
 
-  if (["daily-start", "daily-close", "check-late"].includes(action)) {
+  if (["daily-start", "daily-close", "check-late", "notify-sod", "notify-eod"].includes(action)) {
     const targetDate = resolveTargetDate(request);
     return handleAction(action, targetDate);
   }

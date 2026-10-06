@@ -6,17 +6,65 @@ import { logAuditEvent } from "@/lib/audit";
 
 import { differenceInMinutes } from "date-fns";
 
+function parseTimeString(timeVal: string | null | undefined, baseDate: Date): Date | null {
+  if (!timeVal) return null;
+  if (timeVal.includes("T") || timeVal.includes("-")) {
+    const d = new Date(timeVal);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const [hStr, mStr] = timeVal.split(":");
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  const d = new Date(baseDate);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 const PatchAttendanceSchema = z.object({
   status: z.nativeEnum(AttendanceStatus).optional(),
-  entryTime: z.string().datetime().optional().nullable(),
-  exitTime: z.string().datetime().optional().nullable(),
-  entryTime2: z.string().datetime().optional().nullable(),
-  exitTime2: z.string().datetime().optional().nullable(),
+  entryTime: z.string().optional().nullable(),
+  exitTime: z.string().optional().nullable(),
+  entryTime2: z.string().optional().nullable(),
+  exitTime2: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   lateMinutes: z.number().int().min(0).optional().nullable(),
   lateMinutes2: z.number().int().min(0).optional().nullable(),
   workedMinutes: z.number().int().min(0).optional().nullable(),
 });
+
+// GET /api/attendance/[id]
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.organizationId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const attendance = await prisma.attendance.findFirst({
+    where: {
+      id,
+      user: { organizationId: session.user.organizationId },
+    },
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true, documentId: true },
+      },
+      location: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  if (!attendance) {
+    return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
+  }
+
+  return NextResponse.json({ attendance });
+}
 
 // PATCH /api/attendance/[id]
 export async function PATCH(
@@ -31,6 +79,13 @@ export async function PATCH(
   const role = (session.user as any).role;
   const supervisorLocationId = (session.user as any).locationId;
   const { id } = await params;
+
+  if (role === "EMPLEADO") {
+    return NextResponse.json(
+      { error: "No tienes permiso para modificar registros de asistencia" },
+      { status: 403 }
+    );
+  }
 
   try {
     const body = await req.json();
@@ -73,16 +128,16 @@ export async function PATCH(
       updateData.statusChangedBy = session.user.name || session.user.email || "ADMIN";
     }
     if (data.entryTime !== undefined) {
-      updateData.entryTime = data.entryTime ? new Date(data.entryTime) : null;
+      updateData.entryTime = parseTimeString(data.entryTime, existing.date);
     }
     if (data.exitTime !== undefined) {
-      updateData.exitTime = data.exitTime ? new Date(data.exitTime) : null;
+      updateData.exitTime = parseTimeString(data.exitTime, existing.date);
     }
     if (data.entryTime2 !== undefined) {
-      updateData.entryTime2 = data.entryTime2 ? new Date(data.entryTime2) : null;
+      updateData.entryTime2 = parseTimeString(data.entryTime2, existing.date);
     }
     if (data.exitTime2 !== undefined) {
-      updateData.exitTime2 = data.exitTime2 ? new Date(data.exitTime2) : null;
+      updateData.exitTime2 = parseTimeString(data.exitTime2, existing.date);
     }
     if (data.notes !== undefined) {
       updateData.notes = data.notes;
@@ -103,10 +158,10 @@ export async function PATCH(
       data.entryTime2 !== undefined ||
       data.exitTime2 !== undefined
     ) {
-      const finalEntry1 = data.entryTime !== undefined ? (data.entryTime ? new Date(data.entryTime) : null) : existing.entryTime;
-      const finalExit1 = data.exitTime !== undefined ? (data.exitTime ? new Date(data.exitTime) : null) : existing.exitTime;
-      const finalEntry2 = data.entryTime2 !== undefined ? (data.entryTime2 ? new Date(data.entryTime2) : null) : existing.entryTime2;
-      const finalExit2 = data.exitTime2 !== undefined ? (data.exitTime2 ? new Date(data.exitTime2) : null) : existing.exitTime2;
+      const finalEntry1 = data.entryTime !== undefined ? updateData.entryTime : existing.entryTime;
+      const finalExit1 = data.exitTime !== undefined ? updateData.exitTime : existing.exitTime;
+      const finalEntry2 = data.entryTime2 !== undefined ? updateData.entryTime2 : existing.entryTime2;
+      const finalExit2 = data.exitTime2 !== undefined ? updateData.exitTime2 : existing.exitTime2;
 
       let calcMinutes = 0;
       if (finalEntry1 && finalExit1) {
@@ -170,3 +225,6 @@ export async function PATCH(
     );
   }
 }
+
+export const PUT = PATCH;
+

@@ -23,11 +23,12 @@ import { useToast } from "@/providers/ToastProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 
 interface OrganizationData {
   id: string;
   name: string;
-  type: "EMPRESA" | "COLEGIO";
+  type: "EMPRESA";
   slug: string;
   logoUrl?: string | null;
   settings?: {
@@ -152,13 +153,6 @@ function ConfiguracionSkeleton() {
                 <Skeleton className="h-20 rounded-xl" />
               </div>
             </div>
-
-            {/* Card 3: Security Skeleton */}
-            <div className="bg-white dark:bg-surface-900 rounded-2xl sm:rounded-3xl p-6 border border-surface-200 dark:border-surface-800 shadow-sm space-y-4">
-              <Skeleton className="h-5 w-36 rounded-lg" />
-              <Skeleton className="h-10 w-full rounded-xl" />
-              <Skeleton className="h-9 w-full rounded-xl" />
-            </div>
           </div>
         </div>
       </main>
@@ -174,7 +168,7 @@ export default function ConfiguracionPage() {
 
   // Form states
   const [name, setName] = useState("");
-  const [type, setType] = useState<"EMPRESA" | "COLEGIO">("EMPRESA");
+  const [type, setType] = useState<"EMPRESA">("EMPRESA");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [ruc, setRuc] = useState("");
   const [phone, setPhone] = useState("");
@@ -285,16 +279,6 @@ export default function ConfiguracionPage() {
     showToast("Logo removido. Haz clic en 'Guardar Cambios' para confirmar.", "success");
   };
 
-  const handleCopyToken = () => {
-    if (!org) return;
-    const token = `tk_live_${org.id.replace(/-/g, "")}`;
-    navigator.clipboard.writeText(token).then(() => {
-      showToast("Token copiado al portapapeles", "success");
-    }).catch(() => {
-      showToast("Error al copiar token", "error");
-    });
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -344,10 +328,9 @@ export default function ConfiguracionPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden animate-fade-in-up pb-12">
-      <main className="flex-1 overflow-y-auto space-y-6">
-        {/* Page Header & Action CTA */}
-        <PageHeader
+    <div className="space-y-6 lg:space-y-8 animate-fade-in-up pb-12">
+      {/* Page Header & Action CTA */}
+      <PageHeader
           title="Personalización & Configuración del Sistema"
           titleBadge={
             <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40">V2.4 PRODUCCIÓN</span>
@@ -471,7 +454,7 @@ export default function ConfiguracionPage() {
                 {/* Nombre Comercial */}
                 <div>
                   <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
-                    Nombre Comercial / Institución <span className="text-primary-600 dark:text-primary-400">*</span>
+                    Nombre Comercial / Razón Social <span className="text-primary-600 dark:text-primary-400">*</span>
                   </label>
                   <input 
                     type="text" 
@@ -480,19 +463,6 @@ export default function ConfiguracionPage() {
                     className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500 font-medium focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
                     placeholder="Ej. Corporación Andina S.A.C."
                   />
-                </div>
-                
-                {/* Tipo de Institución */}
-                <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Tipo de Institución</label>
-                  <select 
-                    value={type}
-                    onChange={(e) => setType(e.target.value as "EMPRESA" | "COLEGIO")}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-medium cursor-pointer focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all"
-                  >
-                    <option value="EMPRESA">Empresa / Negocio Comercial</option>
-                    <option value="COLEGIO">Colegio / Instituto Educativo</option>
-                  </select>
                 </div>
                 
                 {/* RUC / NIF */}
@@ -628,18 +598,18 @@ export default function ConfiguracionPage() {
                 {/* Zona Horaria */}
                 <div>
                   <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Zona Horaria Oficial</label>
-                  <select 
+                  <CustomSelect 
                     value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-mono text-xs cursor-pointer focus:border-primary-500 outline-none"
-                  >
-                    <option value="America/Lima">America/Lima (UTC-05:00) · Hora Oficial</option>
-                    <option value="America/Bogota">America/Bogota (UTC-05:00)</option>
-                    <option value="America/Mexico_City">America/Mexico_City (UTC-06:00)</option>
-                    <option value="America/Santiago">America/Santiago (UTC-04:00)</option>
-                    <option value="America/Buenos_Aires">America/Buenos_Aires (UTC-03:00)</option>
-                    <option value="Europe/Madrid">Europe/Madrid (UTC+01:00)</option>
-                  </select>
+                    onChange={(val) => setTimezone(val)}
+                    options={[
+                      { value: "America/Lima", label: "America/Lima (UTC-05:00) · Hora Oficial" },
+                      { value: "America/Bogota", label: "America/Bogota (UTC-05:00)" },
+                      { value: "America/Mexico_City", label: "America/Mexico_City (UTC-06:00)" },
+                      { value: "America/Santiago", label: "America/Santiago (UTC-04:00)" },
+                      { value: "America/Buenos_Aires", label: "America/Buenos_Aires (UTC-03:00)" },
+                      { value: "Europe/Madrid", label: "Europe/Madrid (UTC+01:00)" },
+                    ]}
+                  />
                 </div>
                 
                 {/* Modo Offline Buffer */}
@@ -746,52 +716,8 @@ export default function ConfiguracionPage() {
                 </div>
               </div>
             </section>
-
-            {/* CARD 3: Seguridad & API Key */}
-            <section className="bg-white dark:bg-surface-900 rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative border border-surface-200 dark:border-surface-800 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-primary-50 dark:bg-primary-950/40 text-primary-600 dark:text-primary-400 border border-primary-200/60 dark:border-primary-800/40">
-                    <Shield className="w-4 h-4" />
-                  </div>
-                  <h3 className="text-xs font-bold text-surface-900 dark:text-white uppercase tracking-wider">Seguridad & API Key</h3>
-                </div>
-                <span className="text-[9px] font-mono font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded-full border border-primary-200 dark:border-primary-800/40">TLS 1.3 · SHA-256</span>
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[11px] text-surface-700 dark:text-surface-300 font-medium mb-1">Master Tenant Token (Kiosk Endpoints)</label>
-                  <div className="flex items-center gap-1.5">
-                    <input 
-                      type="password" 
-                      value={org ? `tk_live_${org.id.replace(/-/g, "")}` : "Cargando..."}
-                      readOnly
-                      className="w-full rounded-xl px-3 py-2 text-xs text-surface-900 dark:text-surface-200 font-mono tracking-wider bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 outline-none" 
-                    />
-                    <button 
-                      type="button" 
-                      onClick={handleCopyToken}
-                      className="px-3 py-2 rounded-xl bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white border border-surface-200 dark:border-surface-700 transition text-xs flex-shrink-0 cursor-pointer active:scale-95" 
-                      title="Copiar Token"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-3 rounded-xl bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800/40 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-primary-500 dark:bg-primary-400"></span>
-                    <span className="text-surface-800 dark:text-surface-200 font-medium">Cifrado de Base de Datos</span>
-                  </div>
-                  <span className="font-mono text-primary-600 dark:text-primary-400 font-bold">AES-256-GCM</span>
-                </div>
-              </div>
-            </section>
           </div>
         </div>
-      </main>
     </div>
   );
 }

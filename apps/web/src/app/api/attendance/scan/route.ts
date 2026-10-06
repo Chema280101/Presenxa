@@ -71,11 +71,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Actualizar heartbeat del Kiosk
-    await prisma.kiosk.update({
-      where: { id: kiosk.id },
-      data: { lastSeenAt: new Date(), ipAddress },
-    });
+    // Actualizar heartbeat del Kiosk (Debounced a 1 min para evitar N+1 escrituras)
+    const reqTime = new Date();
+    if (!kiosk.lastSeenAt || reqTime.getTime() - kiosk.lastSeenAt.getTime() > 60000 || kiosk.ipAddress !== ipAddress) {
+      await prisma.kiosk.update({
+        where: { id: kiosk.id },
+        data: { lastSeenAt: reqTime, ipAddress },
+      });
+    }
 
     // ── 3. Parsear body ────────────────────────────────────────────────────
     const body = await req.json();

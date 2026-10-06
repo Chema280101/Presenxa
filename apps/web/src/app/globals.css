@@ -176,8 +176,8 @@ a:active {
 }
 
 .dark .glass {
-  background: rgba(16, 42, 67, 0.75);
-  border: 1px solid rgba(163, 230, 53, 0.12);
+  background: rgba(31, 31, 31, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .glass-card {
@@ -189,7 +189,7 @@ a:active {
 }
 
 .dark .glass-card {
-  background: rgba(10, 27, 44, 0.85);
+  background: rgba(26, 26, 26, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 }
@@ -358,7 +358,6 @@ a:active {
 .badge-role-admin      { @apply bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/35 font-semibold text-xs; }
 .badge-role-supervisor { @apply bg-sky-500/15    text-sky-300    ring-1 ring-sky-500/35    font-semibold text-xs; }
 .badge-role-empleado   { @apply bg-lime-400/15   text-lime-300   ring-1 ring-lime-400/35   font-semibold text-xs; }
-.badge-role-alumno     { @apply bg-amber-500/15  text-amber-300  ring-1 ring-amber-500/35  font-semibold text-xs; }
 
 /* ── Form Inputs ─────────────────────────────────── */
 .input-standard {
@@ -488,6 +487,52 @@ select option {
   color: #f1f5f9;
 }
 
+/* ── Glassmorphism & Elevation System ────────────── */
+.glass-panel {
+  background: var(--color-surface-50);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-surface-200);
+}
+.dark .glass-panel {
+  background: rgba(18, 18, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-glow {
+  background: var(--color-surface-50);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-primary-200);
+  box-shadow: 0 0 25px -5px var(--color-primary-100);
+}
+.dark .glass-panel-glow {
+  background: rgba(18, 18, 18, 0.85);
+  border: 1px solid rgba(0, 166, 80, 0.25);
+  box-shadow: 0 0 25px -5px rgba(0, 166, 80, 0.12);
+}
+
+.glass-card-subtle {
+  background: var(--color-surface-100);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-surface-200);
+}
+.dark .glass-card-subtle {
+  background: rgba(31, 31, 31, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.badge-glow-emerald {
+  box-shadow: 0 0 12px rgba(0, 166, 80, 0.35);
+}
+.badge-glow-amber {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+.badge-glow-rose {
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+}
+
 /* ── Accessible Motion (WCAG 2.1 AAA) ────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -497,6 +542,69 @@ select option {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ── Motor Global de Impresión y Exportación PDF (@media print) ── */
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ocultar el resto de la interfaz interactiva cuando existe un portal de impresión activo */
+  body:has(#credential-print-portal) > *:not(#credential-print-portal),
+  body:has(#printable-report-portal) > *:not(#printable-report-portal),
+  body:has(#printable-users-report-portal) > *:not(#printable-users-report-portal) {
+    display: none !important;
+  }
+
+  /* Los portales deben estar en flujo estático natural para que el motor de paginación divida las hojas sin cortar */
+  #credential-print-portal,
+  #printable-report-portal,
+  #printable-users-report-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Reglas de paginación para tablas en reportes oficiales */
+  #printable-report-portal table,
+  #printable-users-report-portal table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  #printable-report-portal thead,
+  #printable-users-report-portal thead {
+    display: table-header-group !important;
+  }
+
+  #printable-report-portal tbody tr,
+  #printable-users-report-portal tbody tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
 

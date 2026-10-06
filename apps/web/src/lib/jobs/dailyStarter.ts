@@ -40,7 +40,7 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
     const users = await prisma.user.findMany({
       where: {
         isActive: true,
-        role: { in: ["EMPLEADO", "ALUMNO"] },
+        role: "EMPLEADO",
         locationId: { not: null },
       },
       select: {
@@ -72,6 +72,19 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
     let createdCount = 0;
     const startOfToday = new Date(`${dateStr}T00:00:00.000Z`);
 
+    // 2.5 Obtener vacaciones, descansos médicos y días libres para asignar el estado inicial correcto
+    const approvedTimeOffs = await prisma.timeOffRequest.findMany({
+      where: {
+        status: "APPROVED",
+        startDate: { lte: startOfToday },
+        endDate: { gte: startOfToday },
+      },
+    });
+
+    const dayOffOverrides = await prisma.shiftOverride.findMany({
+      where: { date: startOfToday, isDayOff: true },
+    });
+
     // 3. Crear registros PENDIENTE en lotes si no existen
     for (const u of eligibleUsers) {
       if (!u.locationId) continue;
@@ -87,12 +100,23 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
         });
 
         if (!existing) {
+          const userTimeOff = approvedTimeOffs.find(t => t.userId === u.id);
+          const userDayOff = dayOffOverrides.find(o => o.userId === u.id);
+          
+          let initialStatus: any = "PENDIENTE";
+          if (userDayOff) {
+            initialStatus = "DIA_LIBRE";
+          } else if (userTimeOff) {
+            initialStatus = userTimeOff.type === "VACACIONES" ? "VACACIONES" : 
+                            userTimeOff.type === "DESCANSO_MEDICO" ? "DESCANSO_MEDICO" : "PERMISO";
+          }
+
           await prisma.attendance.create({
             data: {
               userId: u.id,
               locationId: u.locationId,
               date: startOfToday,
-              status: "PENDIENTE",
+              status: initialStatus,
               statusChangedBy: "CRON_SOD",
               statusChangedAt: new Date(),
             },

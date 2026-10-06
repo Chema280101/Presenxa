@@ -42,6 +42,15 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
+  // Permitir endpoints de CRON si vienen con encabezado de autorización Bearer / token criptográfico
+  const isCronJob = path.startsWith("/api/jobs") && (
+    Boolean(req.headers.get("authorization")?.startsWith("Bearer ")) ||
+    req.headers.has("x-cron-secret")
+  );
+  if (isCronJob) {
+    return NextResponse.next();
+  }
+
   // Rutas públicas de UI
   if (PUBLIC_ROUTES.includes(path) || path.endsWith("/sw.js")) {
     // Si ya está logueado y va a login, redirigir según su rol
@@ -65,9 +74,10 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Si un EMPLEADO intenta entrar al dashboard admin "/", redirigir a "/app"
+  // Si un EMPLEADO intenta entrar al dashboard administrativo, redirigir a "/app"
   const role = (session?.user as any)?.role;
-  if (role === "EMPLEADO" && path === "/") {
+  const isEmployee = role === "EMPLEADO";
+  if (isEmployee && !path.startsWith("/app") && !path.startsWith("/api/")) {
     return NextResponse.redirect(new URL("/app", baseUrl));
   }
 
