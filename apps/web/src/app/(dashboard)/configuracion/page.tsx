@@ -24,6 +24,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CustomSelect } from "@/components/ui/CustomSelect";
+import { AdminManualButton } from "@/components/ui/AdminManualButton";
+import { AdminWhatsAppSupportButton } from "@/components/ui/AdminWhatsAppSupportButton";
 
 interface OrganizationData {
   id: string;
@@ -344,6 +346,7 @@ export default function ConfiguracionPage() {
                 <CheckCircle2 className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
                 <span>Todos los cambios respaldados</span>
               </div>
+              <AdminManualButton variant="header-button" />
               <Button
                 variant="primary"
                 onClick={handleSave}
@@ -716,6 +719,12 @@ export default function ConfiguracionPage() {
                 </div>
               </div>
             </section>
+
+            {/* CARD 3: Manual Oficial y Documentación */}
+            <AdminManualButton variant="card" />
+
+            {/* CARD 4: Canal de Soporte Directo WhatsApp */}
+            <AdminWhatsAppSupportButton variant="card" organizationName={name || "Hotel Italia"} />
           </div>
         </div>
     </div>

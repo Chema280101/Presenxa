@@ -7,6 +7,8 @@ import { LogOut, ChevronDown, Building2, Menu, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { AdminManualButton } from "@/components/ui/AdminManualButton";
+import { AdminWhatsAppSupportButton } from "@/components/ui/AdminWhatsAppSupportButton";
 
 // Mapa de rutas a títulos legibles
 const ROUTE_TITLES: Record<string, string> = {
@@ -109,6 +111,9 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
         {/* Theme Toggle (Light / Dark) */}
         <ThemeToggle />
 
+        {/* Acceso rápido a Manual Admin (Solo Admins) */}
+        <AdminManualButton variant="topbar-icon" userRole={(session?.user as any)?.role} />
+
         {/* Profile Avatar and Menu */}
         <div className="relative border-l border-surface-200 dark:border-surface-800 pl-3 ml-1">
           <button
@@ -153,7 +158,14 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
                   <p className="text-xs font-bold text-surface-900 dark:text-white truncate">{session?.user?.name || "Usuario"}</p>
                   <p className="text-[11px] text-surface-500 dark:text-surface-400 truncate mt-0.5 font-mono">{session?.user?.email || ""}</p>
                 </div>
-                <div className="p-1.5">
+                <div className="p-1.5 space-y-1">
+                  <AdminManualButton variant="topbar-item" userRole={(session?.user as any)?.role} />
+                  <AdminWhatsAppSupportButton
+                    variant="topbar-item"
+                    userRole={(session?.user as any)?.role}
+                    userName={session?.user?.name || undefined}
+                  />
+                  <div className="border-t border-surface-200 dark:border-surface-800 my-1"></div>
                   <button
                     onClick={handleSignOut}
                     disabled={isSigningOut}

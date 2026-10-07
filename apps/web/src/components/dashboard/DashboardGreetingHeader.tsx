@@ -11,6 +11,7 @@ import {
   MapPin, 
   Calendar,
 } from "lucide-react";
+import { AdminManualButton } from "@/components/ui/AdminManualButton";
 
 export interface DashboardGreetingHeaderProps {
   userName?: string;
@@ -22,7 +23,7 @@ export interface DashboardGreetingHeaderProps {
 export function DashboardGreetingHeader({
   userName = "Administrador",
   userRole = "Administrador",
-  organizationName = "Presenxa Enterprise",
+  organizationName = "Hotel Italia",
   locationName = "Sede Principal",
 }: DashboardGreetingHeaderProps) {
   const [greeting, setGreeting] = useState<string>("Hola");
@@ -123,8 +124,10 @@ export function DashboardGreetingHeader({
           </p>
         </div>
 
-        {/* Right Side: Live Clock & Real-time Indicator */}
-        <div className="flex items-center pt-2 lg:pt-0">
+        {/* Right Side: Quick Admin Manual & Live Clock */}
+        <div className="flex items-center gap-3 pt-2 lg:pt-0 flex-wrap">
+          <AdminManualButton variant="header-button" userRole={userRole} />
+
           {/* Digital Clock with Live Pulse */}
           <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 font-mono text-surface-700 dark:text-surface-300 text-xs shadow-inner">
             <Clock className="w-4 h-4 text-primary-600 dark:text-primary-400" />

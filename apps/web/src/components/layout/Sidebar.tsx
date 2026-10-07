@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { PresenxaIcon } from "@/components/ui/PresenxaLogo";
+import { AdminManualButton } from "@/components/ui/AdminManualButton";
+import { AdminWhatsAppSupportButton } from "@/components/ui/AdminWhatsAppSupportButton";
 
 interface NavGroup {
   title?: string;
@@ -295,6 +297,14 @@ export function Sidebar({ isMobileOpen = false, onMobileClose, userRole }: Sideb
         })}
       </div>
 
+      {/* Admin Manual Download & Support Widget (Solo Admins) */}
+      {userRole && ["ADMIN", "SUPER_ADMIN", "SUPERADMIN"].includes(userRole) && (
+        <div className="p-3 border-t border-surface-200 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-900/40 shrink-0 space-y-2">
+          <AdminManualButton variant="sidebar" userRole={userRole} />
+          <AdminWhatsAppSupportButton variant="sidebar" userRole={userRole} />
+        </div>
+      )}
+
       {/* Sidebar Compliance & HSM Footer */}
       <div className="p-3.5 border-t border-surface-200 dark:border-surface-800 bg-surface-100/50 dark:bg-surface-950/50 flex flex-col gap-2 shrink-0 transition-colors">
         <div className="flex items-center justify-between text-xs">
@@ -308,7 +318,7 @@ export function Sidebar({ isMobileOpen = false, onMobileClose, userRole }: Sideb
           <span className="font-mono text-primary-700 dark:text-primary-400 text-xs bg-primary-100 dark:bg-primary-500/10 px-1.5 py-0.5 rounded border border-primary-200 dark:border-primary-500/20 uppercase tracking-wider">SHA-256 OK</span>
         </div>
         <div className="flex items-center justify-between text-xs text-surface-500 dark:text-surface-400 font-mono pt-1 border-t border-surface-200 dark:border-surface-800">
-          <span>Presenxa Enterprise</span>
+          <span>Hotel Italia — Asistencias</span>
           <span className="text-surface-400">v2.4-ent</span>
         </div>
       </div>
