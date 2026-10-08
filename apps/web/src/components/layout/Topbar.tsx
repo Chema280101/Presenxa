@@ -3,12 +3,13 @@
 import { Session } from "next-auth";
 import { signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
-import { LogOut, ChevronDown, Building2, Menu, Sparkles } from "lucide-react";
+import { LogOut, ChevronDown, Building2, Menu, Sparkles, KeyRound } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { AdminManualButton } from "@/components/ui/AdminManualButton";
 import { AdminWhatsAppSupportButton } from "@/components/ui/AdminWhatsAppSupportButton";
+import { ChangePasswordModal } from "@/components/auth/ChangePasswordModal";
 
 // Mapa de rutas a títulos legibles
 const ROUTE_TITLES: Record<string, string> = {
@@ -36,6 +37,7 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [orgName, setOrgName] = useState<string>(session?.user?.organizationName || "Hotel Italia");
 
   useEffect(() => {
@@ -167,6 +169,16 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
                   />
                   <div className="border-t border-surface-200 dark:border-surface-800 my-1"></div>
                   <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setIsPasswordModalOpen(true);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-surface-700 dark:text-surface-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/15 transition-all duration-150 cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-surface-400 group-hover:text-primary-500" />
+                    Cambiar contraseña
+                  </button>
+                  <button
                     onClick={handleSignOut}
                     disabled={isSigningOut}
                     className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-surface-700 dark:text-surface-300 hover:text-danger-600 dark:hover:text-danger-400 hover:bg-danger-50 dark:hover:bg-danger-500/15 transition-all duration-150 disabled:opacity-50 cursor-pointer"
@@ -180,6 +192,11 @@ export function Topbar({ session, onMenuToggle, isMenuOpen }: TopbarProps) {
           )}
         </div>
       </div>
+      
+      <ChangePasswordModal 
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
     </header>
   );
 }
