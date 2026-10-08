@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { KeyRound, X, Save, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/providers/ToastProvider";
@@ -25,7 +26,10 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
   const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
   const isPasswordValid = hasMinLength && hasNumber && hasSpecial;
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted || !isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +66,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div 
         className="absolute inset-0 bg-surface-900/60 dark:bg-black/60 backdrop-blur-sm transition-opacity"
@@ -175,6 +179,7 @@ export function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProp
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
