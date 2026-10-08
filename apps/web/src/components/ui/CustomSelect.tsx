@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronDown, Check, LucideIcon } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { ChevronDown, Check, Search, X, LucideIcon } from "lucide-react";
 import { clsx } from "clsx";
 
 export interface CustomSelectOption {
@@ -25,6 +25,8 @@ export interface CustomSelectProps {
   name?: string;
   hasLeftIcon?: boolean;
   leftIcon?: LucideIcon | React.ElementType;
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 export function CustomSelect({
@@ -39,13 +41,40 @@ export function CustomSelect({
   name,
   hasLeftIcon = false,
   leftIcon: LeftIcon,
+  searchable = false,
+  searchPlaceholder = "Buscar...",
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const selectedOption = options.find((opt) => opt.value === value);
+
+  // Filtered options based on search query
+  const filteredOptions = useMemo(() => {
+    if (!searchable || !searchTerm.trim()) return options;
+    const term = searchTerm.toLowerCase().trim();
+    return options.filter((opt) => {
+      const matchLabel = opt.label.toLowerCase().includes(term);
+      const matchDesc = opt.description ? opt.description.toLowerCase().includes(term) : false;
+      const matchBadge = opt.badge ? opt.badge.toLowerCase().includes(term) : false;
+      return matchLabel || matchDesc || matchBadge;
+    });
+  }, [options, searchable, searchTerm]);
+
+  // Reset search term when opening or closing
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm("");
+      // Focus search input on next frame
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    }
+  }, [isOpen]);
 
   // Close when clicking outside
   useEffect(() => {
@@ -72,7 +101,7 @@ export function CustomSelect({
         if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
           setIsOpen(true);
-          const currentIndex = options.findIndex((opt) => opt.value === value);
+          const currentIndex = filteredOptions.findIndex((opt) => opt.value === value);
           setHighlightedIndex(currentIndex >= 0 ? currentIndex : 0);
         }
         return;
@@ -80,29 +109,44 @@ export function CustomSelect({
 
       switch (e.key) {
         case "Escape":
-        case "Tab":
           e.preventDefault();
+          setIsOpen(false);
+          break;
+        case "Tab":
           setIsOpen(false);
           break;
         case "ArrowDown":
           e.preventDefault();
           setHighlightedIndex((prev) => {
-            const next = prev < options.length - 1 ? prev + 1 : 0;
+            const next = prev < filteredOptions.length - 1 ? prev + 1 : 0;
             return next;
           });
           break;
         case "ArrowUp":
           e.preventDefault();
           setHighlightedIndex((prev) => {
-            const next = prev > 0 ? prev - 1 : options.length - 1;
+            const next = prev > 0 ? prev - 1 : filteredOptions.length - 1;
             return next;
           });
           break;
         case "Enter":
-        case " ":
           e.preventDefault();
-          if (highlightedIndex >= 0 && highlightedIndex < options.length) {
-            const opt = options[highlightedIndex];
+          if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+            const opt = filteredOptions[highlightedIndex];
+            if (!opt.disabled) {
+              onChange(opt.value);
+              setIsOpen(false);
+            }
+          }
+          break;
+        case " ":
+          // Don't select on space if the user is typing in the search input
+          if (e.target === searchInputRef.current) {
+            return;
+          }
+          e.preventDefault();
+          if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
+            const opt = filteredOptions[highlightedIndex];
             if (!opt.disabled) {
               onChange(opt.value);
               setIsOpen(false);
@@ -111,7 +155,7 @@ export function CustomSelect({
           break;
       }
     },
-    [isOpen, disabled, highlightedIndex, options, value, onChange]
+    [isOpen, disabled, highlightedIndex, filteredOptions, value, onChange]
   );
 
   // Scroll highlighted item into view
@@ -194,13 +238,46 @@ export function CustomSelect({
             dropdownClassName
           )}
         >
+          {/* Predictive Search Input */}
+          {searchable && (
+            <div className="p-1 pb-1.5 border-b border-surface-200/80 dark:border-white/10 mb-1">
+              <div className="relative flex items-center">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 text-surface-400 dark:text-surface-500 pointer-events-none shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setHighlightedIndex(0);
+                  }}
+                  placeholder={searchPlaceholder}
+                  className="w-full h-8 pl-8 pr-7 text-xs rounded-xl bg-surface-50 dark:bg-white/[0.06] border border-surface-200 dark:border-white/10 text-surface-900 dark:text-white placeholder:text-surface-400 dark:placeholder:text-surface-500 outline-none focus:border-primary-500 dark:focus:border-primary-400 focus:ring-1 focus:ring-primary-500/20 transition-all font-medium"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSearchTerm("");
+                      searchInputRef.current?.focus();
+                    }}
+                    className="absolute right-2 p-0.5 rounded-full hover:bg-surface-200 dark:hover:bg-white/10 text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 transition"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="max-h-60 overflow-y-auto space-y-0.5 custom-scrollbar">
-            {options.length === 0 ? (
-              <div className="p-3 text-xs text-center text-surface-400 dark:text-surface-500 font-normal">
-                No hay opciones disponibles
+            {filteredOptions.length === 0 ? (
+              <div className="p-4 text-xs text-center text-surface-400 dark:text-surface-500 font-normal">
+                {searchTerm ? "No se encontraron resultados" : "No hay opciones disponibles"}
               </div>
             ) : (
-              options.map((option, index) => {
+              filteredOptions.map((option, index) => {
                 const isSelected = option.value === value;
                 const isHighlighted = index === highlightedIndex;
                 const OptionIcon = option.icon;

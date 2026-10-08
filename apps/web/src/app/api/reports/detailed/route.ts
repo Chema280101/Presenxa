@@ -26,7 +26,9 @@ export async function GET(req: Request) {
   const startDateParam = searchParams.get("startDate");
   const endDateParam = searchParams.get("endDate");
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
   const roleParam = searchParams.get("role");
+  const userId = searchParams.get("userId");
 
   const now = new Date();
   let start: Date;
@@ -79,6 +81,12 @@ export async function GET(req: Request) {
   if (roleParam && roleParam !== "ALL") {
     userWhere.role = roleParam;
   }
+  if (departmentId && departmentId !== "ALL") {
+    userWhere.departmentId = departmentId;
+  }
+  if (userId && userId !== "ALL") {
+    userWhere.id = userId;
+  }
 
   const where: any = {
     user: userWhere,
@@ -93,7 +101,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [organization, attendances] = await Promise.all([
+    const [organization, attendances, targetUser] = await Promise.all([
       prisma.organization.findUnique({
         where: { id: session.user.organizationId },
         select: {
@@ -132,6 +140,24 @@ export async function GET(req: Request) {
           },
         },
       }),
+      userId && userId !== "ALL"
+        ? prisma.user.findFirst({
+            where: {
+              id: userId,
+              organizationId: session.user.organizationId,
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              documentId: true,
+              email: true,
+              role: true,
+              department: { select: { id: true, name: true } },
+              location: { select: { id: true, name: true } },
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
     const totalRecords = attendances.length;
@@ -171,7 +197,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       organization,
-      periodLabel,
+      periodLabel: targetUser
+        ? `${periodLabel} — ${targetUser.lastName}, ${targetUser.firstName}`
+        : periodLabel,
+      worker: targetUser,
       generatedAt: format(now, "dd/MM/yyyy HH:mm:ss"),
       metrics: {
         totalRecords,

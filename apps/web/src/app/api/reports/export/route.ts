@@ -27,7 +27,9 @@ export async function GET(req: Request) {
   const startDateParam = searchParams.get("startDate");
   const endDateParam = searchParams.get("endDate");
   const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
   const roleParam = searchParams.get("role");
+  const userId = searchParams.get("userId");
   const formatParam = (searchParams.get("format") || "xlsx").toLowerCase();
 
   const now = new Date();
@@ -80,6 +82,12 @@ export async function GET(req: Request) {
   if (roleParam && roleParam !== "ALL") {
     userWhere.role = roleParam;
   }
+  if (departmentId && departmentId !== "ALL") {
+    userWhere.departmentId = departmentId;
+  }
+  if (userId && userId !== "ALL") {
+    userWhere.id = userId;
+  }
 
   const where: any = {
     user: userWhere,
@@ -94,7 +102,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [organization, attendances] = await Promise.all([
+    const [organization, attendances, targetUser] = await Promise.all([
       prisma.organization.findUnique({
         where: { id: session.user.organizationId },
         select: { name: true, settings: true },
@@ -108,6 +116,15 @@ export async function GET(req: Request) {
           kiosk: true,
         },
       }),
+      userId && userId !== "ALL"
+        ? prisma.user.findFirst({
+            where: {
+              id: userId,
+              organizationId: session.user.organizationId,
+            },
+            select: { firstName: true, lastName: true, documentId: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     const orgSettings = (organization?.settings as any) || {};
@@ -115,6 +132,14 @@ export async function GET(req: Request) {
     const ruc = orgSettings.ruc ? `RUC: ${orgSettings.ruc}` : "";
 
     const sanitizedOrg = companyName.replace(/[^a-zA-Z0-9]/g, "_");
+    const workerName = targetUser
+      ? `${targetUser.lastName}, ${targetUser.firstName}`
+      : undefined;
+    const workerDocumentId = targetUser?.documentId || undefined;
+    const userSlug = targetUser
+      ? `_${(targetUser.lastName + "_" + targetUser.firstName).replace(/[^a-zA-Z0-9]/g, "_")}`
+      : "";
+    const filePrefix = targetUser ? "Kardex_Asistencia" : "Reporte_Asistencia";
 
     // Si se solicita formato XLSX (predeterminado)
     if (formatParam !== "csv") {
@@ -123,10 +148,12 @@ export async function GET(req: Request) {
         companyName,
         ruc: orgSettings.ruc || undefined,
         periodLabel,
+        workerName,
+        workerDocumentId,
       });
 
       const buffer = await workbook.xlsx.writeBuffer();
-      const filename = `Reporte_Asistencia_${sanitizedOrg}_${format(now, "yyyyMMdd_HHmm")}.xlsx`;
+      const filename = `${filePrefix}_${sanitizedOrg}${userSlug}_${format(now, "yyyyMMdd_HHmm")}.xlsx`;
 
       return new Response(buffer, {
         status: 200,
@@ -140,8 +167,12 @@ export async function GET(req: Request) {
 
     // Formato CSV UTF-8 con BOM para sistemas legados o externos
     const metaHeader = [
-      `"REPORTE OFICIAL DE ASISTENCIA - ${companyName.toUpperCase()}"`,
-      `"${ruc} - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}"`,
+      targetUser
+        ? `"KARDEX OFICIAL DE ASISTENCIA INDIVIDUAL - ${companyName.toUpperCase()}"`
+        : `"REPORTE OFICIAL DE ASISTENCIA - ${companyName.toUpperCase()}"`,
+      targetUser
+        ? `"Colaborador: ${targetUser.lastName}, ${targetUser.firstName} (DNI: ${targetUser.documentId || "S/D"}) - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}"`
+        : `"${ruc} - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}"`,
       `"Total Registros: ${attendances.length} - Software: Presenxa Control Inteligente"`,
       "", // blank line
     ];
@@ -196,7 +227,7 @@ export async function GET(req: Request) {
     });
 
     const csvContent = "\uFEFF" + [...metaHeader, tableHeader, ...rows].join("\r\n");
-    const filename = `Reporte_${sanitizedOrg}_${format(now, "yyyyMMdd_HHmm")}.csv`;
+    const filename = `${filePrefix}_${sanitizedOrg}${userSlug}_${format(now, "yyyyMMdd_HHmm")}.csv`;
 
     return new Response(csvContent, {
       status: 200,

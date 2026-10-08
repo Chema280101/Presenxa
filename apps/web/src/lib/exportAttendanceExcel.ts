@@ -63,28 +63,36 @@ export async function generateAttendanceExcelWorkbook(options: {
   companyName: string;
   ruc?: string;
   periodLabel: string;
+  workerName?: string;
+  workerDocumentId?: string;
 }): Promise<ExcelJS.Workbook> {
-  const { attendances, companyName, ruc, periodLabel } = options;
+  const { attendances, companyName, ruc, periodLabel, workerName, workerDocumentId } = options;
   const now = new Date();
   const dateFormatted = format(now, "dd/MM/yyyy HH:mm");
 
   const workbook = createPresenxaWorkbook(
-    `Reporte de Asistencias - ${companyName}`
+    workerName 
+      ? `Kardex Asistencias - ${workerName}`
+      : `Reporte de Asistencias - ${companyName}`
   );
 
   // -------------------------------------------------------------
   // HOJA 1: REGISTRO DETALLADO DE ASISTENCIAS
   // -------------------------------------------------------------
-  const wsMain = workbook.addWorksheet("Control de Asistencias", {
+  const wsMain = workbook.addWorksheet(workerName ? "Kardex Individual" : "Control de Asistencias", {
     views: [{ state: "frozen", ySplit: 9, showGridLines: true }],
   });
 
   // 1. Membrete Ejecutivo
   renderExecutiveHeader(wsMain, {
-    reportTitle: "Reporte Oficial de Asistencia y Puntualidad",
+    reportTitle: workerName 
+      ? `Kardex Individual de Asistencia - ${workerName}`
+      : "Reporte Oficial de Asistencia y Puntualidad",
     organizationName: companyName,
     ruc,
-    metaInfo: `Período: ${periodLabel}  |  Emisión: ${dateFormatted}  |  Registros: ${attendances.length}`,
+    metaInfo: workerName
+      ? `Colaborador: ${workerName}${workerDocumentId ? ` (DNI: ${workerDocumentId})` : ""}  |  Período: ${periodLabel}  |  Emisión: ${dateFormatted}  |  Registros: ${attendances.length}`
+      : `Período: ${periodLabel}  |  Emisión: ${dateFormatted}  |  Registros: ${attendances.length}`,
     colSpan: 15,
   });
 

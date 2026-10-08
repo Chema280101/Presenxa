@@ -90,6 +90,7 @@ interface AttendanceRecord {
   lateMinutes2?: number | null;
   notes?: string | null;
   statusChangedBy?: string | null;
+  statusChangedAt?: string | null;
   user: {
     id: string;
     firstName: string;
@@ -437,13 +438,33 @@ export default function AttendancePage() {
     }
   }, [selectedDate]);
 
-  const getRecordSmartMenuItems = (record: AttendanceRecord) => {
+  const openJustificationModal = (record: AttendanceRecord) => {
+    setSelectedForJustify({
+      id: record.id,
+      userName: `${record.user.firstName} ${record.user.lastName}`,
+      userDocumentId: record.user.documentId,
+      userRole: record.user.role,
+      departmentName: record.user.department?.name,
+      locationName: record.location?.name,
+      date: typeof record.date === 'string' ? record.date.slice(0, 10) : format(new Date(record.date), 'yyyy-MM-dd'),
+      currentStatus: record.status,
+      notes: record.notes,
+      statusChangedBy: record.statusChangedBy,
+      statusChangedAt: record.statusChangedAt,
+      entryTime: record.entryTime,
+      exitTime: record.exitTime,
+      lateMinutes: record.lateMinutes,
+    });
+  };
+
+  const getRecordSmartMenuItems = (record: AttendanceRecord, isMobile = false) => {
     const isPendingDni = record.requiresManagerApproval || record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
     const canJustify = record.status === 'TARDE' || record.status === 'AUSENTE' || record.status === 'INCOMPLETO' || record.status === 'ABANDONO_PUESTO';
     const isAlreadyJustified = record.status === 'JUSTIFICADO' || record.status === 'PERMISO';
     const smartMenuItems: any[] = [];
 
-    if (isPendingDni) {
+    // Acciones de DNI (en móvil van al menú; en desktop ya tienen botones directos)
+    if (isPendingDni && isMobile) {
       smartMenuItems.push({
         label: "Aprobar marcación DNI",
         icon: <Check className="w-3.5 h-3.5 text-emerald-500" />,
@@ -457,51 +478,57 @@ export default function AttendancePage() {
       });
     }
 
+    // Justificaciones e Incidencias
     if (canJustify) {
-      smartMenuItems.push({
-        label: record.status === 'TARDE'
-          ? "Justificar tardanza"
-          : record.status === 'AUSENTE'
-          ? "Justificar inasistencia"
-          : "Justificar incidencia",
-        icon: <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />,
-        onClick: () => setSelectedForJustify({
-          id: record.id,
-          userName: `${record.user.firstName} ${record.user.lastName}`,
-          date: record.date,
-          currentStatus: record.status,
-        }),
-      });
+      // En desktop, si es TARDE, ya tiene el botón directo "Justificar Tardanza".
+      // Para AUSENTE, INCOMPLETO o en vista móvil, se mantiene la opción en el menú.
+      const isDirectButtonOnDesktop = !isMobile && record.status === 'TARDE';
+      if (isMobile || !isDirectButtonOnDesktop) {
+        smartMenuItems.push({
+          label: record.status === 'TARDE'
+            ? "Justificar tardanza"
+            : record.status === 'AUSENTE'
+            ? "Justificar inasistencia"
+            : "Justificar incidencia",
+          icon: <ShieldCheck className="w-3.5 h-3.5 text-sky-500" />,
+          onClick: () => openJustificationModal(record),
+        });
+      }
     } else if (isAlreadyJustified) {
+      // En desktop ya existe el botón directo "Ver Justificación / Sustento".
+      // En móvil se incluye en el menú para no perder la acción.
+      if (isMobile) {
+        smartMenuItems.push({
+          label: "Ver justificación registrada",
+          icon: <Eye className="w-3.5 h-3.5 text-sky-500" />,
+          onClick: () => openJustificationModal(record),
+        });
+      }
+    }
+
+    // Ajustar horas / estado
+    // En desktop, si el botón directo ya es "Ajustar registro", no se duplica en el menú.
+    // Si el registro tenía otro botón directo (TARDE, JUSTIFICADO, etc.), sí se ofrece en el menú.
+    const isDirectEditOnDesktop = !isMobile && (record.status !== 'TARDE' && record.status !== 'JUSTIFICADO' && record.status !== 'PERMISO' && record.status !== 'ABANDONO_PUESTO' && !isPendingDni);
+    if (isMobile || !isDirectEditOnDesktop) {
       smartMenuItems.push({
-        label: "Ver justificación registrada",
-        icon: <Eye className="w-3.5 h-3.5 text-sky-500" />,
-        onClick: () => setSelectedForJustify({
+        label: "Ajustar horas / estado",
+        icon: <Edit3 className="w-3.5 h-3.5 text-amber-500" />,
+        onClick: () => setSelectedForEdit({
           id: record.id,
           userName: `${record.user.firstName} ${record.user.lastName}`,
-          date: record.date,
-          currentStatus: record.status,
+          date: typeof record.date === 'string' ? record.date.slice(0, 10) : format(new Date(record.date), 'yyyy-MM-dd'),
+          status: record.status,
+          entryTime: record.entryTime,
+          exitTime: record.exitTime,
+          entryTime2: record.entryTime2,
+          exitTime2: record.exitTime2,
+          notes: record.notes,
+          lateMinutes: record.lateMinutes,
+          lateMinutes2: record.lateMinutes2,
         }),
       });
     }
-
-    smartMenuItems.push({
-      label: "Ajustar horas / estado",
-      icon: <Edit3 className="w-3.5 h-3.5 text-amber-500" />,
-      onClick: () => setSelectedForEdit({
-        id: record.id,
-        userName: `${record.user.firstName} ${record.user.lastName}`,
-        date: typeof record.date === 'string' ? record.date.slice(0, 10) : format(new Date(record.date), 'yyyy-MM-dd'),
-        status: record.status,
-        entryTime: record.entryTime,
-        exitTime: record.exitTime,
-        entryTime2: record.entryTime2,
-        exitTime2: record.exitTime2,
-        notes: record.notes,
-        lateMinutes: record.lateMinutes,
-        lateMinutes2: record.lateMinutes2,
-      }),
-    });
 
     smartMenuItems.push({
       label: `Copiar DNI (${record.user.documentId || "Sin DNI"})`,
@@ -969,7 +996,7 @@ export default function AttendancePage() {
           ) : (
             <div className="space-y-3">
               {paginatedAttendances.map((record) => {
-                const smartMenuItems = getRecordSmartMenuItems(record);
+                const smartMenuItems = getRecordSmartMenuItems(record, true);
                 const isPendingDni = record.requiresManagerApproval || record.notes?.includes("[PENDIENTE_VALIDACION_DNI]");
                 const entryFormatted = record.entryTime ? format(new Date(record.entryTime), "hh:mm a") : "-";
                 const exitFormatted = record.exitTime ? format(new Date(record.exitTime), "hh:mm a") : null;
@@ -1152,7 +1179,7 @@ export default function AttendancePage() {
                   const canJustify = record.status === 'TARDE' || record.status === 'AUSENTE' || record.status === 'INCOMPLETO' || record.status === 'ABANDONO_PUESTO';
                   const isAlreadyJustified = record.status === 'JUSTIFICADO' || record.status === 'PERMISO';
 
-                  const smartMenuItems = getRecordSmartMenuItems(record);
+                  const smartMenuItems = getRecordSmartMenuItems(record, false);
 
                   return (
                     <DataTableRow 
@@ -1366,14 +1393,15 @@ export default function AttendancePage() {
                               variant="info"
                               icon={<ShieldCheck className="w-3.5 h-3.5" />}
                               title="Justificar Tardanza"
-                              onClick={() => setSelectedForJustify({ id: record.id, userName: `${record.user.firstName} ${record.user.lastName}`, date: record.date, currentStatus: record.status })}
+                              onClick={() => openJustificationModal(record)}
                             />
-                          ) : record.status === 'JUSTIFICADO' ? (
+                          ) : record.status === 'JUSTIFICADO' || record.status === 'PERMISO' ? (
                             <ActionButton
                               size="sm"
                               variant="info"
                               icon={<Eye className="w-3.5 h-3.5" />}
-                              title="Ver Certificado"
+                              title="Ver Justificación / Sustento"
+                              onClick={() => openJustificationModal(record)}
                             />
                           ) : (
                             <ActionButton

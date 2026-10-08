@@ -8,6 +8,8 @@ import { CustomSelect } from "@/components/ui/CustomSelect";
 export interface FilterOption {
   label: string;
   value: string;
+  description?: string;
+  badge?: string;
 }
 
 export interface FilterDefinition {
@@ -18,6 +20,9 @@ export interface FilterDefinition {
   options: FilterOption[];
   placeholder?: string;
   className?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  dropdownClassName?: string;
 }
 
 export interface FilterToolbarProps {
@@ -92,6 +97,9 @@ export function FilterToolbar({
                   hasLeftIcon={Boolean(filter.icon)}
                   leftIcon={FilterIcon}
                   className="h-10 text-xs w-full"
+                  searchable={filter.searchable}
+                  searchPlaceholder={filter.searchPlaceholder}
+                  dropdownClassName={filter.dropdownClassName}
                 />
               </div>
             );

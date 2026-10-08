@@ -15,6 +15,7 @@ export async function GET(req: Request) {
   const monthParam = searchParams.get("month"); // "YYYY-MM"
   const locationId = searchParams.get("locationId");
   const departmentId = searchParams.get("departmentId");
+  const userId = searchParams.get("userId");
 
   const baseDate = monthParam ? parseISO(`${monthParam}-01`) : new Date();
   const monthStart = startOfMonth(baseDate);
@@ -29,6 +30,10 @@ export async function GET(req: Request) {
       lte: monthEnd,
     },
   };
+
+  if (userId && userId !== "ALL") {
+    where.userId = userId;
+  }
 
   if (locationId && locationId !== "ALL") {
     where.locationId = locationId;
@@ -50,14 +55,16 @@ export async function GET(req: Request) {
           location: { select: { id: true, name: true } },
         },
       }),
-      prisma.user.count({
-        where: {
-          organizationId: session.user.organizationId,
-          isActive: true,
-          ...(departmentId && departmentId !== "ALL" ? { departmentId } : {}),
-          ...(locationId && locationId !== "ALL" ? { locationId } : {}),
-        },
-      }),
+      userId && userId !== "ALL"
+        ? Promise.resolve(1)
+        : prisma.user.count({
+            where: {
+              organizationId: session.user.organizationId,
+              isActive: true,
+              ...(departmentId && departmentId !== "ALL" ? { departmentId } : {}),
+              ...(locationId && locationId !== "ALL" ? { locationId } : {}),
+            },
+          }),
     ]);
 
     const totalRecords = attendances.length;

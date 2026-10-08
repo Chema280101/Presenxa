@@ -1,5 +1,5 @@
 /**
- * Seed script — popula la base de datos con datos de prueba realistas.
+ * Seed script — popula la base de datos con datos de prueba realistas y reducidos (7 días, alta variabilidad).
  * Ejecutar: pnpm db:seed
  */
 import { existsSync } from "fs";
@@ -19,7 +19,7 @@ for (const envPath of envPaths) {
   }
 }
 
-import { PrismaClient, OrgType, UserRole } from "@prisma/client";
+import { PrismaClient, OrgType, UserRole, AttendanceStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -29,7 +29,7 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
-  console.log("🌱 Iniciando seed...");
+  console.log("🌱 Iniciando seed con datos variados (1 semana)...");
 
   // ── Organización ─────────────────────────────────────────────
   const org = await prisma.organization.upsert({
@@ -73,8 +73,8 @@ async function main() {
   });
   console.log(`✅ Kiosk: ${kiosk.name} | API Key: ${kiosk.apiKey}`);
 
-  // ── Horario estándar ──────────────────────────────────────────
-  const schedule = await prisma.schedule.upsert({
+  // ── Horarios ──────────────────────────────────────────────────
+  const scheduleNormal = await prisma.schedule.upsert({
     where: { id: "00000000-0000-0000-0000-000000000004" },
     update: {},
     create: {
@@ -89,16 +89,34 @@ async function main() {
       toleranceMinutes: 10,
     },
   });
-  console.log(`✅ Horario: ${schedule.name}`);
+
+  const schedulePartTime = await prisma.schedule.upsert({
+    where: { id: "00000000-0000-0000-0000-000000000005" },
+    update: {},
+    create: {
+      id: "00000000-0000-0000-0000-000000000005",
+      organizationId: org.id,
+      name: "Turno Part-Time (Lun-Vie 9am-1pm)",
+      workdaysMask: 31,
+      entryHour: 9,
+      entryMinute: 0,
+      exitHour: 13,
+      exitMinute: 0,
+      toleranceMinutes: 10,
+    },
+  });
+  console.log(`✅ Horarios creados (Normal y Part-Time)`);
 
   // ── Usuarios ──────────────────────────────────────────────────
-  const users = [
+  const usersData = [
     {
       firstName: "Admin",
       lastName: "Sistema",
       email: "admin@demo.com",
       role: UserRole.ADMIN,
       documentId: "12345678",
+      scheduleId: scheduleNormal.id,
+      profile: "ADMIN"
     },
     {
       firstName: "Carlos",
@@ -106,6 +124,8 @@ async function main() {
       email: "carlos.mendoza@demo.com",
       role: UserRole.EMPLEADO,
       documentId: "23456789",
+      scheduleId: scheduleNormal.id,
+      profile: "PUNTUAL"
     },
     {
       firstName: "Ana",
@@ -113,6 +133,8 @@ async function main() {
       email: "ana.garcia@demo.com",
       role: UserRole.EMPLEADO,
       documentId: "34567890",
+      scheduleId: scheduleNormal.id,
+      profile: "PROBLEMATICO"
     },
     {
       firstName: "Luis",
@@ -120,79 +142,136 @@ async function main() {
       email: "luis.quispe@demo.com",
       role: UserRole.SUPERVISOR,
       documentId: "45678901",
+      scheduleId: schedulePartTime.id,
+      profile: "PART_TIME"
     },
   ];
 
-  for (const userData of users) {
+  const dbUsers = [];
+  for (const data of usersData) {
     const user = await prisma.user.upsert({
-      where: { email: userData.email },
+      where: { email: data.email },
       update: {},
       create: {
-        ...userData,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        role: data.role,
+        documentId: data.documentId,
         organizationId: org.id,
         locationId: location.id,
         passwordHash: hashPassword("password123"),
       },
     });
 
-    // Asignar horario
     await prisma.userSchedule.create({
       data: {
         userId: user.id,
-        scheduleId: schedule.id,
+        scheduleId: data.scheduleId,
       },
-    }).catch(() => {}); // Ignorar si ya existe
+    }).catch(() => {});
 
-    console.log(`✅ Usuario: ${user.firstName} ${user.lastName} | QR: ${user.qrToken}`);
+    dbUsers.push({ ...user, profile: data.profile });
+    console.log(`✅ Usuario: ${user.firstName} ${user.lastName} (${data.profile})`);
   }
 
-  // ── Generar Asistencias de Prueba de los últimos 21 días ──
-  console.log("⏳ Generando histórico de asistencias para mapas de calor...");
-  const seededUsers = await prisma.user.findMany({
-    where: { organizationId: org.id },
-  });
-
+  // ── Generar Asistencias de Prueba (Últimos 7 días) ───────────
+  console.log("⏳ Generando histórico variado de 7 días...");
   const now = new Date();
-  for (let i = 21; i >= 0; i--) {
+  
+  for (let i = 7; i >= 1; i--) {
     const targetDate = new Date(now);
     targetDate.setDate(targetDate.getDate() - i);
-    const dayOfWeek = targetDate.getDay(); // 0: Dom, 6: Sab
+    const dayOfWeek = targetDate.getDay(); 
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Saltar fines de semana
 
-    // Omitir domingos para simular jornada laboral estándar
-    if (dayOfWeek === 0) continue;
-
-    for (const u of seededUsers) {
-      // 80% presentes a tiempo, 12% tardanzas, 8% ausencias
-      const rand = Math.random();
-      let status = "PRESENTE";
-      let entryHour = 8;
-      let entryMin = Math.floor(Math.random() * 8); // 08:00 - 08:08
-      let lateMinutes = 0;
-      let exitHour = 17;
-      let exitMin = Math.floor(Math.random() * 45) + 5; // 17:05 - 17:50
-
-      if (rand < 0.12) {
-        status = "TARDE";
-        entryHour = 8;
-        entryMin = Math.floor(Math.random() * 25) + 15; // 08:15 - 08:40
-        lateMinutes = entryMin - 10;
-      } else if (rand < 0.18) {
-        status = "AUSENTE";
-      }
-
+    for (const u of dbUsers) {
       const dateOnly = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      let status: AttendanceStatus = AttendanceStatus.PRESENTE;
+      let entryHour = 8;
+      let entryMin = 0;
+      let exitHour = 17;
+      let exitMin = 0;
+      let lateMinutes = 0;
+      let workedMinutes: number | null = null;
+      let entryTime: Date | null = null;
+      let exitTime: Date | null = null;
       
-      const entryTime = status !== "AUSENTE"
-        ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), entryHour, entryMin, 0)
-        : null;
+      const setTimes = () => {
+        entryTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), entryHour, entryMin, 0);
+        exitTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), exitHour, exitMin, 0);
+        workedMinutes = Math.round((exitTime.getTime() - entryTime.getTime()) / 60000);
+      };
 
-      const exitTime = status !== "AUSENTE"
-        ? new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), exitHour, exitMin, 0)
-        : null;
-
-      const workedMinutes = entryTime && exitTime
-        ? Math.round((exitTime.getTime() - entryTime.getTime()) / 60000)
-        : null;
+      if (u.profile === "ADMIN") {
+        // Admin es siempre puntual normal
+        entryHour = 7;
+        entryMin = 50;
+        exitHour = 17;
+        exitMin = 10;
+        setTimes();
+      } else if (u.profile === "PUNTUAL") {
+        // Carlos siempre puntual
+        entryHour = 7;
+        entryMin = 55;
+        exitHour = 17;
+        exitMin = 5;
+        setTimes();
+      } else if (u.profile === "PART_TIME") {
+        // Luis part time (9 a 13)
+        if (i === 3) {
+           // Un día de descanso médico
+           status = AttendanceStatus.DESCANSO_MEDICO;
+           entryTime = null;
+           exitTime = null;
+           workedMinutes = null;
+        } else if (i === 5) {
+           // Un día justificado
+           status = AttendanceStatus.JUSTIFICADO;
+           entryTime = null;
+           exitTime = null;
+           workedMinutes = null;
+        } else {
+           entryHour = 8;
+           entryMin = 50;
+           exitHour = 13;
+           exitMin = 10;
+           setTimes();
+        }
+      } else if (u.profile === "PROBLEMATICO") {
+        // Ana: varios problemas
+        if (i === 7) {
+          // Día 7: Tarde
+          status = AttendanceStatus.TARDE;
+          entryHour = 8;
+          entryMin = 35; // 35 min de retraso (tol 10)
+          exitHour = 17;
+          exitMin = 0;
+          lateMinutes = 25;
+          setTimes();
+        } else if (i === 6) {
+          // Día 6: Ausente
+          status = AttendanceStatus.AUSENTE;
+          entryTime = null;
+          exitTime = null;
+          workedMinutes = null;
+        } else if (i === 5) {
+          // Día 5: Incompleto (olvidó marcar salida)
+          status = AttendanceStatus.INCOMPLETO;
+          entryHour = 7;
+          entryMin = 50;
+          entryTime = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), entryHour, entryMin, 0);
+          exitTime = null;
+          workedMinutes = null;
+        } else {
+          // Otros días normal pero justo en el límite
+          entryHour = 8;
+          entryMin = 5;
+          exitHour = 17;
+          exitMin = 0;
+          setTimes();
+        }
+      }
 
       await prisma.attendance.upsert({
         where: {
@@ -201,13 +280,7 @@ async function main() {
             date: dateOnly,
           },
         },
-        update: {
-          entryTime,
-          exitTime,
-          status: status as any,
-          lateMinutes: lateMinutes > 0 ? lateMinutes : null,
-          workedMinutes,
-        },
+        update: {},
         create: {
           userId: u.id,
           locationId: location.id,
@@ -215,19 +288,22 @@ async function main() {
           date: dateOnly,
           entryTime,
           exitTime,
-          status: status as any,
+          status: status,
           lateMinutes: lateMinutes > 0 ? lateMinutes : null,
           workedMinutes,
+          notes: status === AttendanceStatus.JUSTIFICADO ? "Problemas familiares reportados" : null
         },
       });
     }
   }
-  console.log("✅ Histórico de asistencias generado correctamente.");
+  console.log("✅ Histórico variado generado correctamente.");
 
   console.log("\n🎉 Seed completado exitosamente.");
   console.log("\n📋 Credenciales de acceso:");
   console.log("   Admin: admin@demo.com / password123");
-  console.log("   Empleado: carlos.mendoza@demo.com / password123");
+  console.log("   Empleado Puntual: carlos.mendoza@demo.com / password123");
+  console.log("   Empleado Problemático: ana.garcia@demo.com / password123");
+  console.log("   Supervisor Part-Time: luis.quispe@demo.com / password123");
 }
 
 main()

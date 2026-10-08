@@ -18,6 +18,7 @@ export async function GET(req: Request) {
   const locationId = searchParams.get("locationId");
   const departmentId = searchParams.get("departmentId");
   const role = searchParams.get("role");
+  const userId = searchParams.get("userId");
 
   let startDate: Date;
   let endDate: Date;
@@ -53,6 +54,10 @@ export async function GET(req: Request) {
       lte: endDate,
     },
   };
+
+  if (userId && userId !== "ALL") {
+    where.userId = userId;
+  }
 
   if (locationId && locationId !== "ALL") {
     where.locationId = locationId;

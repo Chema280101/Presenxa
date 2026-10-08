@@ -20,11 +20,26 @@ function getRedisClient(): Redis | null {
   try {
     redisClient = new Redis(redisUrl, {
       lazyConnect: true,
-      maxRetriesPerRequest: 3,
-      retryStrategy: (times) => Math.min(times * 100, 3000), // Retry con backoff hasta 3s
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times) => {
+        if (times > 3) return null; // Dejar de reintentar si no hay servidor Redis
+        return Math.min(times * 100, 1000);
+      },
     });
+
+    // Escuchar el evento "error" es obligatorio en EventEmitter de ioredis
+    // para evitar unhandled error event que tumbe el proceso Node
+    redisClient.on("error", () => {
+      // Silencioso o advertencia suave sin crashear el servidor
+    });
+
     redisClient.connect().catch((err) => {
       console.warn("[RateLimit] Redis no disponible, usando fallback en memoria:", err.message);
+      if (redisClient) {
+        try {
+          redisClient.disconnect(false);
+        } catch (_) {}
+      }
       redisClient = null;
     });
     return redisClient;

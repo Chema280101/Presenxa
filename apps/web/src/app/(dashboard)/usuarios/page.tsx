@@ -58,6 +58,7 @@ import { BulkEditModal } from "@/components/users/BulkEditModal";
 import { BulkDeactivateModal } from "@/components/users/BulkDeactivateModal";
 import { BulkImportModal } from "@/components/users/BulkImportModal";
 import { BulkPrintModal } from "@/components/users/BulkPrintModal";
+import { BulkOverrideModal } from "@/components/users/BulkOverrideModal";
 import { ExportUsersDropdown } from "@/components/users/ExportUsersDropdown";
 import { UsersPdfModal } from "@/components/users/UsersPdfModal";
 import { exportUsersToExcel, exportUsersToCsv } from "@/lib/exportUsersExcel";
@@ -157,6 +158,7 @@ function UsersPageContent() {
   const [isBulkDeactivateOpen, setIsBulkDeactivateOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [isBulkPrintOpen, setIsBulkPrintOpen] = useState(false);
+  const [isBulkOverrideOpen, setIsBulkOverrideOpen] = useState(false);
   const [printUsersOverride, setPrintUsersOverride] = useState<any[] | null>(null);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
@@ -1130,6 +1132,7 @@ function UsersPageContent() {
           setPrintUsersOverride(null);
           setIsBulkPrintOpen(true);
         }}
+        onOpenBulkOverride={() => setIsBulkOverrideOpen(true)}
       />
 
       {/* Estudio de diseño e impresión masiva o individual de credenciales */}
@@ -1167,6 +1170,18 @@ function UsersPageContent() {
         isOpen={isBulkDeactivateOpen}
         onClose={() => setIsBulkDeactivateOpen(false)}
         selectedUserIds={selectedUserIds}
+        onSuccess={() => {
+          mutateUsers();
+          setSelectedUserIds([]);
+        }}
+      />
+
+      <BulkOverrideModal
+        isOpen={isBulkOverrideOpen}
+        onClose={() => setIsBulkOverrideOpen(false)}
+        userIds={selectedUserIds}
+        locations={locations}
+        schedules={schedules}
         onSuccess={() => {
           mutateUsers();
           setSelectedUserIds([]);

@@ -23,6 +23,16 @@ interface PdfReportModalProps {
     } | null;
     periodLabel: string;
     generatedAt: string;
+    worker?: {
+      id?: string;
+      firstName: string;
+      lastName: string;
+      documentId?: string | null;
+      email?: string | null;
+      role?: string | null;
+      department?: { id?: string; name: string } | null;
+      location?: { id?: string; name: string } | null;
+    } | null;
     metrics: {
       totalRecords: number;
       presentCount: number;
@@ -128,7 +138,22 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
     </div>
   );
 
-  const renderReportContent = (isPrint: boolean) => (
+  const renderReportContent = (isPrint: boolean) => {
+    const isSingleWorker = Boolean(
+      reportData.worker ||
+      (attendances.length > 0 && attendances.every((a) => a.user.email === attendances[0].user.email))
+    );
+    const workerInfo = reportData.worker || (isSingleWorker && attendances[0]?.user ? {
+      firstName: attendances[0].user.firstName,
+      lastName: attendances[0].user.lastName,
+      documentId: attendances[0].user.documentId,
+      email: attendances[0].user.email,
+      role: attendances[0].user.role,
+      location: attendances[0].location,
+      department: null,
+    } : null);
+
+    return (
     <div
       className={
         isPrint
@@ -177,7 +202,7 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
         {/* Right: Report Title & Security Co-Branding */}
         <div className="text-left sm:text-right space-y-1">
           <span className="inline-block px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px] tracking-wider uppercase border border-emerald-200">
-            Reporte Oficial de Asistencia
+            {isSingleWorker ? "Kardex Oficial de Asistencia Individual" : "Reporte Oficial de Asistencia"}
           </span>
           <p className="text-xs font-bold text-slate-800">{periodLabel}</p>
           <p className="text-[10px] text-slate-500">Emisión: {generatedAt}</p>
@@ -186,6 +211,43 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
           </p>
         </div>
       </div>
+
+      {/* Individual Worker Profile Card (if applicable) */}
+      {workerInfo && (
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs print-avoid-break">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-700 to-teal-500 text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0">
+              {workerInfo.firstName?.charAt(0)}{workerInfo.lastName?.charAt(0)}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-slate-900 text-sm">
+                  {workerInfo.lastName}, {workerInfo.firstName}
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  {workerInfo.role || "EMPLEADO"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 font-sans mt-0.5">
+                DNI / Doc: <strong className="font-mono text-slate-800">{workerInfo.documentId || "No registrado"}</strong>
+                {workerInfo.email && <span className="ml-2 text-slate-400">· {workerInfo.email}</span>}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            {workerInfo.department?.name && (
+              <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 font-medium">
+                Área: <strong>{workerInfo.department.name}</strong>
+              </span>
+            )}
+            {workerInfo.location?.name && (
+              <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 font-medium">
+                Sede: <strong>{workerInfo.location.name}</strong>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* KPI Summary Grid (Executive Metrics) */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 py-1 print-avoid-break">
@@ -317,9 +379,11 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
         <div className="space-y-1">
           <div className="border-t border-slate-300 w-4/5 mx-auto pt-2" />
           <p className="font-bold text-[11px] text-slate-800">
-            Revisión y Conformidad
+            {workerInfo ? `Firma del Colaborador: ${workerInfo.lastName}, ${workerInfo.firstName}` : "Revisión y Conformidad"}
           </p>
-          <p className="text-[10px] text-slate-400">Firma de Auditoría / Control</p>
+          <p className="text-[10px] text-slate-400">
+            {workerInfo ? `DNI / Doc: ${workerInfo.documentId || "____________________"}` : "Firma de Auditoría / Control"}
+          </p>
         </div>
       </div>
 
@@ -334,6 +398,7 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
       </div>
     </div>
   );
+  };
 
   return (
     <>

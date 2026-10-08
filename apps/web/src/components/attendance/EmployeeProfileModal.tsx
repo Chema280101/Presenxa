@@ -20,13 +20,17 @@ import {
   Loader2,
   History,
   Info,
+  FileSpreadsheet,
+  Printer,
+  Download,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { clsx } from "clsx";
 import { ModalShell } from "@/components/ui/ModalShell";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/providers/ToastProvider";
+import { PdfReportModal } from "@/components/reports/PdfReportModal";
 
 interface IncidentRecord {
   id: string;
@@ -91,6 +95,11 @@ export function EmployeeProfileModal({
   const [incidentsData, setIncidentsData] = useState<IncidentsApiResponse | null>(null);
   const [isLoadingIncidents, setIsLoadingIncidents] = useState<boolean>(false);
 
+  // Estados de exportación de reporte individual (Excel y PDF)
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfReportData, setPdfReportData] = useState<any>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
   const user = record?.user;
   const userId = user?.id;
 
@@ -138,6 +147,61 @@ export function EmployeeProfileModal({
     router.push(`/usuarios?search=${encodeURIComponent(user?.documentId || user?.email || fullName)}`);
   };
 
+  // Construir parámetros según el período seleccionado en la ficha
+  const getExportParams = () => {
+    const params = new URLSearchParams();
+    if (userId) params.append("userId", userId);
+
+    if (selectedPeriod === "currentMonth") {
+      params.append("period", "MONTH");
+      if (incidentsData?.periods?.currentMonth?.key) {
+        params.append("startDate", incidentsData.periods.currentMonth.key);
+      }
+    } else if (selectedPeriod === "previousMonth") {
+      params.append("period", "MONTH");
+      if (incidentsData?.periods?.previousMonth?.key) {
+        params.append("startDate", incidentsData.periods.previousMonth.key);
+      }
+    } else {
+      // all90Days
+      const today = new Date();
+      const startDate = subDays(today, 90);
+      params.append("period", "CUSTOM");
+      params.append("startDate", format(startDate, "yyyy-MM-dd"));
+      params.append("endDate", format(today, "yyyy-MM-dd"));
+    }
+    return params;
+  };
+
+  const handleExportExcel = () => {
+    if (!userId) return;
+    const params = getExportParams();
+    params.append("format", "xlsx");
+    window.open(`/api/reports/export?${params.toString()}`, "_blank");
+    toast.success(`Descargando kardex de asistencia en Excel para ${fullName}`);
+  };
+
+  const handleOpenPdfModal = async () => {
+    if (!userId) return;
+    try {
+      setIsGeneratingPdf(true);
+      const params = getExportParams();
+      const res = await fetch(`/api/reports/detailed?${params.toString()}`);
+      const data = await res.json();
+      if (res.ok && data) {
+        setPdfReportData(data);
+        setIsPdfModalOpen(true);
+      } else {
+        toast.error(data.error || "No se pudo generar el kardex en PDF");
+      }
+    } catch (err) {
+      console.error("Error al generar PDF individual:", err);
+      toast.error("Error al conectar con el servidor para generar el kardex PDF");
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   // Scheduled hours formatting
   const schedEntry = sched
     ? `${String(sched.entryHour % 12 || 12).padStart(2, "0")}:${String(sched.entryMinute).padStart(2, "0")} ${sched.entryHour >= 12 ? "PM" : "AM"}`
@@ -169,27 +233,59 @@ export function EmployeeProfileModal({
   }) || [];
 
   const footer = (
-    <>
-      <button
-        type="button"
-        onClick={onClose}
-        className="h-10 px-5 rounded-xl bg-surface-100 hover:bg-surface-200 text-surface-700 dark:bg-surface-800 dark:hover:bg-surface-700 dark:text-slate-300 text-sm font-semibold transition cursor-pointer"
-      >
-        Cerrar
-      </button>
-      <button
-        type="button"
-        onClick={handleNavigateToUsers}
-        className="h-10 px-5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white shadow-sm hover:shadow-md hover:shadow-primary-500/20 text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer"
-      >
-        <span>Gestionar en Usuarios</span>
-        <ExternalLink className="w-3.5 h-3.5" />
-      </button>
-    </>
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between w-full gap-2.5">
+      {/* Botones de Exportación Individual del Colaborador */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          className="h-10 px-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs hover:scale-[1.01] active:scale-[0.99]"
+          title="Descargar kardex individual en Excel (.xlsx)"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span>Excel</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleOpenPdfModal}
+          disabled={isGeneratingPdf}
+          className="h-10 px-3.5 rounded-xl bg-primary-50 hover:bg-primary-100 text-primary-700 dark:bg-primary-950/30 dark:hover:bg-primary-950/50 dark:text-primary-300 border border-primary-200/80 dark:border-primary-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
+          title="Ver o imprimir constancia/kardex oficial en PDF membretado"
+        >
+          {isGeneratingPdf ? (
+            <Loader2 className="w-4 h-4 text-primary-600 animate-spin shrink-0" />
+          ) : (
+            <Printer className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
+          )}
+          <span>Kardex PDF</span>
+        </button>
+      </div>
+
+      {/* Botones de navegación y cierre */}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-10 px-4 rounded-xl bg-surface-100 hover:bg-surface-200 text-surface-700 dark:bg-surface-800 dark:hover:bg-surface-700 dark:text-slate-300 text-xs font-semibold transition cursor-pointer"
+        >
+          Cerrar
+        </button>
+        <button
+          type="button"
+          onClick={handleNavigateToUsers}
+          className="h-10 px-4 rounded-xl bg-surface-900 hover:bg-surface-800 text-white dark:bg-surface-100 dark:hover:bg-surface-200 dark:text-surface-900 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+        >
+          <span>Gestionar</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
   );
 
   return (
-    <ModalShell
+    <>
+      <ModalShell
       isOpen={isOpen}
       onClose={onClose}
       title="Ficha del Colaborador"
@@ -745,6 +841,14 @@ export function EmployeeProfileModal({
         )}
       </div>
     </ModalShell>
+
+    {/* Modal de Vista Previa y Descarga de Kardex Oficial PDF */}
+    <PdfReportModal
+      isOpen={isPdfModalOpen}
+      onClose={() => setIsPdfModalOpen(false)}
+      reportData={pdfReportData}
+    />
+    </>
   );
 }
 
