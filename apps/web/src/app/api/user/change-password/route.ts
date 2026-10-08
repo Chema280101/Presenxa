@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { db } from "@asistencias/db";
+import { prisma } from "@asistencias/db";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     }
 
     // Obtener el usuario de la DB
-    const user = await db.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: session.user.id },
     });
 
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const newPasswordHash = await bcrypt.hash(newPassword, salt);
 
     // Actualizar la contraseña en la DB
-    await db.user.update({
+    await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash: newPasswordHash },
     });
