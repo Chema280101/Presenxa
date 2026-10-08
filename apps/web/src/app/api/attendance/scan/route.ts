@@ -7,6 +7,8 @@ import { isSignedQrPayload, verifySignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
 import { getLocalDateString, getLocalTodayDate, getLocalTimeParts, formatLocalTime } from "@/lib/dateUtils";
 import { generateMicroInteraction } from "@/lib/microInteractions";
+import { checkToleranceWeeklyLimit } from "@/lib/toleranceChecker";
+import { sendPushToSupervisors } from "@/lib/webPush";
 
 const ScanSchema = z.object({
   qrToken: z.string().min(1, "El token QR o documento es requerido"),
@@ -293,15 +295,24 @@ export async function POST(req: Request) {
         scanType = "ENTRY";
         let isLate = false;
         let diffLate = 0;
+        let usedTol = false;
+        let excTol = false;
 
         if (schedule) {
           const scheduledMinutes = schedule.entryHour * 60 + schedule.entryMinute;
           const tolerance = schedule.toleranceMinutes || 0;
-          const diff = actualTotalMinutes - (scheduledMinutes + tolerance);
-          if (diff > 0) {
-            isLate = true;
-            diffLate = actualTotalMinutes - scheduledMinutes;
-          }
+          const checkResult = await checkToleranceWeeklyLimit(
+            user.id,
+            kiosk.location.organization?.settings,
+            today,
+            actualTotalMinutes,
+            scheduledMinutes,
+            tolerance
+          );
+          isLate = checkResult.isLate;
+          diffLate = checkResult.diffLate;
+          usedTol = checkResult.usedTolerance;
+          excTol = checkResult.exceededTolerance;
         }
 
         status = isLate ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
@@ -310,6 +321,11 @@ export async function POST(req: Request) {
         message = isLate
           ? `¡Hola, ${user.firstName}! Entrada Tramo 1 registrada con tardanza (+${diffLate} min).`
           : `¡Bienvenido(a), ${user.firstName}! Entrada Tramo 1 registrada puntualmente.`;
+
+        if (excTol) {
+          message += " (Has excedido tu límite de tolerancias semanales)";
+          sendPushToSupervisors(kiosk.location.organizationId, { title: "Límite de Tolerancia", body: `${user.firstName} ${user.lastName} ha excedido las tolerancias semanales permitidas.` });
+        }
 
         if (isDniScan) {
           message += " (Pendiente de confirmación)";
@@ -321,6 +337,8 @@ export async function POST(req: Request) {
             entryTime: now,
             status,
             lateMinutes: diffLate > 0 ? diffLate : null,
+            usedTolerance: usedTol,
+            exceededTolerance: excTol,
             locationId: kiosk.locationId,
             kioskId: kiosk.id,
             notes: initialDniNotes,
@@ -335,6 +353,8 @@ export async function POST(req: Request) {
             entryTime: now,
             status,
             lateMinutes: diffLate > 0 ? diffLate : null,
+            usedTolerance: usedTol,
+            exceededTolerance: excTol,
             notes: initialDniNotes,
             statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
             statusChangedAt: now,
@@ -382,13 +402,23 @@ export async function POST(req: Request) {
           scanType = "ENTRY";
           let diffLate2 = 0;
 
+          let usedTol2 = false;
+          let excTol2 = false;
+
           if (schedule && schedule.entryHour2 !== null && schedule.entryHour2 !== undefined) {
             const scheduledMinutes2 = schedule.entryHour2 * 60 + (schedule.entryMinute2 || 0);
             const tolerance2 = schedule.toleranceMinutes2 ?? schedule.toleranceMinutes ?? 0;
-            const diff = actualTotalMinutes - (scheduledMinutes2 + tolerance2);
-            if (diff > 0) {
-              diffLate2 = actualTotalMinutes - scheduledMinutes2;
-            }
+            const checkResult = await checkToleranceWeeklyLimit(
+              user.id,
+              kiosk.location.organization?.settings,
+              today,
+              actualTotalMinutes,
+              scheduledMinutes2,
+              tolerance2
+            );
+            diffLate2 = checkResult.diffLate;
+            usedTol2 = checkResult.usedTolerance;
+            excTol2 = checkResult.exceededTolerance;
           }
 
           if (diffLate2 > 0) {
@@ -399,6 +429,11 @@ export async function POST(req: Request) {
           message = diffLate2 > 0
             ? `¡Bienvenido de vuelta, ${user.firstName}! Entrada Tramo 2 registrada con tardanza (+${diffLate2} min).`
             : `¡Bienvenido de vuelta, ${user.firstName}! Entrada Tramo 2 registrada a tiempo.`;
+            
+          if (excTol2) {
+            message += " (Límite de tolerancias semanales excedido)";
+            sendPushToSupervisors(kiosk.location.organizationId, { title: "Límite de Tolerancia", body: `${user.firstName} ${user.lastName} ha excedido las tolerancias semanales permitidas.` });
+          }
 
           if (isDniScan) message += " (Pendiente de confirmación)";
 
@@ -413,6 +448,8 @@ export async function POST(req: Request) {
               status: status === AttendanceStatus.TARDE || diffLate2 > 0 ? AttendanceStatus.TARDE : attendance.status,
               lateMinutes: totalLate > 0 ? totalLate : null,
               lateMinutes2: diffLate2 > 0 ? diffLate2 : null,
+              usedTolerance: usedTol2,
+              exceededTolerance: excTol2,
               notes: entry2Notes,
               statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
               statusChangedAt: now,
@@ -495,6 +532,9 @@ export async function POST(req: Request) {
       if (!attendance || !attendance.entryTime) {
         // ── CASO A: REGISTRO DE ENTRADA ──────────────────────────────────
         scanType = "ENTRY";
+        
+        let usedTol3 = false;
+        let excTol3 = false;
 
         if (schedule) {
           const scheduledEntryHour = schedule.entryHour;
@@ -502,14 +542,29 @@ export async function POST(req: Request) {
           const tolerance = schedule.toleranceMinutes || 0;
 
           const scheduledTotalMinutes = scheduledEntryHour * 60 + scheduledEntryMin;
-          const diff = actualTotalMinutes - (scheduledTotalMinutes + tolerance);
+          const checkResult = await checkToleranceWeeklyLimit(
+            user.id,
+            kiosk.location.organization?.settings,
+            today,
+            actualTotalMinutes,
+            scheduledTotalMinutes,
+            tolerance
+          );
+          
+          usedTol3 = checkResult.usedTolerance;
+          excTol3 = checkResult.exceededTolerance;
 
-          if (diff > 0) {
+          if (checkResult.isLate) {
             status = AttendanceStatus.TARDE;
-            lateMinutes = actualTotalMinutes - scheduledTotalMinutes;
+            lateMinutes = checkResult.diffLate;
             message = isDniScan
               ? `¡Hola, ${user.firstName}! Entrada por DNI registrada (${localTimeFormatted}, +${lateMinutes} min tarde). Pendiente de confirmación del supervisor.`
               : `¡Hola, ${user.firstName}! Entrada registrada con tardanza (+${lateMinutes} min).`;
+              
+            if (checkResult.exceededTolerance) {
+              message += " (Límite de tolerancias semanales excedido)";
+              sendPushToSupervisors(kiosk.location.organizationId, { title: "Límite de Tolerancia", body: `${user.firstName} ${user.lastName} ha excedido las tolerancias semanales permitidas.` });
+            }
           } else {
             status = AttendanceStatus.PRESENTE;
             message = isDniScan
@@ -534,6 +589,8 @@ export async function POST(req: Request) {
             entryTime: now,
             status,
             lateMinutes: lateMinutes > 0 ? lateMinutes : null,
+            usedTolerance: usedTol3,
+            exceededTolerance: excTol3,
             locationId: kiosk.locationId,
             kioskId: kiosk.id,
             notes: initialDniNotes,
@@ -548,6 +605,8 @@ export async function POST(req: Request) {
             entryTime: now,
             status,
             lateMinutes: lateMinutes > 0 ? lateMinutes : null,
+            usedTolerance: usedTol3,
+            exceededTolerance: excTol3,
             notes: initialDniNotes,
             statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
             statusChangedAt: now,

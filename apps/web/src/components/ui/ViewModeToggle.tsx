@@ -46,23 +46,7 @@ export function ViewModeToggle<T extends string = string>({
 }: ViewModeToggleProps<T>) {
   // Opciones predeterminadas con labels estandarizados: "Cuadrícula" y "Tabla"
   const resolvedOptions: ViewModeOption<T>[] =
-    options ??
-    (((value === "cards" || (value as string) === "table")
-      ? [
-          {
-            id: "cards" as T,
-            label: "Cuadrícula",
-            icon: LayoutGrid,
-            title: "Vista en Cuadrícula",
-          },
-          {
-            id: "table" as T,
-            label: "Tabla",
-            icon: List,
-            title: "Vista en Tabla",
-          },
-        ]
-      : DEFAULT_VIEW_OPTIONS) as unknown as ViewModeOption<T>[]);
+    options ?? (DEFAULT_VIEW_OPTIONS as unknown as ViewModeOption<T>[]);
 
   return (
     <div

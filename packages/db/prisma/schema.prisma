@@ -324,6 +324,10 @@ model Attendance {
   // Modo Ultra-Offline (Kiosk)
   isOfflineSync Boolean @default(false)
 
+  // Control de tolerancias
+  usedTolerance     Boolean @default(false)
+  exceededTolerance Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
