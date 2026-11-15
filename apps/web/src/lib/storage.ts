@@ -1,3 +1,6 @@
+/**
+ * Adaptador de almacenamiento Cloud (S3 / Cloudflare R2 / Supabase Storage) con fallback a Base64.
+ */
 import crypto from "node:crypto";
 
 export interface StorageUploadParams {
