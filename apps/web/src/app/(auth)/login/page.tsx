@@ -3,7 +3,8 @@
 import { useState, useTransition, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { PresenxaIcon } from "@/components/ui/PresenxaLogo";
 
 function LoginForm() {
   const router = useRouter();
@@ -12,6 +13,8 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotInfo, setShowForgotInfo] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -54,22 +57,14 @@ function LoginForm() {
   return (
     <div className="w-full max-w-[440px]">
       {/* Authentication Card */}
-      <div className="relative rounded-3xl bg-surface-50/85 dark:bg-surface-900/85 border border-surface-200 dark:border-surface-800 p-7 sm:p-9 backdrop-blur-2xl shadow-xl transition-colors">
+      <div className="relative rounded-3xl bg-white/95 dark:bg-surface-900/90 border border-surface-200/90 dark:border-surface-800 p-7 sm:p-9 backdrop-blur-2xl shadow-xl transition-colors">
         {/* Glow accents inside card header */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-primary-500/60 to-transparent rounded-full"></div>
         
-        {/* Card Header: Biometric Target Icon & Title */}
+        {/* Card Header: Biometric & QR Brand Emblem */}
         <div className="flex flex-col items-center text-center">
-          <div className="relative flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-surface-100 dark:bg-surface-950 border border-primary-500/30 shadow-[0_0_20px_rgba(0,166,80,0.15)]">
-            <div className="absolute inset-0 rounded-2xl border border-primary-400/20 animate-pulse-ring"></div>
-            <svg className="w-9 h-9 text-primary-500 dark:text-primary-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" viewBox="0 0 36 36">
-              <path d="M 9 14 C 9 10, 10 9, 14 9"></path>
-              <path d="M 22 9 C 26 9, 27 10, 27 14"></path>
-              <path d="M 27 22 C 27 26, 26 27, 22 27"></path>
-              <path d="M 14 27 C 10 27, 9 26, 9 22"></path>
-              <circle className="animate-ping" cx="18" cy="18" fill="currentColor" r="3" stroke="none" style={{ animationDuration: '3s' }}></circle>
-              <circle cx="18" cy="18" fill="currentColor" r="2.5" stroke="none"></circle>
-            </svg>
+          <div className="relative flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-gradient-to-b from-primary-50 to-white dark:from-primary-950/60 dark:to-surface-950 border border-primary-500/25 ring-1 ring-inset ring-white/70 dark:ring-white/5 shadow-[0_8px_24px_-6px_rgba(0,166,80,0.25)]">
+            <PresenxaIcon className="w-9 h-9 drop-shadow-xs" />
           </div>
           <div className="flex items-center justify-center gap-0.5">
             <h1 className="text-2xl font-bold tracking-tight text-surface-900 dark:text-white">Presen<span className="text-primary-500 font-extrabold">x</span>a</h1>
@@ -85,11 +80,9 @@ function LoginForm() {
             <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300 mb-1.5" htmlFor="email">
               Correo electrónico
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 dark:text-surface-500">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206" strokeLinecap="round" strokeLinejoin="round"></path>
-                </svg>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 dark:text-surface-500 group-focus-within:text-primary-500 transition-colors">
+                <Mail className="w-4 h-4" aria-hidden="true" />
               </div>
               <input 
                 id="email" 
@@ -110,50 +103,60 @@ function LoginForm() {
               <label className="block text-xs font-semibold text-surface-700 dark:text-surface-300" htmlFor="password">
                 Contraseña
               </label>
-              <a className="text-[11px] text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors" href="#">
+              <button
+                type="button"
+                onClick={() => setShowForgotInfo((prev) => !prev)}
+                aria-expanded={showForgotInfo}
+                className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+              >
                 ¿Olvidaste tu contraseña?
-              </a>
+              </button>
             </div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 dark:text-surface-500">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" strokeLinecap="round" strokeLinejoin="round"></path>
-                </svg>
+            {showForgotInfo && (
+              <div className="mb-2.5 p-2.5 rounded-xl text-xs text-surface-700 dark:text-surface-300 bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700">
+                Para restablecer tu contraseña, contacta al administrador de tu organización.
+              </div>
+            )}
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 dark:text-surface-500 group-focus-within:text-primary-500 transition-colors">
+                <Lock className="w-4 h-4" aria-hidden="true" />
               </div>
               <input 
                 id="password" 
                 type={showPassword ? "text" : "password"} 
+                autoComplete="current-password"
                 required 
                 disabled={isPending}
                 placeholder="••••••••" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full pl-10 pr-10 py-2.5 text-sm bg-surface-50 dark:bg-surface-950 border border-surface-300 dark:border-surface-700 rounded-xl text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500 shadow-inner focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-150 disabled:opacity-50"
+                className="block w-full pl-10 pr-11 py-2.5 text-sm bg-surface-50 dark:bg-surface-950 border border-surface-300 dark:border-surface-700 rounded-xl text-surface-900 dark:text-white placeholder-surface-400 dark:placeholder-surface-500 shadow-inner focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all duration-150 disabled:opacity-50"
               />
               <button 
                 type="button" 
                 onClick={() => setShowPassword(!showPassword)}
-                className={`absolute inset-y-0 right-0 pr-3.5 flex items-center focus:outline-none transition-colors ${showPassword ? 'text-primary-500' : 'text-surface-400 hover:text-surface-600 dark:text-surface-500 dark:hover:text-surface-300'}`}
-                aria-label="Mostrar u ocultar contraseña"
+                aria-pressed={showPassword}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                className={`absolute inset-y-0 right-0 px-3.5 flex items-center rounded-r-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-colors cursor-pointer ${showPassword ? 'text-primary-600 dark:text-primary-400' : 'text-surface-400 hover:text-surface-600 dark:text-surface-500 dark:hover:text-surface-300'}`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  {showPassword ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                  ) : (
-                    <>
-                      <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round"></path>
-                      <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round"></path>
-                    </>
-                  )}
-                </svg>
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="w-4 h-4" aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" defaultChecked className="w-4 h-4 rounded bg-surface-50 dark:bg-surface-950 border-surface-300 dark:border-surface-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0 transition" />
-              <span className="text-xs text-surface-500 dark:text-surface-400">Recordar sesión en este dispositivo</span>
+            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded accent-primary-500 bg-surface-50 dark:bg-surface-950 border-surface-300 dark:border-surface-700 text-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-0 transition cursor-pointer"
+              />
+              <span className="text-[13px] text-surface-600 dark:text-surface-300">Recordar sesión en este dispositivo</span>
             </label>
           </div>
 
@@ -168,7 +171,7 @@ function LoginForm() {
             <button 
               type="submit" 
               disabled={isPending}
-              className="w-full relative group overflow-hidden py-3 px-4 rounded-xl font-bold text-white bg-primary-500 hover:bg-primary-600 active:scale-[0.99] transition-all duration-200 shadow-md flex items-center justify-center gap-2 disabled:opacity-70 disabled:scale-100"
+              className="w-full relative group overflow-hidden py-3 px-4 rounded-xl font-bold text-white bg-primary-500 hover:bg-primary-600 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-surface-900 transition-all duration-200 shadow-md flex items-center justify-center gap-2 disabled:opacity-70 disabled:scale-100"
             >
               {isPending ? (
                 <>
@@ -178,9 +181,7 @@ function LoginForm() {
               ) : (
                 <>
                   <span className="text-sm tracking-tight font-extrabold">Ingresar al sistema</span>
-                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24">
-                    <path d="M14 5l7 7m0 0l-7 7m7-7H3" strokeLinecap="round" strokeLinejoin="round"></path>
-                  </svg>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </>
               )}
             </button>

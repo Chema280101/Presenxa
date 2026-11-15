@@ -1,30 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import useSWR from "swr";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  ShieldAlert,
-  RefreshCw,
-  Clock,
-  User,
-  Activity,
-  FileText,
-  Eye,
-  CheckCircle2,
-  Edit3,
-  Server,
-  Layers,
-  Building,
-  Monitor,
-} from "lucide-react";
+import { ShieldAlert, ScrollText, SearchX, RefreshCw, Clock, User, FileText, Eye, CheckCircle2, Edit3, Server, Layers, Building, Monitor, CalendarDays, FolderTree, Building2, ClipboardList } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { StatCard } from "@/components/ui/StatCard";
 import { SkeletonStatCard, SkeletonTable } from "@/components/ui/Skeleton";
-import { ActionButton } from "@/components/ui/ActionButton";
+import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import {
   DataTableContainer,
   DataTableHeader,
@@ -34,6 +20,7 @@ import {
   DataTableCell,
   DataTableEmptyState,
 } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { Button } from "@/components/ui/Button";
 import {
   AuditDetailModal,
@@ -95,6 +82,21 @@ const ACTION_TRANSLATIONS: Record<
     badgeClass:
       "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30",
   },
+  USER_PASSWORD_RESET: {
+    label: "Reseteo de Contraseña",
+    badgeClass:
+      "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30",
+  },
+  USER_PASSWORD_CHANGED: {
+    label: "Cambio de Contraseña",
+    badgeClass:
+      "bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/30",
+  },
+  OVERTIME_REVIEWED: {
+    label: "Revisión de Horas Extras",
+    badgeClass:
+      "bg-indigo-50 text-indigo-700 border-indigo-200/80 dark:bg-indigo-500/10 dark:text-indigo-300 dark:border-indigo-500/30",
+  },
   JOB_EXECUTED: {
     label: "Proceso del Sistema (Cron)",
     badgeClass:
@@ -115,6 +117,21 @@ const ACTION_TRANSLATIONS: Record<
     badgeClass:
       "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30",
   },
+  ENTITY_CREATED: {
+    label: "Creación de Registro",
+    badgeClass:
+      "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30",
+  },
+  ENTITY_UPDATED: {
+    label: "Actualización de Registro",
+    badgeClass:
+      "bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30",
+  },
+  ENTITY_DELETED: {
+    label: "Eliminación / Desactivación",
+    badgeClass:
+      "bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30",
+  },
 };
 
 // Traducción de tipos de entidades en español
@@ -124,6 +141,10 @@ const ENTITY_CONFIG: Record<string, { label: string; icon: any }> = {
   LOCATION: { label: "Sede", icon: Building },
   KIOSK: { label: "Kiosko", icon: Monitor },
   SCHEDULE: { label: "Horario", icon: FileText },
+  DEPARTMENT: { label: "Departamento", icon: FolderTree },
+  HOLIDAY: { label: "Feriado", icon: CalendarDays },
+  ORGANIZATION: { label: "Organización", icon: Building2 },
+  TIME_OFF_REQUEST: { label: "Permiso / Ausencia", icon: ClipboardList },
   SYSTEM: { label: "Sistema", icon: Server },
 };
 
@@ -145,16 +166,45 @@ const FIELD_TRANSLATIONS: Record<string, string> = {
 };
 
 export default function AuditoriaPage() {
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedAction, setSelectedAction] = useState<string>("ALL");
+  const [selectedEntity, setSelectedEntity] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const queryUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (selectedAction !== "ALL") params.set("action", selectedAction);
+    if (selectedEntity !== "ALL") params.set("entityType", selectedEntity);
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+    return `/api/auditoria?${params.toString()}`;
+  }, [page, pageSize, selectedAction, selectedEntity, debouncedSearch]);
+
   const fetcher = (url: string) => fetch(url).then((res) => res.json());
-  const { data, isLoading, mutate } = useSWR("/api/auditoria", fetcher, {
+  const { data, isLoading, mutate } = useSWR(queryUrl, fetcher, {
     revalidateOnFocus: true,
+    keepPreviousData: true,
   });
 
   const logs: AuditLogDetailItem[] = data?.logs || [];
-
-  const [search, setSearch] = useState("");
-  const [selectedAction, setSelectedAction] = useState<string>("ALL");
-  const [selectedEntity, setSelectedEntity] = useState<string>("ALL");
+  const pagination = data?.pagination || {
+    page,
+    pageSize,
+    total: logs.length,
+    totalPages: 1,
+  };
 
   // Modal de Detalle
   const [selectedLog, setSelectedLog] = useState<AuditLogDetailItem | null>(
@@ -162,56 +212,15 @@ export default function AuditoriaPage() {
   );
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  // Métricas calculadas para las StatCards
-  const metrics = useMemo(() => {
-    const total = logs.length;
-    const manualEdits = logs.filter(
-      (l) =>
-        l.action === "ATTENDANCE_EDITED_MANUAL" || l.action === "USER_UPDATED"
-    ).length;
-    const justifications = logs.filter(
-      (l) => l.action === "ATTENDANCE_JUSTIFIED"
-    ).length;
-    const systemJobs = logs.filter(
-      (l) => !l.user || l.action === "JOB_EXECUTED"
-    ).length;
+  // Métricas globales de la organización desde el servidor
+  const metrics = data?.metrics || {
+    total: 0,
+    manualEdits: 0,
+    justifications: 0,
+    systemJobs: 0,
+  };
 
-    return { total, manualEdits, justifications, systemJobs };
-  }, [logs]);
-
-  // Filtrado reactivo en español
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      const actorName = log.user
-        ? `${log.user.firstName} ${log.user.lastName}`.toLowerCase()
-        : "sistema automático";
-      const targetName = (log.targetName || "").toLowerCase();
-      const targetDetail = (log.targetDetail || "").toLowerCase();
-      const actionText = (
-        ACTION_TRANSLATIONS[log.action]?.label || log.action
-      ).toLowerCase();
-      const entityText = (
-        ENTITY_CONFIG[log.entityType]?.label || log.entityType
-      ).toLowerCase();
-
-      const term = search.toLowerCase();
-      const matchesSearch =
-        !search ||
-        actorName.includes(term) ||
-        targetName.includes(term) ||
-        targetDetail.includes(term) ||
-        actionText.includes(term) ||
-        entityText.includes(term) ||
-        (log.entityId && log.entityId.toLowerCase().includes(term));
-
-      const matchesAction =
-        selectedAction === "ALL" || log.action === selectedAction;
-      const matchesEntity =
-        selectedEntity === "ALL" || log.entityType === selectedEntity;
-
-      return matchesSearch && matchesAction && matchesEntity;
-    });
-  }, [logs, search, selectedAction, selectedEntity]);
+  const filteredLogs = logs;
 
   const handleOpenDetail = (log: AuditLogDetailItem) => {
     setSelectedLog(log);
@@ -225,7 +234,7 @@ export default function AuditoriaPage() {
 
     if (!oldData && !newData) {
       return (
-        <span className="text-[11px] text-surface-400 italic">
+        <span className="text-[11px] text-surface-500 dark:text-surface-400 italic">
           Sin modificaciones de datos
         </span>
       );
@@ -258,7 +267,7 @@ export default function AuditoriaPage() {
           );
         })}
         {changedKeys.length > 3 && (
-          <span className="text-[10px] text-surface-400 font-mono">
+          <span className="text-[10px] text-surface-500 dark:text-surface-400 font-mono">
             +{changedKeys.length - 3} más
           </span>
         )}
@@ -272,7 +281,7 @@ export default function AuditoriaPage() {
       <PageHeader
         title="Auditoría de Sistema"
         subtitle="Monitoreo transparente de todas las acciones de seguridad, modificaciones manuales y procesos automáticos."
-        icon={ShieldAlert}
+        icon={ScrollText}
         iconVariant="emerald"
         actionButtons={
           <Button
@@ -334,14 +343,19 @@ export default function AuditoriaPage() {
         searchPlaceholder="Buscar por persona afectada, actor responsable o acción..."
         onReset={() => {
           setSearch("");
+          setDebouncedSearch("");
           setSelectedAction("ALL");
           setSelectedEntity("ALL");
+          setPage(1);
         }}
         filters={[
           {
             id: "action",
             value: selectedAction,
-            onChange: setSelectedAction,
+            onChange: (val) => {
+              setSelectedAction(val);
+              setPage(1);
+            },
             options: [
               { value: "ALL", label: "Todas las acciones" },
               {
@@ -356,18 +370,24 @@ export default function AuditoriaPage() {
                 value: "ATTENDANCE_SCANNED",
                 label: "Escaneos de Asistencia",
               },
+              { value: "OVERTIME_REVIEWED", label: "Revisión de Horas Extras" },
               { value: "USER_CREATED", label: "Creación de Usuarios" },
               { value: "USER_UPDATED", label: "Modificación de Usuarios" },
               {
                 value: "USER_DEACTIVATED",
                 label: "Desactivación de Usuarios",
               },
+              { value: "USER_PASSWORD_RESET", label: "Reseteo de Contraseña" },
+              { value: "USER_PASSWORD_CHANGED", label: "Cambio de Contraseña" },
               { value: "QR_GENERATED", label: "Generación de QR" },
               { value: "QR_REGENERATED", label: "Regeneración de QR" },
               { value: "QR_INVALIDATED", label: "Revocación de QR" },
               { value: "TIME_OFF_REQUESTED", label: "Solicitud de Permisos" },
               { value: "TIME_OFF_APPROVED", label: "Permisos Aprobados" },
               { value: "TIME_OFF_REJECTED", label: "Permisos Rechazados" },
+              { value: "ENTITY_CREATED", label: "Creación de Registros" },
+              { value: "ENTITY_UPDATED", label: "Actualización de Registros" },
+              { value: "ENTITY_DELETED", label: "Eliminación de Registros" },
               { value: "JOB_EXECUTED", label: "Procesos Automáticos (Cron)" },
             ],
           },
@@ -375,13 +395,21 @@ export default function AuditoriaPage() {
             id: "entity",
             icon: Layers,
             value: selectedEntity,
-            onChange: setSelectedEntity,
+            onChange: (val) => {
+              setSelectedEntity(val);
+              setPage(1);
+            },
             options: [
               { value: "ALL", label: "Todas las entidades" },
               { value: "ATTENDANCE", label: "Asistencias" },
               { value: "USER", label: "Usuarios y Empleados" },
+              { value: "TIME_OFF_REQUEST", label: "Permisos y Ausencias" },
               { value: "LOCATION", label: "Sedes" },
               { value: "KIOSK", label: "Kioskos" },
+              { value: "SCHEDULE", label: "Horarios" },
+              { value: "DEPARTMENT", label: "Departamentos" },
+              { value: "HOLIDAY", label: "Feriados" },
+              { value: "ORGANIZATION", label: "Organización" },
               { value: "SYSTEM", label: "Sistema" },
             ],
           },
@@ -389,10 +417,26 @@ export default function AuditoriaPage() {
       />
 
       {/* ── Tabla de Auditoría ─────────────────────────────────────────── */}
-      {isLoading ? (
+      {isLoading && logs.length === 0 ? (
         <SkeletonTable rows={7} cols={6} />
       ) : (
-        <DataTableContainer>
+        <DataTableContainer
+          footer={
+            <DataTablePagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              pageSizeOptions={[10, 25, 50, 100]}
+              itemLabel="eventos de auditoría"
+            />
+          }
+        >
           <DataTableHeader>
             <DataTableHead>Fecha y Hora</DataTableHead>
             <DataTableHead>Responsable (Actor)</DataTableHead>
@@ -405,6 +449,7 @@ export default function AuditoriaPage() {
             {filteredLogs.length === 0 ? (
               <DataTableEmptyState
                 colSpan={6}
+                icon={search || selectedAction !== "ALL" || selectedEntity !== "ALL" ? SearchX : ScrollText}
                 message="No hay registros de auditoría que coincidan con los filtros aplicados."
               />
             ) : (
@@ -433,7 +478,7 @@ export default function AuditoriaPage() {
                               locale: es,
                             })}
                           </div>
-                          <div className="text-[10px] text-surface-500 font-mono mt-0.5">
+                          <div className="text-[10px] text-surface-500 dark:text-surface-400 font-mono mt-0.5">
                             {format(new Date(log.createdAt), "HH:mm:ss")}
                           </div>
                         </div>
@@ -452,7 +497,7 @@ export default function AuditoriaPage() {
                             <div className="font-bold text-[11px] text-surface-900 dark:text-surface-100 truncate">
                               {log.user.firstName} {log.user.lastName}
                             </div>
-                            <div className="text-[10px] text-surface-500 font-mono truncate">
+                            <div className="text-[10px] text-surface-500 dark:text-surface-400 font-mono truncate">
                               {log.user.email}
                             </div>
                           </div>
@@ -460,13 +505,13 @@ export default function AuditoriaPage() {
                       ) : (
                         <div className="flex items-center gap-2 text-surface-600 dark:text-surface-400">
                           <div className="w-7 h-7 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center flex-shrink-0">
-                            <Server className="w-3.5 h-3.5 text-surface-500" />
+                            <Server className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400" />
                           </div>
                           <div>
                             <div className="font-bold text-[11px] text-surface-800 dark:text-surface-200">
                               Sistema (Cron)
                             </div>
-                            <div className="text-[9px] text-surface-400 italic">
+                            <div className="text-[9px] text-surface-500 dark:text-surface-400 italic">
                               Automático
                             </div>
                           </div>
@@ -487,18 +532,18 @@ export default function AuditoriaPage() {
                     <DataTableCell className="w-[200px]">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1.5">
-                          <EntityIcon className="w-3.5 h-3.5 text-surface-400 flex-shrink-0" />
+                          <EntityIcon className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400 flex-shrink-0" />
                           <span className="font-bold text-[11px] text-surface-900 dark:text-surface-100 truncate">
                             {log.targetName || entityInfo.label}
                           </span>
                         </div>
                         {log.targetDetail ? (
-                          <div className="text-[10px] font-mono text-surface-500 pl-5">
+                          <div className="text-[10px] font-mono text-surface-500 dark:text-surface-400 pl-5">
                             {log.targetDetail}
                           </div>
                         ) : log.entityId && !log.targetName ? (
                           <div
-                            className="text-[9px] font-mono text-surface-400 pl-5 truncate"
+                            className="text-[9px] font-mono text-surface-500 dark:text-surface-400 pl-5 truncate"
                             title={log.entityId}
                           >
                             ID: {log.entityId.slice(0, 13)}...
@@ -513,15 +558,17 @@ export default function AuditoriaPage() {
                     </DataTableCell>
 
                     {/* 6. Acción: Botón Ojo para Ver Detalle */}
-                    <DataTableCell className="text-right">
-                      <ActionButton
-                        variant="neutral"
-                        size="sm"
-                        icon={<Eye className="w-4 h-4" />}
-                        title="Ver detalle completo del evento"
-                        aria-label="Ver detalle del evento"
-                        onClick={() => handleOpenDetail(log)}
-                      />
+                    <DataTableCell align="right">
+                      <ActionButtonGroup align="right">
+                        <ActionButton
+                          variant="neutral"
+                          size="sm"
+                          icon={<Eye className="w-3.5 h-3.5" />}
+                          title="Ver detalle completo del evento"
+                          aria-label="Ver detalle del evento"
+                          onClick={() => handleOpenDetail(log)}
+                        />
+                      </ActionButtonGroup>
                     </DataTableCell>
                   </DataTableRow>
                 );

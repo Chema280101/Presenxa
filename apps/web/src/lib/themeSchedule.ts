@@ -85,14 +85,14 @@ export function setStoredOverride(theme: ThemeMode, slotId: string): void {
       timestamp: Date.now(),
     };
     localStorage.setItem(THEME_OVERRIDE_STORAGE_KEY, JSON.stringify(payload));
-  } catch {}
+  } catch { /* Ignorado intencionalmente */ }
 }
 
 export function clearStoredOverride(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(THEME_OVERRIDE_STORAGE_KEY);
-  } catch {}
+  } catch { /* Ignorado intencionalmente */ }
 }
 
 export function getEffectiveTheme(date: Date = new Date()): {

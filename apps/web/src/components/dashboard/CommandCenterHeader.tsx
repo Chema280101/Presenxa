@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Building2, 
-  Activity, 
-  Clock, 
-  Download, 
-  Bell, 
-  ChevronDown, 
-  ShieldCheck, 
-  Sparkles,
-  CheckCircle2,
-  FileSpreadsheet
-} from "lucide-react";
+import { Building2, Clock, CheckCircle2, FileSpreadsheet } from "lucide-react";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 
 interface CommandCenterHeaderProps {
@@ -30,10 +19,10 @@ export function CommandCenterHeader({
   suiteName = "SUITE CONTROL",
   sedeName = "Sede Principal",
   sedeId = "LIM-01",
-  userRole = "Administrador Principal",
-  userName = "Administrador",
-  userEmail = "admin@hotelitalia.com",
-}: CommandCenterHeaderProps) {
+  userRole: _userRole = "Administrador Principal",
+  userName: _userName = "Administrador",
+  userEmail: _userEmail = "admin@hotelitalia.com",
+}: Readonly<CommandCenterHeaderProps>) {
   const [currentTime, setCurrentTime] = useState<string>("");
   const [currentDate, setCurrentDate] = useState<string>("");
   const [latency, setLatency] = useState<number>(12);

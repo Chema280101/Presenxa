@@ -1,20 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  Calendar as CalendarIcon,
-  Plus,
-  Trash2,
-  ShieldCheck,
-  MapPin,
-  RefreshCw,
-  Sparkles,
-  Clock,
-  CheckCircle2,
-  CalendarDays,
-  LayoutGrid,
-  List,
-} from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Trash2, ShieldCheck, MapPin, RefreshCw, Sparkles, Clock, CalendarDays, LayoutGrid, List } from "lucide-react";
 import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -29,6 +16,7 @@ import {
   DataTableRow,
   DataTableCell,
 } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { ActionButtonGroup, ActionButton } from "@/components/ui/ActionButton";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
@@ -57,6 +45,8 @@ export default function FeriadosPage() {
   const [viewMode, setViewMode] = useState<"calendar" | "grid" | "table">("calendar");
   const [modalInitialDate, setModalInitialDate] = useState<string | undefined>(undefined);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -106,6 +96,17 @@ export default function FeriadosPage() {
       return matchesYear && matchesSearch;
     });
   }, [holidays, selectedYear, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedYear, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredHolidays.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginatedHolidays = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredHolidays.slice(start, start + pageSize);
+  }, [filteredHolidays, safePage, pageSize]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -274,7 +275,7 @@ export default function FeriadosPage() {
         />
 
         {viewMode !== "calendar" && (
-          <div className="text-xs text-surface-500 font-mono">
+          <div className="text-xs text-surface-500 dark:text-surface-400 font-mono">
             {filteredHolidays.length} {filteredHolidays.length === 1 ? "feriado filtrado" : "feriados filtrados"}
           </div>
         )}
@@ -312,14 +313,14 @@ export default function FeriadosPage() {
         isLoading ? (
           <div className="py-20 text-center flex flex-col items-center justify-center bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-3xl">
             <RefreshCw className="w-8 h-8 text-primary-500 animate-spin mb-3" />
-            <p className="text-sm font-medium text-surface-500">Cargando calendario oficial...</p>
+            <p className="text-sm font-medium text-surface-500 dark:text-surface-400">Cargando calendario oficial...</p>
           </div>
         ) : (
           <YearCalendarView
             year={
               selectedYear === "ALL"
                 ? new Date().getFullYear()
-                : parseInt(selectedYear, 10) || new Date().getFullYear()
+                : Number.parseInt(selectedYear, 10) || new Date().getFullYear()
             }
             onYearChange={(newYear) => setSelectedYear(newYear.toString())}
             holidays={holidays}
@@ -350,11 +351,11 @@ export default function FeriadosPage() {
           {isLoading ? (
             <div className="py-20 text-center flex flex-col items-center justify-center">
               <RefreshCw className="w-8 h-8 text-primary-500 animate-spin mb-3" />
-              <p className="text-sm font-medium text-surface-500">Cargando calendario oficial...</p>
+              <p className="text-sm font-medium text-surface-500 dark:text-surface-400">Cargando calendario oficial...</p>
             </div>
           ) : filteredHolidays.length === 0 ? (
             <div className="py-20 text-center flex flex-col items-center justify-center">
-              <div className="w-16 h-16 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700 flex items-center justify-center text-surface-400 mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700 flex items-center justify-center text-surface-500 dark:text-surface-400 mb-4">
                 <CalendarIcon className="w-8 h-8 opacity-60" />
               </div>
               <h3 className="text-base font-bold text-surface-900 dark:text-white mb-1">
@@ -419,7 +420,7 @@ export default function FeriadosPage() {
                       <div
                         className={`w-13 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 border transition-transform group-hover:scale-105 shadow-2xs ${
                           isPast
-                            ? "bg-surface-200/50 dark:bg-surface-800 border-surface-300/50 dark:border-surface-700 text-surface-500"
+                            ? "bg-surface-200/50 dark:bg-surface-800 border-surface-300/50 dark:border-surface-700 text-surface-500 dark:text-surface-400"
                             : "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                         }`}
                       >
@@ -455,7 +456,7 @@ export default function FeriadosPage() {
                       {/* Delete button */}
                       <button
                         onClick={() => handleDelete(holiday)}
-                        className="p-2 rounded-xl text-surface-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
+                        className="p-2 rounded-xl text-surface-500 dark:text-surface-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors opacity-70 group-hover:opacity-100 cursor-pointer"
                         title="Eliminar feriado"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -468,7 +469,7 @@ export default function FeriadosPage() {
                         <MapPin className="w-3.5 h-3.5 text-primary-500 shrink-0" />
                         <span className="truncate">{locationName}</span>
                       </span>
-                      <span className="font-mono text-[10px] text-surface-400">
+                      <span className="font-mono text-[10px] text-surface-500 dark:text-surface-400">
                         {hDate.getUTCFullYear()}
                       </span>
                     </div>
@@ -484,7 +485,7 @@ export default function FeriadosPage() {
           <SkeletonTable rows={5} cols={5} />
         ) : filteredHolidays.length === 0 ? (
           <div className="py-20 text-center flex flex-col items-center justify-center bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-3xl shadow-sm">
-            <div className="w-16 h-16 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700 flex items-center justify-center text-surface-400 mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700 flex items-center justify-center text-surface-500 dark:text-surface-400 mb-4">
               <CalendarIcon className="w-8 h-8 opacity-60" />
             </div>
             <h3 className="text-base font-bold text-surface-900 dark:text-white mb-1">
@@ -507,7 +508,23 @@ export default function FeriadosPage() {
             </Button>
           </div>
         ) : (
-          <DataTableContainer>
+          <DataTableContainer
+            footer={
+              <DataTablePagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                totalItems={filteredHolidays.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemLabel="feriados"
+              />
+            }
+          >
             <DataTableHeader>
               <DataTableHead>Fecha</DataTableHead>
               <DataTableHead>Festividad / Motivo</DataTableHead>
@@ -516,7 +533,7 @@ export default function FeriadosPage() {
               <DataTableHead align="right">Acciones</DataTableHead>
             </DataTableHeader>
             <DataTableBody>
-                {filteredHolidays.map((holiday) => {
+                {paginatedHolidays.map((holiday) => {
                   const hDate = new Date(holiday.date);
                   const now = new Date();
                   now.setHours(0, 0, 0, 0);
@@ -551,7 +568,7 @@ export default function FeriadosPage() {
                           <div
                             className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 border shadow-2xs ${
                               isPast
-                                ? "bg-surface-200/50 dark:bg-surface-800 border-surface-300/50 dark:border-surface-700 text-surface-500"
+                                ? "bg-surface-200/50 dark:bg-surface-800 border-surface-300/50 dark:border-surface-700 text-surface-500 dark:text-surface-400"
                                 : isToday
                                 ? "bg-cyan-50 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/20 text-cyan-600 dark:text-cyan-400"
                                 : "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
@@ -568,7 +585,7 @@ export default function FeriadosPage() {
                             <span className="font-semibold text-surface-900 dark:text-white capitalize block text-sm">
                               {weekdayFull}
                             </span>
-                            <span className="text-xs text-surface-500 font-mono">
+                            <span className="text-xs text-surface-500 dark:text-surface-400 font-mono">
                               {holiday.date.split("T")[0]}
                             </span>
                           </div>

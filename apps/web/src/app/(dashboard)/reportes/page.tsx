@@ -1,43 +1,19 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  BarChart3,
-  Calendar,
-  Download,
-  Building,
-  TrendingUp,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  FileSpreadsheet,
-  RefreshCw,
-  Award,
-  Users,
-  User,
-  ShieldCheck,
-  Sparkles,
-  Printer,
-  FileText,
-  Filter,
-  FolderTree,
-  X,
-} from "lucide-react";
-import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
-import { es } from "date-fns/locale";
+import { BarChart3, Calendar, TrendingUp, Clock, AlertTriangle, RefreshCw, Award, User, Printer, FileText, FolderTree, X, ChevronRight, Inbox } from "lucide-react";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { PdfReportModal } from "@/components/reports/PdfReportModal";
 import { NominalBreakdownModal, StatusFilter } from "@/components/reports/NominalBreakdownModal";
 import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
 import { AttendanceHeatmap } from "@/components/reports/AttendanceHeatmap";
-import { DailyTrendChart } from "@/components/reports/DailyTrendChart";
-import { LateSeverityChart } from "@/components/reports/LateSeverityChart";
 import { ExportReportDropdown } from "@/components/reports/ExportReportDropdown";
+import { exportPayrollToExcel } from "@/lib/exportPayrollExcel";
+import { useToast } from "@/providers/ToastProvider";
 
 interface DailyRecord {
   date: string;
@@ -83,6 +59,7 @@ interface WorkerItem {
 }
 
 export default function ReportsPage() {
+  const { toast } = useToast();
   // Period states
   const [periodType, setPeriodType] = useState<PeriodType>("MONTH");
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -198,7 +175,33 @@ export default function ReportsPage() {
     }
   };
 
+  const isCustomRangeInvalid = periodType === "CUSTOM" && Boolean(customStartDate && customEndDate && customStartDate > customEndDate);
+
+  const getResolvedDateRange = () => {
+    if (periodType === "TODAY") {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      return { startDate: todayStr, endDate: todayStr };
+    }
+    if (periodType === "WEEK") {
+      const now = new Date();
+      return {
+        startDate: format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        endDate: format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+      };
+    }
+    if (periodType === "MONTH") {
+      const [y, m] = selectedMonth.split("-").map(Number);
+      const monthDate = new Date(y, m - 1, 1);
+      return {
+        startDate: format(startOfMonth(monthDate), "yyyy-MM-dd"),
+        endDate: format(endOfMonth(monthDate), "yyyy-MM-dd"),
+      };
+    }
+    return { startDate: customStartDate, endDate: customEndDate };
+  };
+
   const fetchReports = async () => {
+    if (isCustomRangeInvalid) return;
     try {
       setIsLoading(true);
 
@@ -208,19 +211,12 @@ export default function ReportsPage() {
       if (periodType === "MONTH") {
         summaryParams.append("month", selectedMonth);
         heatmapParams.append("month", selectedMonth);
-      } else if (periodType === "CUSTOM") {
-        heatmapParams.append("startDate", customStartDate);
-        heatmapParams.append("endDate", customEndDate);
-      } else if (periodType === "TODAY") {
-        const todayStr = format(new Date(), "yyyy-MM-dd");
-        heatmapParams.append("startDate", todayStr);
-        heatmapParams.append("endDate", todayStr);
-      } else if (periodType === "WEEK") {
-        const now = new Date();
-        const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
-        const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
-        heatmapParams.append("startDate", weekStart);
-        heatmapParams.append("endDate", weekEnd);
+      } else {
+        const { startDate, endDate } = getResolvedDateRange();
+        summaryParams.append("startDate", startDate);
+        summaryParams.append("endDate", endDate);
+        heatmapParams.append("startDate", startDate);
+        heatmapParams.append("endDate", endDate);
       }
 
       if (selectedLocation !== "ALL") {
@@ -232,6 +228,7 @@ export default function ReportsPage() {
         heatmapParams.append("departmentId", selectedDepartment);
       }
       if (selectedRole !== "ALL") {
+        summaryParams.append("role", selectedRole);
         heatmapParams.append("role", selectedRole);
       }
       if (selectedUser !== "ALL") {
@@ -260,6 +257,7 @@ export default function ReportsPage() {
       }
     } catch (err) {
       console.error("Error fetching reports:", err);
+      toast.error("No se pudieron cargar las métricas del reporte");
     } finally {
       setIsLoading(false);
     }
@@ -269,42 +267,54 @@ export default function ReportsPage() {
     fetchLocationsAndDepartments();
   }, []);
 
+  // Invalidate cached detailed report whenever any filter changes
+  useEffect(() => {
+    setPdfReportData(null);
+  }, [periodType, selectedMonth, customStartDate, customEndDate, selectedLocation, selectedDepartment, selectedRole, selectedUser]);
+
   useEffect(() => {
     fetchReports();
   }, [periodType, selectedMonth, customStartDate, customEndDate, selectedLocation, selectedDepartment, selectedRole, selectedUser]);
 
+  const buildDetailedParams = () => {
+    const params = new URLSearchParams({ period: periodType });
+    if (periodType === "MONTH") {
+      params.append("startDate", selectedMonth);
+    } else if (periodType === "CUSTOM") {
+      params.append("startDate", customStartDate);
+      params.append("endDate", customEndDate);
+    }
+    if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
+    if (selectedDepartment !== "ALL") params.append("departmentId", selectedDepartment);
+    if (selectedRole !== "ALL") params.append("role", selectedRole);
+    if (selectedUser !== "ALL") params.append("userId", selectedUser);
+    return params;
+  };
+
   // Generar Reporte PDF
   const handleOpenPdfModal = async () => {
+    if (isCustomRangeInvalid) {
+      toast.error("La fecha de inicio no puede ser mayor a la fecha de fin");
+      return;
+    }
+    if (pdfReportData?.attendances) {
+      setIsPdfModalOpen(true);
+      return;
+    }
     try {
       setIsGeneratingPdf(true);
-      const params = new URLSearchParams({
-        period: periodType,
-      });
-
-      if (periodType === "MONTH") {
-        params.append("startDate", selectedMonth);
-      } else if (periodType === "CUSTOM") {
-        params.append("startDate", customStartDate);
-        params.append("endDate", customEndDate);
-      }
-
-      if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
-      if (selectedDepartment !== "ALL") params.append("departmentId", selectedDepartment);
-      if (selectedRole !== "ALL") params.append("role", selectedRole);
-      if (selectedUser !== "ALL") params.append("userId", selectedUser);
-
-      const res = await fetch(`/api/reports/detailed?${params.toString()}`);
+      const res = await fetch(`/api/reports/detailed?${buildDetailedParams().toString()}`);
       const data = await res.json();
 
       if (res.ok && data) {
         setPdfReportData(data);
         setIsPdfModalOpen(true);
       } else {
-        alert(data.error || "No se pudo cargar los datos del reporte");
+        toast.error(data.error || "No se pudo cargar los datos del reporte");
       }
     } catch (err) {
       console.error("Error al generar PDF:", err);
-      alert("Error al conectar con el servidor para generar el reporte");
+      toast.error("Error al conectar con el servidor para generar el reporte");
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -312,6 +322,10 @@ export default function ReportsPage() {
 
   // Abrir Desglose Nominal Detallado
   const handleOpenNominalModal = async (filter: StatusFilter = "ALL") => {
+    if (isCustomRangeInvalid) {
+      toast.error("La fecha de inicio no puede ser mayor a la fecha de fin");
+      return;
+    }
     setNominalStatusFilter(filter);
 
     if (pdfReportData?.attendances) {
@@ -321,34 +335,18 @@ export default function ReportsPage() {
 
     try {
       setIsLoadingNominal(true);
-      const params = new URLSearchParams({
-        period: periodType,
-      });
-
-      if (periodType === "MONTH") {
-        params.append("startDate", selectedMonth);
-      } else if (periodType === "CUSTOM") {
-        params.append("startDate", customStartDate);
-        params.append("endDate", customEndDate);
-      }
-
-      if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
-      if (selectedDepartment !== "ALL") params.append("departmentId", selectedDepartment);
-      if (selectedRole !== "ALL") params.append("role", selectedRole);
-      if (selectedUser !== "ALL") params.append("userId", selectedUser);
-
-      const res = await fetch(`/api/reports/detailed?${params.toString()}`);
+      const res = await fetch(`/api/reports/detailed?${buildDetailedParams().toString()}`);
       const data = await res.json();
 
       if (res.ok && data) {
         setPdfReportData(data);
         setIsNominalModalOpen(true);
       } else {
-        alert(data.error || "No se pudo cargar los datos nominales");
+        toast.error(data.error || "No se pudo cargar los datos nominales");
       }
     } catch (err) {
       console.error("Error al cargar desglose nominal:", err);
-      alert("Error al conectar con el servidor para obtener el desglose nominal");
+      toast.error("Error al conectar con el servidor para obtener el desglose nominal");
     } finally {
       setIsLoadingNominal(false);
     }
@@ -389,6 +387,35 @@ export default function ReportsPage() {
     window.open(buildExportUrl("csv"), "_blank");
   };
 
+  const handleExportPayroll = async () => {
+    if (isCustomRangeInvalid) {
+      toast.error("La fecha de inicio no puede ser mayor a la fecha de fin");
+      return;
+    }
+    try {
+      const { startDate, endDate } = getResolvedDateRange();
+
+      const params = new URLSearchParams({ startDate, endDate });
+      if (selectedLocation !== "ALL") params.append("locationId", selectedLocation);
+      if (selectedDepartment !== "ALL") params.append("departmentId", selectedDepartment);
+      if (selectedRole !== "ALL") params.append("role", selectedRole);
+      if (selectedUser !== "ALL") params.append("userId", selectedUser);
+
+      const res = await fetch(`/api/reports/payroll?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al generar tareo");
+
+      await exportPayrollToExcel(data.rows || [], startDate, endDate, {
+        companyName: data.organizationName,
+        ruc: data.ruc,
+      });
+      toast.success("Tareo de planilla exportado correctamente");
+    } catch (err: any) {
+      console.error("Error exportando tareo:", err);
+      toast.error(err?.message || "No se pudo exportar el tareo de planilla");
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up pb-12">
       {/* PDF Modal */}
@@ -417,6 +444,7 @@ export default function ReportsPage() {
           <>
             <ExportReportDropdown
               onExportExcel={handleExportExcel}
+              onExportPayroll={handleExportPayroll}
               onExportPdf={handleOpenPdfModal}
               onExportCsv={handleExportCsv}
               periodLabel={
@@ -475,9 +503,10 @@ export default function ReportsPage() {
             {/* Month Picker */}
             {periodType === "MONTH" && (
               <div className="h-10 flex items-center gap-2 bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 px-3 rounded-xl text-xs font-medium">
-                <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
+                <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" aria-hidden="true" />
                 <input
                   type="month"
+                  aria-label="Seleccionar mes del reporte"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
                   className="bg-transparent text-surface-900 dark:text-white font-mono outline-none cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(1)] text-xs"
@@ -487,18 +516,22 @@ export default function ReportsPage() {
 
             {/* Custom Date Range Picker */}
             {periodType === "CUSTOM" && (
-              <div className="h-10 flex items-center gap-2 bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 px-3 rounded-xl text-xs font-medium">
-                <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" />
+              <div className={`h-10 flex items-center gap-2 bg-surface-100 dark:bg-surface-800 border px-3 rounded-xl text-xs font-medium ${isCustomRangeInvalid ? "border-danger-500 ring-1 ring-danger-500/40" : "border-surface-200 dark:border-surface-700"}`}>
+                <Calendar className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0" aria-hidden="true" />
                 <input
                   type="date"
+                  aria-label="Fecha de inicio"
                   value={customStartDate}
+                  max={customEndDate || undefined}
                   onChange={(e) => setCustomStartDate(e.target.value)}
                   className="bg-transparent text-surface-900 dark:text-white font-mono outline-none cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(1)] text-xs"
                 />
-                <span className="text-surface-400 dark:text-surface-500">-</span>
+                <span className="text-surface-400 dark:text-surface-500" aria-hidden="true">-</span>
                 <input
                   type="date"
+                  aria-label="Fecha de fin"
                   value={customEndDate}
+                  min={customStartDate || undefined}
                   onChange={(e) => setCustomEndDate(e.target.value)}
                   className="bg-transparent text-surface-900 dark:text-white font-mono outline-none cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(1)] text-xs"
                 />
@@ -507,9 +540,12 @@ export default function ReportsPage() {
             
             {/* Refresh Button */}
             <button
+              type="button"
               onClick={fetchReports}
-              className="h-10 w-10 flex items-center justify-center rounded-xl bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white transition cursor-pointer"
+              disabled={isCustomRangeInvalid}
+              className="h-10 w-10 flex items-center justify-center rounded-xl bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white transition cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               title="Refrescar métricas"
+              aria-label="Refrescar métricas del reporte"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin text-primary-600 dark:text-primary-400" : ""}`} />
             </button>
@@ -561,6 +597,20 @@ export default function ReportsPage() {
           },
         ]}
       />
+
+      {/* Alerta de rango inválido */}
+      {isCustomRangeInvalid && (
+        <div role="alert" className="flex items-center justify-between p-3.5 rounded-2xl bg-danger-50 dark:bg-danger-950/30 border border-danger-200 dark:border-danger-500/30 text-xs text-danger-700 dark:text-danger-300">
+          <span className="font-medium">La fecha de inicio ({customStartDate}) no puede ser posterior a la fecha de fin ({customEndDate}).</span>
+          <button
+            type="button"
+            onClick={() => setCustomEndDate(customStartDate)}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-white/10 border border-danger-200 dark:border-danger-500/30 font-semibold hover:bg-danger-100 dark:hover:bg-white/15 transition cursor-pointer"
+          >
+            Ajustar fecha fin
+          </button>
+        </div>
+      )}
 
       {/* Banner de enfoque individual cuando hay un colaborador seleccionado */}
       {selectedUserObj && (
@@ -615,6 +665,32 @@ export default function ReportsPage() {
             </div>
           </div>
         </div>
+      ) : summary.totalRecords === 0 ? (
+        <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 bg-surface-50 dark:bg-surface-900/60 p-10 text-center space-y-3 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-surface-100 dark:bg-white/5 border border-surface-200 dark:border-white/10 flex items-center justify-center mx-auto text-surface-500 dark:text-slate-400">
+            <Inbox className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-surface-900 dark:text-white">
+            Sin registros de asistencia para este filtro
+          </h3>
+          <p className="text-xs text-surface-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+            No se encontraron marcaciones en el período o combinación de sede, departamento, rol y colaborador seleccionados.
+          </p>
+          <div className="pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPeriodType("MONTH");
+                setSelectedLocation("ALL");
+                setSelectedDepartment("ALL");
+                setSelectedRole("ALL");
+                setSelectedUser("ALL");
+              }}
+            >
+              Restablecer filtros
+            </Button>
+          </div>
+        </div>
       ) : (
         <>
           {/* BEGIN: KpiMetricsCards */}
@@ -665,7 +741,7 @@ export default function ReportsPage() {
               trend={
                 summary.totalRecords > 0
                   ? summary.abandonedCount === 0
-                    ? { value: 0, label: "OK", isPositive: true }
+                    ? { value: "0", label: "Sin abandonos", isNeutral: true }
                     : undefined
                   : undefined
               }
@@ -702,93 +778,82 @@ export default function ReportsPage() {
                 </div>
                 
                 {/* Breakdown Bars */}
-                <div className="mt-5 space-y-4">
-                  <div 
-                    onClick={() => handleOpenNominalModal("PRESENTE")}
-                    className="space-y-1.5 p-1.5 -mx-1.5 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.03] transition cursor-pointer group"
-                    title="Clic para ver desglose nominal de puntuales"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-primary-500 dark:bg-emerald-400"></span>
-                        <span className="text-surface-800 dark:text-slate-200 font-medium group-hover:text-primary-500 transition">Presentes Puntuales</span>
-                      </div>
-                      <div className="flex items-center space-x-2 font-mono">
-                        <span className="text-surface-900 dark:text-white font-bold">{summary.presentCount}</span>
-                        <span className="text-surface-500 dark:text-slate-400 text-[11px]">({summary.totalRecords ? Math.round((summary.presentCount / summary.totalRecords) * 100) : 0}%)</span>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-surface-200 dark:bg-[#131b26] rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-primary-500 to-primary-400 rounded-full transition-all" style={{ width: `${summary.totalRecords ? (summary.presentCount / summary.totalRecords) * 100 : 0}%` }}></div>
-                    </div>
-                  </div>
-
-                  <div 
-                    onClick={() => handleOpenNominalModal("TARDE")}
-                    className="space-y-1.5 p-1.5 -mx-1.5 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.03] transition cursor-pointer group"
-                    title="Clic para ver desglose nominal de tardanzas"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-warning-500 dark:bg-amber-400"></span>
-                        <span className="text-surface-800 dark:text-slate-200 font-medium group-hover:text-warning-500 transition">Tardanzas Toleradas / Leves</span>
-                      </div>
-                      <div className="flex items-center space-x-2 font-mono">
-                        <span className="text-warning-600 dark:text-amber-300 font-bold">{summary.lateCount}</span>
-                        <span className="text-surface-500 dark:text-slate-400 text-[11px]">({summary.totalRecords ? Math.round((summary.lateCount / summary.totalRecords) * 100) : 0}%)</span>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-surface-200 dark:bg-[#131b26] rounded-full overflow-hidden">
-                      <div className="h-full bg-warning-500 dark:bg-amber-400 rounded-full transition-all" style={{ width: `${summary.totalRecords ? (summary.lateCount / summary.totalRecords) * 100 : 0}%` }}></div>
-                    </div>
-                  </div>
-
-                  <div 
-                    onClick={() => handleOpenNominalModal("JUSTIFICADO")}
-                    className="space-y-1.5 p-1.5 -mx-1.5 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.03] transition cursor-pointer group"
-                    title="Clic para ver desglose nominal de justificados"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-info-500 dark:bg-cyan-400"></span>
-                        <span className="text-surface-800 dark:text-slate-200 font-medium group-hover:text-info-500 transition">Justificados / Licencias</span>
-                      </div>
-                      <div className="flex items-center space-x-2 font-mono">
-                        <span className="text-info-600 dark:text-cyan-300 font-bold">{summary.justifiedCount || 0}</span>
-                        <span className="text-surface-500 dark:text-slate-400 text-[11px]">({summary.totalRecords ? Math.round(((summary.justifiedCount || 0) / summary.totalRecords) * 100) : 0}%)</span>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-surface-200 dark:bg-[#131b26] rounded-full overflow-hidden">
-                      <div className="h-full bg-info-500 dark:bg-cyan-400 rounded-full transition-all" style={{ width: `${summary.totalRecords ? ((summary.justifiedCount || 0) / summary.totalRecords) * 100 : 0}%` }}></div>
-                    </div>
-                  </div>
-
-                  <div 
-                    onClick={() => handleOpenNominalModal("AUSENTE")}
-                    className="space-y-1.5 p-1.5 -mx-1.5 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.03] transition cursor-pointer group"
-                    title="Clic para ver desglose nominal de inasistencias"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-danger-500 dark:bg-rose-400"></span>
-                        <span className="text-surface-800 dark:text-slate-200 font-medium group-hover:text-danger-500 transition">Inasistencias Injustificadas</span>
-                      </div>
-                      <div className="flex items-center space-x-2 font-mono">
-                        <span className="text-danger-600 dark:text-rose-300 font-bold">{summary.absentCount}</span>
-                        <span className="text-surface-500 dark:text-slate-400 text-[11px]">({summary.totalRecords ? Math.round((summary.absentCount / summary.totalRecords) * 100) : 0}%)</span>
-                      </div>
-                    </div>
-                    <div className="w-full h-2 bg-surface-200 dark:bg-[#131b26] rounded-full overflow-hidden">
-                      <div className="h-full bg-danger-500 dark:bg-rose-500 rounded-full transition-all" style={{ width: `${summary.totalRecords ? (summary.absentCount / summary.totalRecords) * 100 : 0}%` }}></div>
-                    </div>
-                  </div>
+                <div className="mt-5 space-y-2.5">
+                  {[
+                    {
+                      filter: "PRESENTE" as StatusFilter,
+                      label: "Presentes Puntuales",
+                      count: summary.presentCount,
+                      dotClass: "bg-primary-500 dark:bg-emerald-400",
+                      countClass: "text-surface-900 dark:text-white",
+                      hoverClass: "group-hover:text-primary-600 dark:group-hover:text-emerald-400",
+                      barClass: "bg-gradient-to-r from-primary-500 to-primary-400",
+                    },
+                    {
+                      filter: "TARDE" as StatusFilter,
+                      label: "Tardanzas Toleradas / Leves",
+                      count: summary.lateCount,
+                      dotClass: "bg-warning-500 dark:bg-amber-400",
+                      countClass: "text-warning-700 dark:text-amber-300",
+                      hoverClass: "group-hover:text-warning-600 dark:group-hover:text-amber-300",
+                      barClass: "bg-warning-500 dark:bg-amber-400",
+                    },
+                    {
+                      filter: "JUSTIFICADO" as StatusFilter,
+                      label: "Justificados / Licencias",
+                      count: summary.justifiedCount || 0,
+                      dotClass: "bg-info-500 dark:bg-cyan-400",
+                      countClass: "text-info-700 dark:text-cyan-300",
+                      hoverClass: "group-hover:text-info-600 dark:group-hover:text-cyan-300",
+                      barClass: "bg-info-500 dark:bg-cyan-400",
+                    },
+                    {
+                      filter: "AUSENTE" as StatusFilter,
+                      label: "Inasistencias Injustificadas",
+                      count: summary.absentCount,
+                      dotClass: "bg-danger-500 dark:bg-rose-400",
+                      countClass: "text-danger-700 dark:text-rose-300",
+                      hoverClass: "group-hover:text-danger-600 dark:group-hover:text-rose-300",
+                      barClass: "bg-danger-500 dark:bg-rose-500",
+                    },
+                  ].map((item) => {
+                    const pct = summary.totalRecords ? Math.round((item.count / summary.totalRecords) * 100) : 0;
+                    const widthPct = summary.totalRecords ? (item.count / summary.totalRecords) * 100 : 0;
+                    return (
+                      <button
+                        key={item.filter}
+                        type="button"
+                        onClick={() => handleOpenNominalModal(item.filter)}
+                        aria-label={`Ver desglose nominal de ${item.label}: ${item.count} (${pct}%)`}
+                        className="w-full text-left space-y-1.5 p-2 -mx-2 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.04] transition cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${item.dotClass}`} aria-hidden="true" />
+                            <span className={`text-surface-800 dark:text-slate-200 font-medium truncate transition ${item.hoverClass}`}>
+                              {item.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2 font-mono shrink-0">
+                            <span className={`font-bold ${item.countClass}`}>{item.count}</span>
+                            <span className="text-surface-500 dark:text-slate-400 text-[11px]">({pct}%)</span>
+                            <ChevronRight className="w-3.5 h-3.5 text-surface-400 dark:text-slate-500 group-hover:text-surface-700 dark:group-hover:text-slate-300 transition-colors" aria-hidden="true" />
+                          </div>
+                        </div>
+                        <div className="w-full h-2 bg-surface-200 dark:bg-[#131b26] rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${item.barClass}`} style={{ width: `${widthPct}%` }} />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="mt-6 pt-4 border-t border-surface-200 dark:border-white/5">
                 <button
+                  type="button"
                   onClick={() => handleOpenNominalModal("ALL")}
                   disabled={isLoadingNominal}
-                  className="w-full py-2.5 px-3 rounded-xl bg-surface-200 dark:bg-white/5 hover:bg-surface-300 dark:hover:bg-white/10 hover:border-primary-300 dark:hover:border-emerald-500/30 border border-surface-300 dark:border-white/10 text-xs font-semibold text-surface-800 dark:text-slate-200 hover:text-surface-900 dark:hover:text-white flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  className="w-full min-h-[40px] py-2.5 px-3 rounded-xl bg-white dark:bg-white/5 hover:bg-surface-50 dark:hover:bg-white/10 hover:border-primary-300 dark:hover:border-emerald-500/30 border border-surface-300 dark:border-white/10 shadow-xs text-xs font-semibold text-surface-800 dark:text-slate-200 hover:text-surface-900 dark:hover:text-white flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                 >
                   {isLoadingNominal ? (
                     <RefreshCw className="w-4 h-4 animate-spin text-primary-600 dark:text-emerald-400" />
@@ -800,77 +865,113 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Right Col: Consola de Exportación & Auditoría (7 Cols) */}
+            {/* Right Col: Severidad de Tardanzas & Resumen del Período (7 Cols) */}
             <div className="lg:col-span-7 flex flex-col gap-6">
-              
               <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-6 flex flex-col justify-between bg-surface-50 dark:bg-surface-900/60 shadow-lg backdrop-blur-xl h-full">
                 <div>
-                  <div className="flex items-center justify-between border-b border-surface-200 dark:border-white/5 pb-4">
+                  <div className="flex items-center justify-between border-b border-surface-200 dark:border-white/5 pb-4 gap-3">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-xl bg-info-50 dark:bg-cyan-500/10 border border-info-200 dark:border-cyan-500/30 flex items-center justify-center text-info-600 dark:text-cyan-400">
-                        <ShieldCheck className="w-4 h-4" />
+                      <div className="w-8 h-8 rounded-xl bg-warning-50 dark:bg-amber-500/10 border border-warning-200 dark:border-amber-500/30 flex items-center justify-center text-warning-600 dark:text-amber-400 shrink-0">
+                        <Clock className="w-4 h-4" />
                       </div>
                       <div>
-                        <h3 className="text-sm font-bold text-surface-900 dark:text-white tracking-wide">Consola de Exportación & Control Operativo</h3>
-                        <p className="text-[11px] text-surface-500 dark:text-slate-400 mt-0.5">Archivos consolidados para gestión interna de planillas, turnos y control de asistencia.</p>
+                        <h3 className="text-sm font-bold text-surface-900 dark:text-white tracking-wide">
+                          Severidad de Tardanzas &amp; Cobertura
+                        </h3>
+                        <p className="text-[11px] text-surface-600 dark:text-slate-400 mt-0.5">
+                          Clasificación real de minutos de retraso en el período seleccionado.
+                        </p>
                       </div>
                     </div>
-                    <span className="hidden sm:inline-flex text-[10px] font-mono text-primary-700 dark:text-emerald-400 bg-primary-100 dark:bg-emerald-500/10 border border-primary-300 dark:border-emerald-500/30 px-2.5 py-1 rounded-md font-bold">
-                      AUDITORÍA ACTIVA
+                    <span className="hidden sm:inline-flex text-[11px] font-mono text-surface-600 dark:text-slate-300 bg-surface-100 dark:bg-white/5 border border-surface-200 dark:border-white/10 px-2.5 py-1 rounded-full font-semibold shrink-0">
+                      {summary.dailyBreakdown.length} días con actividad
                     </span>
                   </div>
-                  {/* Features Grid */}
-                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 rounded-xl p-4 space-y-1.5">
-                      <div className="flex items-center space-x-2 text-xs text-surface-800 dark:text-slate-200 font-semibold">
-                        <CheckCircle2 className="w-4 h-4 text-primary-500 dark:text-emerald-400" />
-                        <span>Control Biométrico</span>
-                      </div>
-                      <p className="text-[10px] text-surface-500 dark:text-slate-400 leading-relaxed">Registro de asistencias digital con identificación biométrica no modificable.</p>
-                    </div>
-                    <div className="bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 rounded-xl p-4 space-y-1.5">
-                      <div className="flex items-center space-x-2 text-xs text-surface-800 dark:text-slate-200 font-semibold">
-                        <Clock className="w-4 h-4 text-info-500 dark:text-cyan-400" />
-                        <span>Horas Extras 25/35%</span>
-                      </div>
-                      <p className="text-[10px] text-surface-500 dark:text-slate-400 leading-relaxed">Cálculo automatizado de sobretiempo diurno y nocturno para la nómina mensual.</p>
-                    </div>
-                    <div className="bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 rounded-xl p-4 space-y-1.5">
-                      <div className="flex items-center space-x-2 text-xs text-surface-800 dark:text-slate-200 font-semibold">
-                        <Award className="w-4 h-4 text-accent-500 dark:text-purple-400" />
-                        <span>Firma SHA-256</span>
-                      </div>
-                      <p className="text-[10px] text-surface-500 dark:text-slate-400 leading-relaxed">Inmutabilidad garantizada por hash criptográfico en cada checkpoint de ingreso.</p>
-                    </div>
+
+                  {/* Late Severity Breakdown */}
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {[
+                      {
+                        label: "En tolerancia (1–5 min)",
+                        count: summary.lateSeverity.tolerance,
+                        badgeClass: "text-primary-700 dark:text-emerald-400 bg-primary-50 dark:bg-emerald-500/10 border-primary-200 dark:border-emerald-500/20",
+                        barClass: "bg-primary-500 dark:bg-emerald-400",
+                      },
+                      {
+                        label: "Leve (6–15 min)",
+                        count: summary.lateSeverity.light,
+                        badgeClass: "text-info-700 dark:text-cyan-400 bg-info-50 dark:bg-cyan-500/10 border-info-200 dark:border-cyan-500/20",
+                        barClass: "bg-info-500 dark:bg-cyan-400",
+                      },
+                      {
+                        label: "Severa (16–30 min)",
+                        count: summary.lateSeverity.severe,
+                        badgeClass: "text-warning-700 dark:text-amber-400 bg-warning-50 dark:bg-amber-500/10 border-warning-200 dark:border-amber-500/20",
+                        barClass: "bg-warning-500 dark:bg-amber-400",
+                      },
+                      {
+                        label: "Crítica (+30 min)",
+                        count: summary.lateSeverity.critical,
+                        badgeClass: "text-danger-700 dark:text-rose-400 bg-danger-50 dark:bg-rose-500/10 border-danger-200 dark:border-rose-500/20",
+                        barClass: "bg-danger-500 dark:bg-rose-500",
+                      },
+                    ].map((tier) => {
+                      const pct = summary.lateCount > 0 ? Math.round((tier.count / summary.lateCount) * 100) : 0;
+                      return (
+                        <div
+                          key={tier.label}
+                          className="bg-white dark:bg-command-bg border border-surface-200 dark:border-white/5 rounded-xl p-4 space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-surface-800 dark:text-slate-200">
+                              {tier.label}
+                            </span>
+                            <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-md border ${tier.badgeClass}`}>
+                              {tier.count}
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-surface-200 dark:bg-[#131b26] rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${tier.barClass}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-[11px] text-surface-500 dark:text-slate-400 font-mono">
+                            {pct}% del total de tardanzas
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {/* Audit Snapshot Table Preview */}
-                  <div className="mt-4 bg-surface-100 dark:bg-command-bg/80 border border-surface-200 dark:border-white/5 rounded-xl p-3.5 font-mono text-[11px] text-surface-500 dark:text-slate-400 space-y-1.5">
-                    <div className="flex items-center justify-between text-surface-700 dark:text-slate-300 text-[10px] uppercase font-bold border-b border-surface-200 dark:border-white/5 pb-2 mb-2">
-                      <span>ESTRUCTURA DE ARCHIVO GENERADO</span>
-                      <span className="text-primary-600 dark:text-emerald-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3 h-3" /> VERIFICACIÓN INTERNA OK
+
+                  {/* Period Summary Metrics */}
+                  <div className="mt-4 bg-surface-100 dark:bg-command-bg/80 border border-surface-200 dark:border-white/5 rounded-xl p-4 grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <span className="text-[11px] text-surface-600 dark:text-slate-400 block">Colaboradores</span>
+                      <span className="text-sm font-bold font-mono text-surface-900 dark:text-white">{summary.totalUsers}</span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-surface-600 dark:text-slate-400 block">Justificados</span>
+                      <span className="text-sm font-bold font-mono text-info-700 dark:text-cyan-300">{summary.justifiedCount || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-surface-600 dark:text-slate-400 block">Prom. Retraso</span>
+                      <span className="text-sm font-bold font-mono text-warning-700 dark:text-amber-300">
+                        {summary.lateCount > 0 ? `${Math.round(summary.totalLateMinutes / summary.lateCount)}m` : "0m"}
                       </span>
                     </div>
-                    <p className="truncate text-surface-700 dark:text-slate-300">PERIODO: {periodType} · REGISTROS: {summary.totalRecords}</p>
-                    <p className="truncate text-surface-500 dark:text-slate-400">FORMATO: REPORTE_MENSUAL_CONSOLIDADO.CSV (HASH SECURE)</p>
                   </div>
                 </div>
-                {/* Bottom Action Buttons */}
-                <div className="mt-6 pt-4 border-t border-surface-200 dark:border-white/5 flex flex-wrap items-center justify-end gap-3">
+
+                <div className="mt-6 pt-4 border-t border-surface-200 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[11px] text-surface-600 dark:text-slate-400">
+                    Para exportar Excel, CSV, Tareo o PDF oficial usa los controles en la cabecera.
+                  </p>
                   <button
-                    onClick={handleExportCsv}
-                    className="px-4 py-2.5 rounded-xl bg-surface-200 dark:bg-surface-800 hover:bg-surface-300 dark:hover:bg-surface-700 border border-surface-300 dark:border-white/10 text-xs font-semibold text-surface-800 dark:text-slate-200 transition flex items-center space-x-2 cursor-pointer active:scale-95 shadow-md"
+                    type="button"
+                    onClick={() => handleOpenNominalModal("TARDE")}
+                    disabled={isLoadingNominal || summary.lateCount === 0}
+                    className="min-h-[40px] px-4 py-2 rounded-xl bg-white dark:bg-white/5 hover:bg-surface-50 dark:hover:bg-white/10 border border-surface-300 dark:border-white/10 shadow-xs text-xs font-semibold text-surface-800 dark:text-slate-200 transition flex items-center gap-2 cursor-pointer disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   >
-                    <FileSpreadsheet className="w-4 h-4 text-primary-600 dark:text-emerald-400" />
-                    <span>Descargar Nómina (.csv)</span>
-                  </button>
-                  <button
-                    onClick={handleOpenPdfModal}
-                    disabled={isGeneratingPdf}
-                    className="px-4 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold transition shadow-md shadow-primary-500/20 dark:shadow-[0_0_15px_rgba(16,185,129,0.3)] flex items-center space-x-2 disabled:opacity-50 cursor-pointer active:scale-95"
-                  >
-                    {isGeneratingPdf ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                    <span>Descargar Acta Mensual Firmada (.pdf)</span>
+                    <Clock className="w-4 h-4 text-warning-600 dark:text-amber-400" />
+                    <span>Auditar Tardanzas ({summary.lateCount})</span>
                   </button>
                 </div>
               </div>

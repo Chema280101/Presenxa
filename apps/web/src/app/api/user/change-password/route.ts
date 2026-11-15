@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 import bcrypt from "bcryptjs";
 
@@ -69,6 +70,20 @@ export async function POST(req: Request) {
     await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash: newPasswordHash },
+    });
+
+    await logAuditEvent({
+      organizationId: user.organizationId,
+      userId: user.id,
+      action: "USER_PASSWORD_CHANGED",
+      entityType: "USER",
+      entityId: user.id,
+      newData: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        selfService: true,
+      },
+      req,
     });
 
     return NextResponse.json({ success: true, message: "Contraseña actualizada exitosamente." });

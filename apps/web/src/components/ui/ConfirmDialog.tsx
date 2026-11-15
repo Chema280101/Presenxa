@@ -4,6 +4,7 @@ import React from "react";
 import { AlertTriangle, Trash2, HelpCircle, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
 import { ModalShell } from "./ModalShell";
+import { Button } from "./Button";
 
 export type ConfirmVariant = "danger" | "warning" | "primary" | "info";
 
@@ -57,21 +58,22 @@ export function ConfirmDialog({
 
   const footer = (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="lg"
         disabled={isLoading}
         onClick={onCancel}
-        className="h-10 px-5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
       >
         {cancelText}
-      </button>
+      </Button>
 
       <button
         type="button"
         disabled={isLoading}
         onClick={onConfirm}
         className={clsx(
-          "h-10 px-5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer focus:outline-none focus:ring-2 disabled:opacity-50",
+          "h-10 px-5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50",
           config.confirmBtn
         )}
       >
@@ -85,14 +87,14 @@ export function ConfirmDialog({
     <ModalShell
       isOpen={isOpen}
       onClose={() => !isLoading && onCancel()}
+      preventClose={isLoading}
+      closeOnBackdropClick={!isLoading}
       title={title}
       description={description}
       icon={config.icon}
       iconVariant={variant}
       maxWidth="md"
       footer={footer}
-    >
-      <div className="hidden" />
-    </ModalShell>
+    />
   );
 }

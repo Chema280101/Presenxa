@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@asistencias/db";
 
 export async function PATCH(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -14,6 +14,21 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    // Validar que la notificación exista y pertenezca al usuario autenticado (o a su org)
+    const existing = await prisma.notification.findFirst({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Notificación no encontrada o no pertenece al usuario" },
+        { status: 404 }
+      );
+    }
+
     const updated = await prisma.notification.update({
       where: { id },
       data: { readAt: new Date() },

@@ -2,28 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  User,
-  Building,
-  Clock,
-  ExternalLink,
-  Copy,
-  Calendar,
-  CheckCircle2,
-  MapPin,
-  AlertTriangle,
-  CalendarDays,
-  Percent,
-  Timer,
-  FileText,
-  Sparkles,
-  Loader2,
-  History,
-  Info,
-  FileSpreadsheet,
-  Printer,
-  Download,
-} from "lucide-react";
+import { User, Building, Clock, ExternalLink, Copy, Calendar, MapPin, AlertTriangle, CalendarDays, Percent, Timer, FileText, Sparkles, Loader2, History, Info, FileSpreadsheet, Printer } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { clsx } from "clsx";

@@ -131,7 +131,7 @@ export async function POST(req: Request) {
       }
 
       // Supervisor no puede crear Administradores
-      const targetRole = userRole === "SUPERVISOR" && item.role === UserRole.ADMIN 
+      const targetRole = userRole === "SUPERVISOR" && (item.role === UserRole.ADMIN || item.role === UserRole.SUPER_ADMIN)
         ? UserRole.EMPLEADO 
         : item.role;
 

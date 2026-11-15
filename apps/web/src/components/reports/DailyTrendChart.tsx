@@ -40,11 +40,11 @@ export function DailyTrendChart({ data }: DailyTrendChartProps) {
       {/* Header con indicador dinámico en hover */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-white mb-0.5 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-lime-400" />
+          <h3 className="text-base font-bold text-surface-900 dark:text-white mb-0.5 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary-600 dark:text-lime-400" />
             Evolución de Asistencia Diaria
           </h3>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-surface-600 dark:text-slate-400">
             Tendencia de puntualidad e incidencias a lo largo del periodo
           </p>
         </div>
@@ -52,25 +52,25 @@ export function DailyTrendChart({ data }: DailyTrendChartProps) {
         {/* Legend / Hover Live Stat */}
         <div className="flex items-center gap-3">
           {activeRecord ? (
-            <div className="flex items-center gap-2.5 text-xs bg-lime-400/10 px-3 py-1.5 rounded-xl border border-lime-400/20 text-slate-200 animate-fade-in">
-              <span className="font-bold text-lime-300">
+            <div className="flex items-center gap-2.5 text-xs bg-primary-50 dark:bg-lime-400/10 px-3 py-1.5 rounded-xl border border-primary-200 dark:border-lime-400/20 text-surface-800 dark:text-slate-200 animate-fade-in">
+              <span className="font-bold text-primary-700 dark:text-lime-300">
                 {format(parseISO(activeRecord.date), "EEE dd/MM", { locale: es })}:
               </span>
-              <span className="flex items-center gap-1 font-mono text-emerald-400 font-bold">
+              <span className="flex items-center gap-1 font-mono text-emerald-700 dark:text-emerald-400 font-bold">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 {activeRecord.present}
               </span>
-              <span className="flex items-center gap-1 font-mono text-amber-400 font-bold">
+              <span className="flex items-center gap-1 font-mono text-amber-700 dark:text-amber-400 font-bold">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
                 {activeRecord.late}
               </span>
-              <span className="flex items-center gap-1 font-mono text-rose-400 font-bold">
+              <span className="flex items-center gap-1 font-mono text-rose-700 dark:text-rose-400 font-bold">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
                 {activeRecord.absent + activeRecord.abandoned}
               </span>
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-[11px] font-medium text-slate-400 bg-surface-950/60 px-3 py-1.5 rounded-xl border border-white/5">
+            <div className="flex items-center gap-3 text-[11px] font-medium text-surface-600 dark:text-slate-400 bg-surface-100 dark:bg-surface-950/60 px-3 py-1.5 rounded-xl border border-surface-200 dark:border-white/5">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" /> Puntuales
               </span>
@@ -89,18 +89,18 @@ export function DailyTrendChart({ data }: DailyTrendChartProps) {
       <div className="relative h-64 w-full pt-16 pb-8">
         {/* Líneas guía (Grid Y) */}
         <div className="absolute inset-x-0 top-16 bottom-8 flex flex-col justify-between pointer-events-none">
-          <div className="border-t border-white/5 w-full relative">
-            <span className="absolute -top-2.5 left-0 text-[9px] text-slate-500 font-mono">
+          <div className="border-t border-surface-200 dark:border-white/5 w-full relative">
+            <span className="absolute -top-2.5 left-0 text-[9px] text-surface-500 dark:text-slate-400 font-mono">
               {maxRecords}
             </span>
           </div>
-          <div className="border-t border-white/5 w-full relative">
-            <span className="absolute -top-2.5 left-0 text-[9px] text-slate-500 font-mono">
+          <div className="border-t border-surface-200 dark:border-white/5 w-full relative">
+            <span className="absolute -top-2.5 left-0 text-[9px] text-surface-500 dark:text-slate-400 font-mono">
               {Math.ceil(maxRecords / 2)}
             </span>
           </div>
-          <div className="border-t border-white/10 w-full relative">
-            <span className="absolute -top-2.5 left-0 text-[9px] text-slate-500 font-mono">
+          <div className="border-t border-surface-300 dark:border-white/10 w-full relative">
+            <span className="absolute -top-2.5 left-0 text-[9px] text-surface-500 dark:text-slate-400 font-mono">
               0
             </span>
           </div>

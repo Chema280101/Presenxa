@@ -20,6 +20,8 @@ import {
   Stethoscope,
   HeartPulse,
   Info,
+  UploadCloud,
+  X,
 } from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 import { clsx } from "clsx";
@@ -46,6 +48,7 @@ interface JustifyModalProps {
     entryTime?: string | null;
     exitTime?: string | null;
     lateMinutes?: number | null;
+    attachmentUrl?: string | null;
   } | null;
   onSuccess: () => void;
 }
@@ -279,6 +282,7 @@ export function JustifyModal({
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<AttendanceStatus>(AttendanceStatus.JUSTIFICADO);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [error, setError] = useState("");
 
   // Regularización opcional de hora de salida (para INCOMPLETO)
@@ -340,6 +344,7 @@ export function JustifyModal({
 
     setRegularizeExit(false);
     setExitTimeInput("18:00");
+    setAttachmentFile(null);
     setIsEditing(!alreadyJustified);
     setShowCertificate(false);
     setError("");
@@ -396,6 +401,20 @@ export function JustifyModal({
 
       if (attendance.currentStatus === AttendanceStatus.INCOMPLETO && regularizeExit && exitTimeInput) {
         payload.exitTime = exitTimeInput;
+      }
+
+      if (attachmentFile) {
+        const formData = new FormData();
+        formData.append("file", attachmentFile);
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.error || "Error al subir el documento de sustento");
+        }
+        payload.attachmentUrl = uploadData.url;
       }
 
       const res = await fetch(`/api/attendance/${attendance.id}/justify`, {
@@ -872,6 +891,46 @@ export function JustifyModal({
               <span className="text-[11px] text-surface-400 dark:text-slate-500 block">
                 Indique número de CITT, memorándum de jefatura, ticket de soporte o enlace web de respaldo.
               </span>
+            </div>
+
+            {/* Section 3: Evidencia adjunta (Opcional) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-surface-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <UploadCloud className="w-3.5 h-3.5 text-warning-500" />
+                <span>3. Documento o Foto de Sustento (Opcional)</span>
+              </label>
+              {attachmentFile ? (
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 truncate">
+                      {attachmentFile.name}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAttachmentFile(null)}
+                    className="p-1 rounded-lg text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-surface-300 dark:border-white/15 text-xs font-medium text-surface-600 dark:text-slate-400 hover:border-warning-500 hover:text-warning-600 dark:hover:text-warning-400 cursor-pointer transition-colors">
+                  <UploadCloud className="w-4 h-4" />
+                  <span>
+                    {attendance.attachmentUrl
+                      ? "Reemplazar documento adjunto actual (PDF/Imagen)"
+                      : "Adjuntar certificado médico, captura o PDF (máx. 4 MB)"}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,image/png,image/jpeg,image/webp"
+                    onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
           </form>
         )}

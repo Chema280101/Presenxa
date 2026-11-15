@@ -1,7 +1,5 @@
 "use client";
 
-import { Building, CheckCircle2, AlertCircle } from "lucide-react";
-
 
 
 export interface AreaItem {

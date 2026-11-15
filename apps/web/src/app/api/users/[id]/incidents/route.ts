@@ -43,7 +43,7 @@ function calculateMetrics(records: any[]) {
 
 // GET /api/users/[id]/incidents
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();

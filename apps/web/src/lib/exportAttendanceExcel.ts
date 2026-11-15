@@ -12,6 +12,9 @@ import {
   TableColumnConfig,
 } from "./excelDesignEngine";
 import { formatUserRole } from "./exportUsersExcel";
+import { calculatePunctualityRate, formatAttendanceStatus } from "./attendanceFormatters";
+
+export { formatAttendanceStatus };
 
 export interface AttendanceExportItem {
   id: string;
@@ -22,6 +25,7 @@ export interface AttendanceExportItem {
   exitTime2?: Date | string | null;
   workedMinutes?: number | null;
   lateMinutes?: number | null;
+  lateMinutes2?: number | null;
   status: string;
   notes?: string | null;
   statusChangedBy?: string | null;
@@ -38,21 +42,6 @@ export interface AttendanceExportItem {
   kiosk?: {
     name: string;
   } | null;
-}
-
-export function formatAttendanceStatus(status: string): string {
-  switch (status) {
-    case "PRESENT":
-      return "Puntual";
-    case "LATE":
-      return "Tardanza";
-    case "ABSENT":
-      return "Falta";
-    case "EXCUSED":
-      return "Justificado";
-    default:
-      return status;
-  }
 }
 
 /**
@@ -93,7 +82,7 @@ export async function generateAttendanceExcelWorkbook(options: {
     metaInfo: workerName
       ? `Colaborador: ${workerName}${workerDocumentId ? ` (DNI: ${workerDocumentId})` : ""}  |  Período: ${periodLabel}  |  Emisión: ${dateFormatted}  |  Registros: ${attendances.length}`
       : `Período: ${periodLabel}  |  Emisión: ${dateFormatted}  |  Registros: ${attendances.length}`,
-    colSpan: 15,
+    colSpan: 16,
   });
 
   // 2. Cálculo de métricas para tarjetas KPI
@@ -104,20 +93,21 @@ export async function generateAttendanceExcelWorkbook(options: {
   let totalLateMinutes = 0;
 
   attendances.forEach((a) => {
-    if (a.status === "PRESENT") puntualesCount++;
-    else if (a.status === "LATE") {
+    const rowLateMins = (a.lateMinutes || 0) + (a.lateMinutes2 || 0);
+    if (a.status === "PRESENTE") {
+      puntualesCount++;
+    } else if (a.status === "TARDE") {
       tardanzasCount++;
-      totalLateMinutes += a.lateMinutes || 0;
-    } else if (a.status === "ABSENT") faltasCount++;
+      totalLateMinutes += rowLateMins;
+    } else if (a.status === "AUSENTE" || a.status === "ABANDONO_PUESTO") {
+      faltasCount++;
+    }
 
     if (a.workedMinutes) totalWorkedMinutes += a.workedMinutes;
   });
 
   const totalHours = (totalWorkedMinutes / 60).toFixed(1);
-  const punctualityRate =
-    attendances.length > 0
-      ? Math.round((puntualesCount / attendances.length) * 100)
-      : 0;
+  const punctualityRate = calculatePunctualityRate(puntualesCount, tardanzasCount);
 
   renderKpiCards(
     wsMain,
@@ -233,7 +223,7 @@ export async function generateAttendanceExcelWorkbook(options: {
       out2,
       workedHours,
       statusText,
-      a.lateMinutes || 0,
+      (a.lateMinutes || 0) + (a.lateMinutes2 || 0),
       a.notes || "-",
       a.statusChangedBy || "Sistema",
     ];
@@ -338,11 +328,11 @@ export async function generateAttendanceExcelWorkbook(options: {
     const loc = a.location?.name || "Sin Sede Asignada";
     const cur = locationMap.get(loc) || { total: 0, puntuales: 0, tardanzas: 0, faltas: 0, lateMins: 0 };
     cur.total++;
-    if (a.status === "PRESENT") cur.puntuales++;
-    else if (a.status === "LATE") {
+    if (a.status === "PRESENTE") cur.puntuales++;
+    else if (a.status === "TARDE") {
       cur.tardanzas++;
-      cur.lateMins += a.lateMinutes || 0;
-    } else if (a.status === "ABSENT") cur.faltas++;
+      cur.lateMins += (a.lateMinutes || 0) + (a.lateMinutes2 || 0);
+    } else if (a.status === "AUSENTE" || a.status === "ABANDONO_PUESTO") cur.faltas++;
     locationMap.set(loc, cur);
   });
 
@@ -350,7 +340,7 @@ export async function generateAttendanceExcelWorkbook(options: {
   locationMap.forEach((stats, locName) => {
     const r = wsSummary.getRow(currentSedeRow);
     r.height = 21;
-    const rate = stats.total > 0 ? (stats.puntuales / stats.total) * 100 : 0;
+    const rate = calculatePunctualityRate(stats.puntuales, stats.tardanzas);
 
     [
       locName,

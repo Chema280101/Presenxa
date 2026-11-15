@@ -18,6 +18,71 @@ export interface JobResult {
  * Genera registros de asistencia PENDIENTE para todos los usuarios activos
  * según su calendario laboral (workdaysMask).
  */
+const TIME_OFF_STATUS_MAP: Record<string, string> = {
+  VACACIONES: "VACACIONES",
+  DESCANSO_MEDICO: "DESCANSO_MEDICO",
+};
+
+function resolveInitialAttendanceStatus(
+  user: { id: string; organizationId: string; locationId: string | null },
+  holidayOrgs: Set<string>,
+  holidayLocs: Set<string>,
+  timeOffByUser: Map<string, string>,
+  dayOffUserIds: Set<string>
+): any {
+  const isHoliday =
+    holidayOrgs.has(user.organizationId) ||
+    Boolean(user.locationId && holidayLocs.has(user.locationId));
+  if (isHoliday) return "FERIADO";
+  if (dayOffUserIds.has(user.id)) return "DIA_LIBRE";
+
+  const timeOffType = timeOffByUser.get(user.id);
+  if (timeOffType) {
+    return TIME_OFF_STATUS_MAP[timeOffType] ?? "PERMISO";
+  }
+  return "PENDIENTE";
+}
+
+async function createInitialAttendanceIfMissing(
+  u: { id: string; organizationId: string; locationId: string | null },
+  startOfToday: Date,
+  holidayOrgs: Set<string>,
+  holidayLocs: Set<string>,
+  timeOffByUser: Map<string, string>,
+  dayOffUserIds: Set<string>
+): Promise<boolean> {
+  if (!u.locationId) return false;
+  try {
+    const existing = await prisma.attendance.findUnique({
+      where: { userId_date: { userId: u.id, date: startOfToday } },
+    });
+    if (existing) return false;
+
+    const initialStatus = resolveInitialAttendanceStatus(
+      u,
+      holidayOrgs,
+      holidayLocs,
+      timeOffByUser,
+      dayOffUserIds
+    );
+
+    await prisma.attendance.create({
+      data: {
+        userId: u.id,
+        locationId: u.locationId,
+        date: startOfToday,
+        status: initialStatus,
+        statusChangedBy: "CRON_SOD",
+        statusChangedAt: new Date(),
+      },
+    });
+    return true;
+  } catch {
+    // Ignorar conflictos concurrentes
+    return false;
+  }
+}
+
 export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
   const dateObj = targetDate || new Date();
   const dateStr = getLocalDateString(dateObj, DEFAULT_TIMEZONE);
@@ -36,6 +101,15 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
   console.log(`[SOD] Iniciando apertura de jornada para ${dateStr} (${dayName}, bitmask=${dayBit})`);
 
   try {
+    const startOfToday = new Date(`${dateStr}T00:00:00.000Z`);
+
+    // 0. Obtener feriados aplicables al día de hoy
+    const holidays = await prisma.holiday.findMany({
+      where: { date: startOfToday, isActive: true },
+    });
+    const holidayOrgs = new Set(holidays.filter(h => !h.locationId).map(h => h.organizationId));
+    const holidayLocs = new Set(holidays.map(h => h.locationId).filter((id): id is string => Boolean(id)));
+
     // 1. Obtener usuarios activos con sede asignada y sus horarios vigentes
     const users = await prisma.user.findMany({
       where: {
@@ -46,11 +120,13 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
       select: {
         id: true,
         locationId: true,
+        organizationId: true,
         userSchedules: {
           where: {
+            validFrom: { lte: startOfToday },
             OR: [
               { validUntil: null },
-              { validUntil: { gt: new Date() } },
+              { validUntil: { gt: startOfToday } },
             ],
           },
           include: {
@@ -69,64 +145,36 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
       return (activeSchedule.workdaysMask & dayBit) > 0;
     });
 
-    let createdCount = 0;
-    const startOfToday = new Date(`${dateStr}T00:00:00.000Z`);
+    const [approvedTimeOffs, dayOffOverrides] = await Promise.all([
+      prisma.timeOffRequest.findMany({
+        where: {
+          status: "APPROVED",
+          startDate: { lte: startOfToday },
+          endDate: { gte: startOfToday },
+        },
+      }),
+      prisma.shiftOverride.findMany({
+        where: { date: startOfToday, isDayOff: true },
+      }),
+    ]);
 
-    // 2.5 Obtener vacaciones, descansos médicos y días libres para asignar el estado inicial correcto
-    const approvedTimeOffs = await prisma.timeOffRequest.findMany({
-      where: {
-        status: "APPROVED",
-        startDate: { lte: startOfToday },
-        endDate: { gte: startOfToday },
-      },
-    });
-
-    const dayOffOverrides = await prisma.shiftOverride.findMany({
-      where: { date: startOfToday, isDayOff: true },
-    });
+    const timeOffByUser = new Map(approvedTimeOffs.map((t) => [t.userId, t.type]));
+    const dayOffUserIds = new Set(dayOffOverrides.map((o) => o.userId));
 
     // 3. Crear registros PENDIENTE en lotes si no existen
-    for (const u of eligibleUsers) {
-      if (!u.locationId) continue;
-
-      try {
-        const existing = await prisma.attendance.findUnique({
-          where: {
-            userId_date: {
-              userId: u.id,
-              date: startOfToday,
-            },
-          },
-        });
-
-        if (!existing) {
-          const userTimeOff = approvedTimeOffs.find(t => t.userId === u.id);
-          const userDayOff = dayOffOverrides.find(o => o.userId === u.id);
-          
-          let initialStatus: any = "PENDIENTE";
-          if (userDayOff) {
-            initialStatus = "DIA_LIBRE";
-          } else if (userTimeOff) {
-            initialStatus = userTimeOff.type === "VACACIONES" ? "VACACIONES" : 
-                            userTimeOff.type === "DESCANSO_MEDICO" ? "DESCANSO_MEDICO" : "PERMISO";
-          }
-
-          await prisma.attendance.create({
-            data: {
-              userId: u.id,
-              locationId: u.locationId,
-              date: startOfToday,
-              status: initialStatus,
-              statusChangedBy: "CRON_SOD",
-              statusChangedAt: new Date(),
-            },
-          });
-          createdCount++;
-        }
-      } catch (err) {
-        // Ignorar conflictos concurrentes
-      }
-    }
+    const createdFlags = await Promise.all(
+      eligibleUsers.map((u) =>
+        createInitialAttendanceIfMissing(
+          u,
+          startOfToday,
+          holidayOrgs,
+          holidayLocs,
+          timeOffByUser,
+          dayOffUserIds
+        )
+      )
+    );
+    const createdCount = createdFlags.filter(Boolean).length;
 
     console.log(`[SOD] Apertura completada: ${createdCount} registros PENDIENTE creados de ${eligibleUsers.length} elegibles.`);
 

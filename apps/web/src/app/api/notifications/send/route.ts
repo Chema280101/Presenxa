@@ -15,16 +15,20 @@ const sendNotificationSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  // Check authorization: either internal worker secret OR admin session
+  // Check authorization: either internal worker secret OR admin/supervisor session
   const workerSecretHeader = req.headers.get("x-worker-secret");
-  const expectedSecret = process.env.GEO_WORKER_SECRET || "dev-worker-secret";
-  const isWorkerAuth = workerSecretHeader === expectedSecret;
+  const configuredSecret = process.env.GEO_WORKER_SECRET || process.env.CRON_SECRET;
+  const isWorkerAuth = !!configuredSecret && workerSecretHeader === configuredSecret;
 
   let session = null;
   if (!isWorkerAuth) {
     session = await auth();
-    if (!session?.user?.id) {
+    if (!session?.user?.id || !session?.user?.organizationId) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+    const role = (session.user as any)?.role;
+    if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+      return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
     }
   }
 

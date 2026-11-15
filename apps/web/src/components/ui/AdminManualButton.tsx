@@ -159,6 +159,7 @@ export function AdminManualButton({
     return (
       <button
         type="button"
+        role="menuitem"
         onClick={(e) => handleDownload(e, false)}
         disabled={isDownloading}
         className={clsx(
@@ -191,19 +192,19 @@ export function AdminManualButton({
         onClick={(e) => handleDownload(e, false)}
         disabled={isDownloading}
         className={clsx(
-          "relative p-2 rounded-xl text-surface-500 dark:text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-all duration-200 cursor-pointer group flex items-center justify-center",
+          "relative min-w-11 min-h-11 sm:min-w-9 sm:min-h-9 rounded-xl text-surface-500 dark:text-surface-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-surface-100 dark:hover:bg-surface-800 transition-all duration-200 cursor-pointer group flex items-center justify-center",
           className
         )}
         title="Descargar Manual de Administrador — Hotel Italia (PDF)"
         aria-label="Descargar Manual de Administrador Hotel Italia"
       >
         {isDownloading ? (
-          <Loader2 className="w-4 h-4 animate-spin text-primary-500" />
+          <Loader2 className="w-4 h-4 animate-spin text-primary-500" aria-hidden="true" />
         ) : (
-          <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          <BookOpen className="w-4 h-4 group-hover:scale-110 transition-transform" aria-hidden="true" />
         )}
-        <span className="absolute -top-1 -right-1 flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
+        <span className="absolute -top-1 -right-1 flex h-2 w-2" aria-hidden="true">
+          <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
         </span>
       </button>
@@ -242,12 +243,12 @@ export function AdminManualButton({
             </div>
           </div>
           <span className="hidden sm:inline-flex text-[10px] font-mono text-surface-500 dark:text-surface-400 bg-surface-100 dark:bg-surface-800 px-2.5 py-1 rounded-full border border-surface-200 dark:border-surface-700">
-            PDF · 422 KB
+            PDF · 820 KB
           </span>
         </div>
 
         <p className="text-xs text-surface-600 dark:text-surface-300 mb-4 leading-relaxed">
-          Documento oficial con los protocolos de asistencia, enrolamiento de colaboradores, turnos rotativos, políticas de puntualidad y calibración de terminales Kiosk en sedes de Hotel Italia.
+          Documento oficial actualizado con los protocolos de asistencia 24/7, validación de DNI con foto, horas extras, Kardex vacacional, Pre-Planilla contable, turnos partidos/nocturnos y solución de problemas en sedes de Hotel Italia.
         </p>
 
         {/* Feature chips */}
@@ -262,7 +263,7 @@ export function AdminManualButton({
           </div>
           <div className="col-span-2 sm:col-span-1 flex items-center gap-1.5 p-2 rounded-xl bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 font-medium text-surface-700 dark:text-surface-300">
             <CheckCircle2 className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-            <span className="truncate">Guía Oficial v2.4</span>
+            <span className="truncate">Guía Oficial v3.0</span>
           </div>
         </div>
 
@@ -316,7 +317,7 @@ export function AdminManualButton({
       )}
       <span>Manual Hotel Italia (PDF)</span>
       <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-500/30">
-        v2.4
+        v3.0
       </span>
     </button>
   );

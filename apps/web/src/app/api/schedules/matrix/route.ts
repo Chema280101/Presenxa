@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { startOfDay, endOfDay, parseISO } from "date-fns";
 
 // GET /api/schedules/matrix
 export async function GET(req: Request) {
@@ -22,8 +21,8 @@ export async function GET(req: Request) {
   }
 
   try {
-    const startDate = startOfDay(parseISO(startDateStr));
-    const endDate = endOfDay(parseISO(endDateStr));
+    const startDate = new Date(`${startDateStr}T00:00:00.000Z`);
+    const endDate = new Date(`${endDateStr}T23:59:59.999Z`);
 
     const whereUser: any = {
       organizationId: session.user.organizationId,
@@ -109,17 +108,27 @@ export async function GET(req: Request) {
   }
 }
 
-const UpdateMatrixSchema = z.object({
-  userId: z.string().uuid(),
-  date: z.string(), // YYYY-MM-DD
-  scheduleId: z.string().uuid(),
-});
+const UpdateMatrixSchema = z
+  .object({
+    userId: z.string().uuid(),
+    date: z.string(), // YYYY-MM-DD
+    scheduleId: z.string().uuid().nullable().optional(),
+    isDayOff: z.boolean().optional(),
+  })
+  .refine((data) => data.isDayOff === true || Boolean(data.scheduleId), {
+    message: "Debes seleccionar un turno o marcar descanso",
+  });
 
 // POST /api/schedules/matrix (crear o actualizar ShiftOverride)
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   try {
@@ -130,20 +139,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Datos inválidos", details: parsed.error.format() }, { status: 400 });
     }
 
-    const { userId, date, scheduleId } = parsed.data;
-    const targetDate = startOfDay(parseISO(date));
+    const { userId, date, scheduleId, isDayOff = false } = parsed.data;
+    const targetDate = new Date(`${date}T00:00:00.000Z`);
 
-    // Validate if schedule belongs to org
-    const schedule = await prisma.schedule.findFirst({
+    // Validar que el usuario pertenezca a la organización
+    const user = await prisma.user.findFirst({
       where: {
-        id: scheduleId,
+        id: userId,
         organizationId: session.user.organizationId,
-        isActive: true,
-      }
+      },
+      select: { id: true },
     });
 
-    if (!schedule) {
-      return NextResponse.json({ error: "Horario inválido o no encontrado" }, { status: 404 });
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado o no pertenece a la organización" }, { status: 404 });
+    }
+
+    if (!isDayOff) {
+      // Validate if schedule belongs to org
+      const schedule = await prisma.schedule.findFirst({
+        where: {
+          id: scheduleId!,
+          organizationId: session.user.organizationId,
+          isActive: true,
+        },
+      });
+
+      if (!schedule) {
+        return NextResponse.json({ error: "Horario inválido o no encontrado" }, { status: 404 });
+      }
     }
 
     // Upsert shift override
@@ -152,15 +176,17 @@ export async function POST(req: Request) {
         userId_date: {
           userId,
           date: targetDate,
-        }
+        },
       },
       update: {
-        scheduleId,
+        scheduleId: isDayOff ? null : scheduleId!,
+        isDayOff,
       },
       create: {
         userId,
         date: targetDate,
-        scheduleId,
+        scheduleId: isDayOff ? null : scheduleId!,
+        isDayOff,
       },
       include: {
         schedule: {
@@ -195,6 +221,11 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
   const dateStr = searchParams.get("date");
@@ -204,15 +235,26 @@ export async function DELETE(req: Request) {
   }
 
   try {
-    const targetDate = startOfDay(parseISO(dateStr));
-
-    await prisma.shiftOverride.delete({
+    // Validar que el usuario pertenezca a la organización
+    const user = await prisma.user.findFirst({
       where: {
-        userId_date: {
-          userId,
-          date: targetDate,
-        }
-      }
+        id: userId,
+        organizationId: session.user.organizationId,
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "Usuario no encontrado o no pertenece a la organización" }, { status: 404 });
+    }
+
+    const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
+
+    await prisma.shiftOverride.deleteMany({
+      where: {
+        userId,
+        date: targetDate,
+      },
     });
 
     return NextResponse.json({ success: true });

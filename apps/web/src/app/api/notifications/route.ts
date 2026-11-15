@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const role = session.user.role;
   const orgId = session.user.organizationId;
   const url = new URL(req.url);
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);
+  const limit = Math.min(Number.parseInt(url.searchParams.get("limit") || "20", 10), 100);
 
   try {
     let whereClause: any = { userId: session.user.id };

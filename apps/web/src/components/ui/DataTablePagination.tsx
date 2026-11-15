@@ -14,6 +14,7 @@ export interface DataTablePaginationProps {
   pageSizeOptions?: number[];
   itemLabel?: string;
   showPageSizeSelector?: boolean;
+  showSyncStatus?: boolean;
   className?: string;
 }
 
@@ -27,6 +28,7 @@ export function DataTablePagination({
   pageSizeOptions = [10, 25, 50, 100],
   itemLabel = "registros",
   showPageSizeSelector = true,
+  showSyncStatus = false,
   className,
 }: DataTablePaginationProps) {
   const safePage = Math.max(1, Math.min(currentPage, Math.max(1, totalPages)));
@@ -76,20 +78,24 @@ export function DataTablePagination({
       <div className="text-surface-600 dark:text-slate-400 flex flex-wrap items-center gap-2">
         <span>
           Mostrando{" "}
-          <strong className="text-surface-900 dark:text-slate-200 font-mono font-bold">
+          <strong className="text-surface-900 dark:text-slate-200 font-mono font-tabular font-bold">
             {startItem} - {endItem}
           </strong>{" "}
           de{" "}
-          <strong className="text-surface-900 dark:text-slate-200 font-mono font-bold">
+          <strong className="text-surface-900 dark:text-slate-200 font-mono font-tabular font-bold">
             {totalItems}
           </strong>{" "}
           {itemLabel}
         </span>
-        <span className="hidden sm:inline text-surface-300 dark:text-surface-700">•</span>
-        <span className="hidden sm:inline-flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-mono text-[11px]">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Sincronizado</span>
-        </span>
+        {showSyncStatus && (
+          <>
+            <span className="hidden sm:inline text-surface-300 dark:text-surface-700" aria-hidden="true">•</span>
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-primary-600 dark:text-primary-400 font-mono text-[11px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
+              <span>Sincronizado</span>
+            </span>
+          </>
+        )}
       </div>
 
       {/* Right: Controls & Page Numbers */}
@@ -103,10 +109,10 @@ export function DataTablePagination({
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               aria-label="Registros por página"
               className={clsx(
-                "h-8 px-2 py-0 rounded-lg text-xs font-mono font-medium",
+                "h-8 px-2 py-0 rounded-lg text-base sm:text-xs font-mono font-tabular font-medium",
                 "bg-white dark:bg-surface-800 text-surface-800 dark:text-slate-200",
                 "border border-surface-300 dark:border-surface-700",
-                "shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500/20 outline-none transition cursor-pointer"
+                "shadow-2xs focus:border-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition cursor-pointer"
               )}
             >
               {pageSizeOptions.map((size) => (
@@ -119,7 +125,7 @@ export function DataTablePagination({
         )}
 
         {/* Navigation Buttons */}
-        <div className="flex items-center gap-1" role="navigation" aria-label="Paginación de tabla">
+        <nav className="flex items-center gap-1" aria-label="Paginación de tabla">
           {/* First Page Button */}
           {totalPages > 5 && (
             <button
@@ -132,10 +138,11 @@ export function DataTablePagination({
                 "w-8 h-8 rounded-lg flex items-center justify-center transition cursor-pointer",
                 "border border-surface-200 dark:border-surface-700/80 bg-white dark:bg-surface-800",
                 "hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-700 dark:text-slate-300",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
                 "disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none"
               )}
             >
-              <ChevronsLeft className="w-3.5 h-3.5" />
+              <ChevronsLeft className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
 
@@ -149,10 +156,11 @@ export function DataTablePagination({
               "h-8 px-2.5 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-medium",
               "border border-surface-200 dark:border-surface-700/80 bg-white dark:bg-surface-800",
               "hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-700 dark:text-slate-300",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
               "disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none"
             )}
           >
-            <ChevronLeft className="w-3.5 h-3.5" />
+            <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
             <span className="hidden sm:inline">Anterior</span>
           </button>
 
@@ -163,6 +171,7 @@ export function DataTablePagination({
                 return (
                   <span
                     key={`dots-${idx}`}
+                    aria-hidden="true"
                     className="w-7 h-8 flex items-center justify-center text-surface-400 dark:text-slate-500 font-mono text-xs select-none"
                   >
                     •••
@@ -180,7 +189,8 @@ export function DataTablePagination({
                   aria-label={`Página ${pageNumber}`}
                   aria-current={isCurrent ? "page" : undefined}
                   className={clsx(
-                    "min-w-8 h-8 px-2 rounded-lg text-xs font-mono font-bold transition cursor-pointer flex items-center justify-center",
+                    "min-w-8 h-8 px-2 rounded-lg text-xs font-mono font-tabular font-bold transition cursor-pointer flex items-center justify-center",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
                     isCurrent
                       ? "bg-primary-600 text-white shadow-xs border border-primary-600 dark:bg-primary-500 dark:text-slate-950 dark:border-primary-500"
                       : "bg-white hover:bg-surface-100 text-surface-700 border border-surface-200 dark:bg-surface-800 dark:hover:bg-surface-700 dark:text-slate-300 dark:border-surface-700/80"
@@ -202,11 +212,12 @@ export function DataTablePagination({
               "h-8 px-2.5 rounded-lg flex items-center gap-1 transition cursor-pointer text-xs font-medium",
               "border border-surface-200 dark:border-surface-700/80 bg-white dark:bg-surface-800",
               "hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-700 dark:text-slate-300",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
               "disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none"
             )}
           >
             <span className="hidden sm:inline">Siguiente</span>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
 
           {/* Last Page Button */}
@@ -221,13 +232,14 @@ export function DataTablePagination({
                 "w-8 h-8 rounded-lg flex items-center justify-center transition cursor-pointer",
                 "border border-surface-200 dark:border-surface-700/80 bg-white dark:bg-surface-800",
                 "hover:bg-surface-100 dark:hover:bg-surface-700 text-surface-700 dark:text-slate-300",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500",
                 "disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none"
               )}
             >
-              <ChevronsRight className="w-3.5 h-3.5" />
+              <ChevronsRight className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
-        </div>
+        </nav>
       </div>
     </div>
   );

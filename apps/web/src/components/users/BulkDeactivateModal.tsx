@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { UserX, AlertTriangle, Loader2, CheckCircle2 } from "lucide-react";
+import { UserX, AlertTriangle, Loader2, FileText, ShieldAlert } from "lucide-react";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { FormField, getFormInputClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/providers/ToastProvider";
 
@@ -132,33 +133,40 @@ export function BulkDeactivateModal({
         </div>
 
         {/* Motivo de la baja */}
-        <div>
-          <label className="block text-xs font-bold text-surface-700 dark:text-slate-300 mb-1.5">
-            Motivo de la baja masiva (Opcional para auditoría)
-          </label>
+        <FormField
+          label="Motivo de la baja masiva (para auditoría)"
+          icon={FileText}
+          optional
+        >
           <input
             type="text"
             placeholder="Ej: Fin de temporada, cese de contrato colectivo, etc."
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full h-10 px-3.5 rounded-xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 text-surface-900 dark:text-white text-xs placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-danger-500/40 transition"
+            className={getFormInputClass({ hasLeftIcon: true })}
           />
-        </div>
+        </FormField>
 
         {/* Verificación con palabra clave si son 3 o más */}
         {needsKeywordConfirmation && (
           <div className="pt-2 border-t border-surface-200 dark:border-white/10">
-            <label className="block text-xs font-bold text-surface-900 dark:text-white mb-1.5">
-              Para confirmar, escribe <span className="font-mono text-danger-600 dark:text-danger-400 font-black">DESACTIVAR</span> a continuación:
-            </label>
-            <input
-              type="text"
+            <FormField
+              label="Escribe DESACTIVAR para confirmar"
+              icon={ShieldAlert}
               required
-              placeholder="DESACTIVAR"
-              value={confirmKeyword}
-              onChange={(e) => setConfirmKeyword(e.target.value)}
-              className="w-full h-10 px-3.5 rounded-xl font-mono uppercase tracking-wider text-xs border border-surface-300 dark:border-surface-700 bg-surface-50 dark:bg-surface-950 text-surface-900 dark:text-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-danger-500/40"
-            />
+            >
+              <input
+                type="text"
+                required
+                placeholder="DESACTIVAR"
+                value={confirmKeyword}
+                onChange={(e) => setConfirmKeyword(e.target.value)}
+                className={getFormInputClass({
+                  hasLeftIcon: true,
+                  className: "font-mono uppercase tracking-wider",
+                })}
+              />
+            </FormField>
           </div>
         )}
       </form>

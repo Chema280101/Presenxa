@@ -5,7 +5,7 @@ export async function GET(
   { params }: { params: Promise<{ size: string }> }
 ) {
   const { size: sizeParam } = await params;
-  const numSize = parseInt(sizeParam, 10) || 192;
+  const numSize = Number.parseInt(sizeParam, 10) || 192;
   const size = Math.min(Math.max(numSize, 32), 512);
 
   // Requerimos la URL base absoluta para cargar la imagen en ImageResponse

@@ -133,6 +133,11 @@ model User {
   documentId String? // DNI, carnet estudiantil, etc.
   birthDate  DateTime? // Fecha de nacimiento para celebraciones de cumpleaños y recordatorios
 
+  // ── Gestión Laboral y Vacaciones ───────────────────────────
+  hireDate               DateTime? @db.Date
+  vacationDaysPerYear    Int       @default(30)
+  vacationDaysAdjustment Int       @default(0)
+
   role UserRole @default(EMPLEADO)
 
   // ── Núcleo QR y NFC ─────────────────────────────────────────
@@ -312,9 +317,15 @@ model Attendance {
   approvalReason          String? // Ej: "Olvido de fotocheck", "Falla de Kiosko"
 
   // Métricas calculadas al cierre del día
-  workedMinutes Int?
-  lateMinutes   Int? // Minutos de retraso respecto al horario Tramo 1
-  lateMinutes2  Int? // Minutos de retraso respecto al horario Tramo 2
+  workedMinutes   Int?
+  lateMinutes     Int? // Minutos de retraso respecto al horario Tramo 1
+  lateMinutes2    Int? // Minutos de retraso respecto al horario Tramo 2
+  overtimeMinutes Int?           @default(0) // Minutos laborados tras la hora de salida programada
+  overtimeStatus  OvertimeStatus @default(NONE)
+
+  // Evidencias y Captura Antifraude
+  attachmentUrl        String? // Documento o imagen de sustento en justificación
+  verificationPhotoUrl String? // Foto instantánea tomada en kiosko en marcación manual
 
   // Auditoría de cambios de estado
   notes           String?
@@ -352,6 +363,13 @@ enum AttendanceStatus {
   DIA_LIBRE // Día de descanso (rotativo o fijo)
   VACACIONES // Vacaciones aprobadas
   DESCANSO_MEDICO // Licencia o incapacidad médica
+}
+
+enum OvertimeStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -460,7 +478,7 @@ model AuditLog {
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   action     AuditAction
-  entityType String // ATTENDANCE | USER | LOCATION | KIOSK | SCHEDULE | SYSTEM
+  entityType String // ATTENDANCE | USER | LOCATION | KIOSK | SCHEDULE | DEPARTMENT | HOLIDAY | ORGANIZATION | TIME_OFF_REQUEST | SYSTEM
   entityId   String?
 
   oldData Json?
@@ -488,8 +506,14 @@ enum AuditAction {
   USER_CREATED
   USER_UPDATED
   USER_DEACTIVATED
+  USER_PASSWORD_RESET
+  USER_PASSWORD_CHANGED
+  OVERTIME_REVIEWED
   JOB_EXECUTED
   TIME_OFF_REQUESTED
   TIME_OFF_APPROVED
   TIME_OFF_REJECTED
+  ENTITY_CREATED
+  ENTITY_UPDATED
+  ENTITY_DELETED
 }

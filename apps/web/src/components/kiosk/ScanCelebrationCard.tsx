@@ -1,6 +1,4 @@
 "use client";
-
-import { useEffect } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -17,8 +15,11 @@ import {
   Flame,
   AlertTriangle,
   ArrowRight,
-  ShieldAlert,
   MapPin,
+  LogOut,
+  Info,
+  PartyPopper,
+  Megaphone,
 } from "lucide-react";
 
 export interface ScanCelebrationData {
@@ -86,14 +87,14 @@ export function ScanCelebrationCard({
   const renderTimeIcon = () => {
     switch (microInteraction?.timeOfDay) {
       case "morning":
-        return <Sunrise className="w-3.5 h-3.5 text-amber-400" />;
+        return <Sunrise className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
       case "afternoon":
-        return <Sun className="w-3.5 h-3.5 text-amber-300" />;
+        return <Sun className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />;
       case "evening":
       case "night":
-        return <Moon className="w-3.5 h-3.5 text-indigo-300" />;
+        return <Moon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />;
       default:
-        return <Sparkles className="w-3.5 h-3.5 text-lime-400" />;
+        return <Sparkles className="w-3.5 h-3.5 text-primary-600 dark:text-lime-400" />;
     }
   };
 
@@ -103,22 +104,22 @@ export function ScanCelebrationCard({
   return (
     <div
       className={`w-full max-w-lg rounded-3xl p-6 sm:p-7 glass-card border shadow-2xl flex flex-col items-center text-center relative overflow-hidden transition-all animate-scale-up ${isBirthday
-          ? "border-amber-400/50 shadow-amber-500/10 dark:shadow-amber-500/20 bg-gradient-to-b from-amber-50/90 via-white/95 to-white/95 dark:from-amber-500/10 dark:via-surface-900/90 dark:to-surface-950/95"
-          : isVerification
-            ? "border-amber-500/40 shadow-amber-500/10 dark:shadow-amber-500/20 bg-white/95 dark:bg-surface-900/95"
-            : isLate
-              ? "border-amber-400/30 shadow-amber-950/20 dark:shadow-amber-950/40 bg-white/95 dark:bg-surface-900/95"
-              : "border-primary-500/30 dark:border-primary-400/40 shadow-primary-950/30 dark:shadow-primary-950/60 bg-white/95 dark:bg-surface-900/95"
+        ? "border-amber-400/50 shadow-amber-500/10 dark:shadow-amber-500/20 bg-gradient-to-b from-amber-50/90 via-white/95 to-white/95 dark:from-amber-500/10 dark:via-surface-900/90 dark:to-surface-950/95"
+        : isVerification
+          ? "border-amber-500/40 shadow-amber-500/10 dark:shadow-amber-500/20 bg-white/95 dark:bg-surface-900/95"
+          : isLate
+            ? "border-amber-400/30 shadow-amber-950/20 dark:shadow-amber-950/40 bg-white/95 dark:bg-surface-900/95"
+            : "border-primary-500/30 dark:border-primary-400/40 shadow-primary-950/30 dark:shadow-primary-950/60 bg-white/95 dark:bg-surface-900/95"
         }`}
     >
       {/* Top Countdown Progress Bar */}
       <div className="absolute top-0 inset-x-0 h-1.5 bg-black/5 dark:bg-white/10 overflow-hidden">
         <div
           className={`h-full transition-all duration-1000 ease-linear ${isBirthday
-              ? "bg-gradient-to-r from-amber-400 via-pink-500 to-lime-400"
-              : isVerification || isLate
-                ? "bg-amber-400"
-                : "bg-primary-400"
+            ? "bg-gradient-to-r from-amber-400 via-pink-500 to-lime-400"
+            : isVerification || isLate
+              ? "bg-amber-400"
+              : "bg-primary-400"
             }`}
           style={{ width: `${progressPercent}%` }}
         />
@@ -132,8 +133,8 @@ export function ScanCelebrationCard({
         </div>
 
         {microInteraction?.onTimeStreakDays && microInteraction.onTimeStreakDays >= 3 && (
-          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-500/15 border border-orange-500/30 text-xs font-bold text-orange-300">
-            <Flame className="w-3.5 h-3.5 text-orange-400" />
+          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-500/15 border border-orange-500/30 text-xs font-bold text-orange-700 dark:text-orange-300">
+            <Flame className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" aria-hidden="true" />
             <span>Racha: {microInteraction.onTimeStreakDays} días</span>
           </div>
         )}
@@ -143,10 +144,10 @@ export function ScanCelebrationCard({
       <div className="relative mb-3">
         <div
           className={`absolute -inset-1 rounded-3xl blur-md opacity-60 transition-all ${isBirthday
-              ? "bg-gradient-to-r from-amber-400 via-pink-500 to-lime-400 animate-pulse"
-              : isLate
-                ? "bg-amber-400"
-                : "bg-primary-400"
+            ? "bg-gradient-to-r from-amber-400 via-pink-500 to-lime-400 animate-pulse"
+            : isLate
+              ? "bg-amber-400"
+              : "bg-primary-400"
             }`}
         />
         <img
@@ -163,10 +164,10 @@ export function ScanCelebrationCard({
         {/* Floating status icon */}
         <div
           className={`absolute -bottom-2 -right-2 p-1.5 rounded-2xl shadow-lg ${isBirthday
-              ? "bg-amber-400 text-surface-950 ring-4 ring-amber-500/30 animate-bounce"
-              : isVerification || isLate
-                ? "bg-amber-400 text-surface-950 ring-4 ring-amber-500/30"
-                : "bg-primary-400 text-surface-950 ring-4 ring-primary-400/30"
+            ? "bg-amber-400 text-surface-950 ring-4 ring-amber-500/30 animate-bounce motion-reduce:animate-none"
+            : isVerification || isLate
+              ? "bg-amber-400 text-surface-950 ring-4 ring-amber-500/30"
+              : "bg-primary-400 text-surface-950 ring-4 ring-primary-400/30"
             }`}
         >
           {isBirthday ? (
@@ -195,41 +196,58 @@ export function ScanCelebrationCard({
       {/* Method & Scan Action Badges */}
       <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
         {data.method === "NFC" ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-lime-400/15 text-lime-300 border border-lime-400/30 text-[11px] font-bold">
-            <CreditCard className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-lime-500/15 text-lime-800 dark:text-lime-300 border border-lime-500/30 text-xs font-bold">
+            <CreditCard className="w-3.5 h-3.5" aria-hidden="true" />
             NFC
           </span>
         ) : data.method === "QR_SECURE" ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-sky-400/15 text-sky-300 border border-sky-400/30 text-[11px] font-bold">
-            <QrCode className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-sky-500/15 text-sky-800 dark:text-sky-300 border border-sky-500/30 text-xs font-bold">
+            <QrCode className="w-3.5 h-3.5" aria-hidden="true" />
             QR Seguro
           </span>
         ) : data.method === "MANUAL_DNI" ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-400/15 text-amber-300 border border-amber-400/30 text-[11px] font-bold">
-            <Hash className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-xs font-bold">
+            <Hash className="w-3.5 h-3.5" aria-hidden="true" />
             DNI Manual
           </span>
         ) : null}
 
         <span
-          className={`px-3 py-1 rounded-xl text-xs font-extrabold border ${isVerification
-              ? "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-200 border-amber-300 dark:border-amber-500/40 animate-pulse"
-              : data.scanType === "ENTRY"
-                ? "bg-primary-100 dark:bg-primary-400/20 text-primary-700 dark:text-primary-200 border-primary-300 dark:border-primary-400/40"
-                : data.scanType === "EXIT"
-                  ? "bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-200 border-sky-300 dark:border-sky-500/40"
-                  : "bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-white/15"
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-extrabold border ${isVerification
+            ? "bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-500/40 animate-pulse motion-reduce:animate-none"
+            : data.scanType === "ENTRY"
+              ? "bg-primary-100 dark:bg-primary-400/20 text-primary-800 dark:text-primary-200 border-primary-300 dark:border-primary-400/40"
+              : data.scanType === "EXIT"
+                ? "bg-sky-100 dark:bg-sky-500/20 text-sky-800 dark:text-sky-200 border-sky-300 dark:border-sky-500/40"
+                : "bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-white/15"
             }`}
         >
-          {isVerification
-            ? "⚠️ MARCACIÓN PENDIENTE DE VALIDACIÓN"
-            : microInteraction?.actionTitle
-              ? `✅ ${microInteraction.actionTitle.toUpperCase()}`
-              : data.scanType === "ENTRY"
-                ? "✅ INGRESO REGISTRADO"
-                : data.scanType === "EXIT"
-                  ? "👋 SALIDA REGISTRADA"
-                  : "ℹ️ ASISTENCIA PREVIA"}
+          {isVerification ? (
+            <>
+              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>MARCACIÓN PENDIENTE DE VALIDACIÓN</span>
+            </>
+          ) : microInteraction?.actionTitle ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{microInteraction.actionTitle.toUpperCase()}</span>
+            </>
+          ) : data.scanType === "ENTRY" ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>INGRESO REGISTRADO</span>
+            </>
+          ) : data.scanType === "EXIT" ? (
+            <>
+              <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>SALIDA REGISTRADA</span>
+            </>
+          ) : (
+            <>
+              <Info className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>ASISTENCIA PREVIA</span>
+            </>
+          )}
         </span>
       </div>
 
@@ -243,13 +261,14 @@ export function ScanCelebrationCard({
         <div className="w-full mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-pink-500/20 to-lime-500/20 border border-amber-400/40 text-left shadow-lg">
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-xl bg-amber-400 text-surface-950 shrink-0 font-bold">
-              🎂
+              <Cake className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h4 className="text-xs sm:text-sm font-extrabold text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-                <span>¡Feliz Cumpleaños! 🎉</span>
+              <h4 className="text-xs sm:text-sm font-extrabold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                <span>¡Feliz Cumpleaños!</span>
+                <PartyPopper className="w-4 h-4" aria-hidden="true" />
               </h4>
-              <p className="text-[11px] sm:text-xs text-slate-700 dark:text-slate-200 leading-snug mt-0.5">
+              <p className="text-xs text-slate-700 dark:text-slate-200 leading-snug mt-0.5">
                 {microInteraction?.birthdayMessage ||
                   "¡De parte de todo el equipo, te deseamos un día extraordinario lleno de éxitos y alegrías!"}
               </p>
@@ -261,8 +280,8 @@ export function ScanCelebrationCard({
       {/* ── COLLEAGUE BIRTHDAYS REMINDER ─────────────────────────── */}
       {!isBirthday && microInteraction?.colleagueBirthdays && microInteraction.colleagueBirthdays.length > 0 && (
         <div className="w-full mb-4 p-3 rounded-2xl bg-pink-500/10 border border-pink-500/25 text-left">
-          <div className="flex items-center gap-2.5 text-xs text-pink-700 dark:text-pink-200 font-medium">
-            <span className="text-base">🎈</span>
+          <div className="flex items-center gap-2.5 text-xs text-pink-800 dark:text-pink-200 font-medium">
+            <PartyPopper className="w-4 h-4 shrink-0 text-pink-600 dark:text-pink-300" aria-hidden="true" />
             <span>
               Hoy cumple años{" "}
               <strong className="text-slate-900 dark:text-white font-bold">
@@ -276,27 +295,37 @@ export function ScanCelebrationCard({
 
       {/* ── DAILY NOTICE / MEETING CARD ──────────────────────────── */}
       {microInteraction?.notice && (
-        <div className="w-full mb-4 p-3.5 rounded-2xl bg-white dark:bg-surface-950/80 border border-black/5 dark:border-primary-400/25 text-left shadow-md">
+        <div className="w-full mb-4 p-3.5 rounded-2xl bg-white dark:bg-surface-950/80 border border-black/10 dark:border-primary-400/25 text-left shadow-md">
           <div className="flex items-start gap-2.5">
             <div
               className={`p-1.5 rounded-xl shrink-0 ${microInteraction.notice.type === "MEETING"
-                  ? "bg-sky-500/20 text-sky-300"
-                  : "bg-amber-500/20 text-amber-300"
+                ? "bg-sky-500/15 text-sky-700 dark:text-sky-300"
+                : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
                 }`}
             >
               {microInteraction.notice.type === "MEETING" ? (
-                <Calendar className="w-4 h-4" />
+                <Calendar className="w-4 h-4" aria-hidden="true" />
               ) : (
-                <Bell className="w-4 h-4" />
+                <Bell className="w-4 h-4" aria-hidden="true" />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-primary-300">
-                  {microInteraction.notice.type === "MEETING" ? "📅 Reunión de Hoy" : "📢 Aviso Importante"}
+                <span className="text-xs font-bold uppercase tracking-wider text-primary-700 dark:text-primary-300 inline-flex items-center gap-1">
+                  {microInteraction.notice.type === "MEETING" ? (
+                    <>
+                      <Calendar className="w-3 h-3" aria-hidden="true" />
+                      <span>Reunión de Hoy</span>
+                    </>
+                  ) : (
+                    <>
+                      <Megaphone className="w-3 h-3" aria-hidden="true" />
+                      <span>Aviso Importante</span>
+                    </>
+                  )}
                 </span>
                 {microInteraction.notice.time && (
-                  <span className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 border border-black/5 dark:border-white/10">
+                  <span className="text-xs font-mono font-bold text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/5 border border-black/5 dark:border-white/10">
                     {microInteraction.notice.time}
                   </span>
                 )}
@@ -304,12 +333,12 @@ export function ScanCelebrationCard({
               <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5">
                 {microInteraction.notice.title}
               </h4>
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5">
+              <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mt-0.5">
                 {microInteraction.notice.description}
               </p>
               {microInteraction.notice.location && (
-                <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                  <MapPin className="w-3 h-3 text-slate-500" />
+                <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  <MapPin className="w-3 h-3 text-slate-500" aria-hidden="true" />
                   <span>{microInteraction.notice.location}</span>
                 </div>
               )}
@@ -321,17 +350,15 @@ export function ScanCelebrationCard({
       {/* Time & Metrics Strip */}
       <div className="w-full grid grid-cols-2 gap-2 text-xs font-mono p-3 rounded-2xl bg-slate-100 dark:bg-surface-950/70 border border-black/5 dark:border-white/10 mb-4">
         <div>
-          <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-sans font-semibold">HORA CAPTURADA</span>
+          <span className="text-slate-600 dark:text-slate-400 block text-xs font-sans font-semibold">HORA CAPTURADA</span>
           <span className="text-slate-900 dark:text-white font-bold text-sm tracking-wide">{data.time}</span>
         </div>
         <div>
-          <span className="text-slate-500 dark:text-slate-400 block text-[10px] font-sans font-semibold">ESTADO</span>
+          <span className="text-slate-600 dark:text-slate-400 block text-xs font-sans font-semibold">ESTADO</span>
           <span
-            className={`font-bold text-sm ${isVerification
-                ? "text-amber-400"
-                : isLate
-                  ? "text-amber-400"
-                  : "text-primary-400"
+            className={`font-bold text-sm ${isVerification || isLate
+              ? "text-amber-700 dark:text-amber-400"
+              : "text-primary-700 dark:text-primary-400"
               }`}
           >
             {isVerification ? "POR VALIDAR" : data.status}
@@ -343,16 +370,16 @@ export function ScanCelebrationCard({
       <div className="flex items-center justify-between w-full pt-2 border-t border-black/5 dark:border-white/10 text-xs">
         <div className="text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
           <span>Siguiente escaneo en</span>
-          <strong className="text-primary-600 dark:text-primary-400 font-mono text-sm font-bold">{countdown}s</strong>
+          <strong className="text-primary-700 dark:text-primary-400 font-mono text-sm font-bold">{countdown}s</strong>
         </div>
 
         <button
           type="button"
           onClick={onDismiss}
-          className="px-4 py-2 rounded-xl bg-primary-100 dark:bg-primary-400/20 hover:bg-primary-200 dark:hover:bg-primary-400/30 text-primary-700 dark:text-primary-300 hover:text-primary-900 dark:hover:text-white text-xs font-extrabold border border-primary-200 dark:border-primary-400/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+          className="min-h-[44px] px-4 py-2.5 rounded-xl bg-primary-100 dark:bg-primary-400/20 hover:bg-primary-200 dark:hover:bg-primary-400/30 text-primary-800 dark:text-primary-300 hover:text-primary-950 dark:hover:text-white text-xs font-extrabold border border-primary-200 dark:border-primary-400/30 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
         >
           <span>Siguiente</span>
-          <ArrowRight className="w-3.5 h-3.5" />
+          <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
       </div>
     </div>

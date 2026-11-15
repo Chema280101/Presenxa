@@ -34,7 +34,7 @@ async function main() {
   try {
     const notifs = await prisma.notification.deleteMany({});
     console.log(`✅ Notificaciones eliminadas: ${notifs.count}`);
-  } catch (e) {
+  } catch {
     // Si la tabla no existe o ya está vacía
   }
 

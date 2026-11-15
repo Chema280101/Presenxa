@@ -1,5 +1,6 @@
 import { prisma, AttendanceStatus } from "@asistencias/db";
-import { getLocalDateString, getLocalTimeParts, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
+import { getLocalDateString, getLocalTimeParts, computeOvertime, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
+import { notifySupervisorsInOrg } from "@/lib/notifications";
 
 export interface EodResult {
   success: boolean;
@@ -26,6 +27,65 @@ export interface EodResult {
  * 2. Entrada sin salida -> INCOMPLETO
  * 3. Entrada + Salida -> Calcula lateMinutes, workedMinutes y clasifica TARDE o PRESENTE.
  */
+async function applyHolidayStatuses(targetDateDb: Date): Promise<void> {
+  const holidays = await prisma.holiday.findMany({
+    where: { date: targetDateDb, isActive: true },
+  });
+
+  await Promise.all(
+    holidays.map((holiday) =>
+      prisma.attendance.updateMany({
+        where: {
+          date: targetDateDb,
+          status: "PENDIENTE",
+          user: { organizationId: holiday.organizationId },
+          ...(holiday.locationId ? { locationId: holiday.locationId } : {}),
+        },
+        data: {
+          status: "FERIADO",
+          statusChangedAt: new Date(),
+          statusChangedBy: "CRON_EOD",
+        },
+      })
+    )
+  );
+}
+
+const TIME_OFF_STATUS_MAP: Record<string, string> = {
+  VACACIONES: "VACACIONES",
+  DESCANSO_MEDICO: "DESCANSO_MEDICO",
+};
+
+async function applyTimeOffAndDayOffStatuses(targetDateDb: Date): Promise<void> {
+  const [approvedTimeOffs, dayOffOverrides] = await Promise.all([
+    prisma.timeOffRequest.findMany({
+      where: { status: "APPROVED", startDate: { lte: targetDateDb }, endDate: { gte: targetDateDb } },
+    }),
+    prisma.shiftOverride.findMany({
+      where: { date: targetDateDb, isDayOff: true },
+    }),
+  ]);
+
+  await Promise.all([
+    ...approvedTimeOffs.map((timeOff) =>
+      prisma.attendance.updateMany({
+        where: { date: targetDateDb, userId: timeOff.userId, status: "PENDIENTE", entryTime: null },
+        data: {
+          status: (TIME_OFF_STATUS_MAP[timeOff.type] ?? "PERMISO") as any,
+          statusChangedAt: new Date(),
+          statusChangedBy: "CRON_EOD",
+        },
+      })
+    ),
+    ...dayOffOverrides.map((override) =>
+      prisma.attendance.updateMany({
+        where: { date: targetDateDb, userId: override.userId, status: "PENDIENTE", entryTime: null },
+        data: { status: "DIA_LIBRE", statusChangedAt: new Date(), statusChangedBy: "CRON_EOD" },
+      })
+    ),
+  ]);
+}
+
 export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
   // Por defecto: evaluar el día anterior (auditoría hotelera post-turno nocturno)
   const dateObj = targetDate || new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -35,53 +95,8 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
   console.log(`[EOD] Iniciando cierre de jornada/auditoría para ${dateStr}`);
 
   try {
-    // 0. Procesar Feriados: Marcar como FERIADO en vez de AUSENTE
-    const holidays = await prisma.holiday.findMany({
-      where: { date: targetDateDb, isActive: true },
-    });
-
-    for (const holiday of holidays) {
-      await prisma.attendance.updateMany({
-        where: {
-          date: targetDateDb,
-          status: "PENDIENTE",
-          user: {
-            organizationId: holiday.organizationId,
-          },
-          ...(holiday.locationId ? { locationId: holiday.locationId } : {}),
-        },
-        data: {
-          status: "FERIADO",
-          statusChangedAt: new Date(),
-          statusChangedBy: "CRON_EOD",
-        },
-      });
-    }
-
-    // 0.5. Procesar ausencias justificadas (Vacaciones, Descansos y Días libres aprobados en el día)
-    const approvedTimeOffs = await prisma.timeOffRequest.findMany({
-      where: { status: "APPROVED", startDate: { lte: targetDateDb }, endDate: { gte: targetDateDb } },
-    });
-    for (const timeOff of approvedTimeOffs) {
-      let statusToSet: any = "PERMISO";
-      if (timeOff.type === "VACACIONES") statusToSet = "VACACIONES";
-      else if (timeOff.type === "DESCANSO_MEDICO") statusToSet = "DESCANSO_MEDICO";
-      
-      await prisma.attendance.updateMany({
-        where: { date: targetDateDb, userId: timeOff.userId, status: "PENDIENTE", entryTime: null },
-        data: { status: statusToSet, statusChangedAt: new Date(), statusChangedBy: "CRON_EOD" },
-      });
-    }
-
-    const dayOffOverrides = await prisma.shiftOverride.findMany({
-      where: { date: targetDateDb, isDayOff: true },
-    });
-    for (const override of dayOffOverrides) {
-      await prisma.attendance.updateMany({
-        where: { date: targetDateDb, userId: override.userId, status: "PENDIENTE", entryTime: null },
-        data: { status: "DIA_LIBRE", statusChangedAt: new Date(), statusChangedBy: "CRON_EOD" },
-      });
-    }
+    await applyHolidayStatuses(targetDateDb);
+    await applyTimeOffAndDayOffStatuses(targetDateDb);
 
     // 1. Marcar AUSENTE: usuarios con PENDIENTE que nunca registraron entrada
     const resAusentes = await prisma.attendance.updateMany({
@@ -104,7 +119,7 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
         entryTime: { not: null },
         exitTime: null,
         status: {
-          notIn: ["JUSTIFICADO", "PERMISO", "ABANDONO_PUESTO"],
+          notIn: ["JUSTIFICADO", "PERMISO", "ABANDONO_PUESTO", "FERIADO", "DIA_LIBRE", "VACACIONES", "DESCANSO_MEDICO"],
         },
       },
       data: {
@@ -113,6 +128,44 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
         statusChangedBy: "CRON_EOD",
       },
     });
+
+    // Notificar resumen de salidas sin marcar / abandonos por organización
+    const openOrAbandoned = await prisma.attendance.findMany({
+      where: {
+        date: targetDateDb,
+        status: { in: ["INCOMPLETO", "ABANDONO_PUESTO"] },
+      },
+      select: {
+        status: true,
+        user: { select: { organizationId: true } },
+      },
+    });
+
+    const incidentsByOrg = new Map<string, { incomplete: number; abandoned: number }>();
+    for (const row of openOrAbandoned) {
+      const orgId = row.user.organizationId;
+      const current = incidentsByOrg.get(orgId) ?? { incomplete: 0, abandoned: 0 };
+      if (row.status === "INCOMPLETO") current.incomplete++;
+      else if (row.status === "ABANDONO_PUESTO") current.abandoned++;
+      incidentsByOrg.set(orgId, current);
+    }
+
+    await Promise.all(
+      Array.from(incidentsByOrg.entries()).map(([organizationId, counts]) => {
+        const parts: string[] = [];
+        if (counts.incomplete > 0) parts.push(`${counts.incomplete} sin salida registrada`);
+        if (counts.abandoned > 0) parts.push(`${counts.abandoned} abandono(s) de puesto`);
+        return notifySupervisorsInOrg({
+          organizationId,
+          type: "ABANDONO_REGISTRADO",
+          title: `Resumen de cierre (${dateStr})`,
+          body: `Incidencias detectadas al cierre de jornada: ${parts.join(" y ")}.`,
+          url: "/asistencias",
+          tag: `eod-summary-${dateStr}`,
+          data: { category: "EOD_SUMMARY", date: dateStr, ...counts },
+        });
+      })
+    );
 
     // 3. Procesar asistencias con entrada y salida
     const completeAttendances = await prisma.attendance.findMany({
@@ -145,56 +198,65 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
       },
     });
 
-    let completadosCount = 0;
-    let minutosCalculadosCount = 0;
+    const workedResults = await Promise.all(
+      completeAttendances.map(async (att) => {
+        if (!att.entryTime || !att.exitTime) return 0;
 
-    for (const att of completeAttendances) {
-      if (!att.entryTime || !att.exitTime) continue;
+        const diff1Ms = att.exitTime.getTime() - att.entryTime.getTime();
+        let totalWorkedMinutes = Math.max(0, Math.round(diff1Ms / (1000 * 60)));
 
-      // Calcular minutos trabajados Tramo 1
-      const diff1Ms = att.exitTime.getTime() - att.entryTime.getTime();
-      let totalWorkedMinutes = Math.max(0, Math.round(diff1Ms / (1000 * 60)));
-
-      // Tramo 2 si aplica
-      if (att.entryTime2 && att.exitTime2) {
-        const diff2Ms = att.exitTime2.getTime() - att.entryTime2.getTime();
-        totalWorkedMinutes += Math.max(0, Math.round(diff2Ms / (1000 * 60)));
-      }
-
-      const schedule = att.user.userSchedules[0]?.schedule;
-      let lateMinutes = att.lateMinutes ?? 0;
-      let newStatus: AttendanceStatus = att.status === "TARDE" ? "TARDE" : "PRESENTE";
-
-      // Si el estado aún era PENDIENTE y hay horario programado, calcular si fue tarde
-      if (schedule && att.status === "PENDIENTE") {
-        const { hour: entryHour, minute: entryMin } = getLocalTimeParts(att.entryTime, DEFAULT_TIMEZONE);
-        const expectedEntryMinutes = schedule.entryHour * 60 + schedule.entryMinute;
-        const actualEntryMinutes = entryHour * 60 + entryMin;
-
-        const diffEntry = actualEntryMinutes - expectedEntryMinutes;
-        if (diffEntry > (schedule.toleranceMinutes || 0)) {
-          newStatus = "TARDE";
-          lateMinutes = Math.max(0, diffEntry);
-        } else {
-          newStatus = "PRESENTE";
-          lateMinutes = 0;
+        if (att.entryTime2 && att.exitTime2) {
+          const diff2Ms = att.exitTime2.getTime() - att.entryTime2.getTime();
+          totalWorkedMinutes += Math.max(0, Math.round(diff2Ms / (1000 * 60)));
         }
-      }
 
-      await prisma.attendance.update({
-        where: { id: att.id },
-        data: {
-          workedMinutes: att.workedMinutes ?? totalWorkedMinutes,
-          lateMinutes: att.lateMinutes ?? (schedule ? lateMinutes : null),
-          status: newStatus,
-          statusChangedAt: new Date(),
-          statusChangedBy: "CRON_EOD",
-        },
-      });
+        const schedule = att.user.userSchedules[0]?.schedule;
+        let lateMinutes = att.lateMinutes ?? 0;
+        let newStatus: AttendanceStatus = att.status === "TARDE" ? "TARDE" : "PRESENTE";
 
-      completadosCount++;
-      minutosCalculadosCount += totalWorkedMinutes;
-    }
+        if (schedule && att.status === "PENDIENTE") {
+          const { hour: entryHour, minute: entryMin } = getLocalTimeParts(att.entryTime, DEFAULT_TIMEZONE);
+          const expectedEntryMinutes = schedule.entryHour * 60 + schedule.entryMinute;
+          const actualEntryMinutes = entryHour * 60 + entryMin;
+          const diffEntry = actualEntryMinutes - expectedEntryMinutes;
+          if (diffEntry > (schedule.toleranceMinutes || 0)) {
+            newStatus = "TARDE";
+            lateMinutes = Math.max(0, diffEntry);
+          } else {
+            newStatus = "PRESENTE";
+            lateMinutes = 0;
+          }
+        }
+
+        const finalExitDate = att.exitTime2 || att.exitTime;
+        const overtime =
+          att.overtimeStatus === "NONE" && finalExitDate
+            ? computeOvertime(finalExitDate, schedule, DEFAULT_TIMEZONE)
+            : null;
+
+        await prisma.attendance.update({
+          where: { id: att.id },
+          data: {
+            workedMinutes: att.workedMinutes ?? totalWorkedMinutes,
+            lateMinutes: att.lateMinutes ?? (schedule ? lateMinutes : null),
+            ...(overtime && overtime.overtimeMinutes > 0
+              ? {
+                  overtimeMinutes: overtime.overtimeMinutes,
+                  overtimeStatus: overtime.overtimeStatus,
+                }
+              : {}),
+            status: newStatus,
+            statusChangedAt: new Date(),
+            statusChangedBy: "CRON_EOD",
+          },
+        });
+
+        return totalWorkedMinutes;
+      })
+    );
+
+    const completadosCount = completeAttendances.filter((att) => att.entryTime && att.exitTime).length;
+    const minutosCalculadosCount = workedResults.reduce((sum, mins) => sum + mins, 0);
 
     console.log(
       `[EOD] Cierre completado: ${resAusentes.count} ausentes, ${resIncompletos.count} incompletos, ${completadosCount} completados.`

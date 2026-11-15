@@ -5,22 +5,24 @@ import { NextResponse } from "next/server";
 const { auth } = NextAuth(authConfig);
 
 // Rutas que NO requieren autenticación
-const PUBLIC_ROUTES = [
+const PUBLIC_ROUTES = new Set([
   "/login",
   "/kiosk",
   "/manifest.webmanifest",
   "/manifest.json",
   "/sw.js",
-];
+]);
 
-// Rutas de API que son públicas (kiosk, icon, auth, service worker, healthchecks)
+// Rutas de API que son públicas (kiosk, icon, auth, service worker, healthchecks, sync, webhooks)
 const PUBLIC_API_ROUTES = [
   "/api/auth",
   "/api/attendance/scan",
+  "/api/attendance/sync",
   "/api/kiosks/heartbeat",
   "/api/icon",
   "/api/notifications/send",
   "/api/notifications/subscribe",
+  "/api/webhooks/qstash",
   "/api/health",
 ];
 
@@ -42,17 +44,18 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // Permitir endpoints de CRON si vienen con encabezado de autorización Bearer / token criptográfico
+  // Permitir endpoints de CRON / WORKER si vienen con encabezado de autorización Bearer o secrets
   const isCronJob = path.startsWith("/api/jobs") && (
     Boolean(req.headers.get("authorization")?.startsWith("Bearer ")) ||
-    req.headers.has("x-cron-secret")
+    req.headers.has("x-cron-secret") ||
+    req.headers.has("x-worker-secret")
   );
   if (isCronJob) {
     return NextResponse.next();
   }
 
   // Rutas públicas de UI
-  if (PUBLIC_ROUTES.includes(path) || path.endsWith("/sw.js")) {
+  if (PUBLIC_ROUTES.has(path) || path.endsWith("/sw.js")) {
     // Si ya está logueado y va a login, redirigir según su rol
     if (isLoggedIn && path === "/login") {
       const role = (session?.user as any)?.role;

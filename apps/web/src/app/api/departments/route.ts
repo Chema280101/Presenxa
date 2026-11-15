@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@asistencias/db";
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
+import { parsePaginationParams, buildPaginationMeta } from "@/lib/pagination";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await auth();
     if (!session?.user?.organizationId) {
@@ -10,16 +12,39 @@ export async function GET() {
     }
 
     const organizationId = session.user.organizationId;
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search")?.trim() || "";
+    const { hasPagination, page, pageSize, skip, take } = parsePaginationParams(
+      searchParams,
+      25
+    );
 
-    const departments = await prisma.department.findMany({
-      where: { organizationId },
-      include: {
-        _count: {
-          select: { users: true },
+    const where: any = { organizationId };
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+
+    const [departments, total] = await Promise.all([
+      prisma.department.findMany({
+        where,
+        include: {
+          _count: {
+            select: { users: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      hasPagination ? prisma.department.count({ where }) : Promise.resolve(0),
+    ]);
+
+    if (hasPagination) {
+      return NextResponse.json({
+        departments,
+        pagination: buildPaginationMeta(page, pageSize, total),
+      });
+    }
 
     return NextResponse.json({ departments });
   } catch (error) {
@@ -52,6 +77,16 @@ export async function POST(req: Request) {
         name: name.trim(),
         organizationId: session.user.organizationId,
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_CREATED",
+      entityType: "DEPARTMENT",
+      entityId: newDepartment.id,
+      newData: { name: newDepartment.name },
+      req,
     });
 
     return NextResponse.json({ department: newDepartment });

@@ -31,6 +31,12 @@ export const EXCEL_PALETTE = {
   STATUS_FALTA_FG: "FFB91C1C",
   STATUS_JUSTIFICADO_BG: "FFE0F2FE",
   STATUS_JUSTIFICADO_FG: "FF0369A1",
+  STATUS_INCOMPLETO_BG: "FFFFEDD5",
+  STATUS_INCOMPLETO_FG: "FFC2410C",
+  STATUS_ESPECIAL_BG: "FFEDE9FE",
+  STATUS_ESPECIAL_FG: "FF6D28D9",
+  STATUS_NEUTRO_BG: "FFF1F5F9",
+  STATUS_NEUTRO_FG: "FF475569",
 
   // Roles
   ROLE_ADMIN_BG: "FFF3E8FF",
@@ -88,7 +94,6 @@ export function renderExecutiveHeader(
     colSpan?: number;
   }
 ) {
-  const colSpan = options.colSpan || 11;
   const sysTitle = options.systemTitle || "PRESENXA · CONTROL INTELIGENTE DE TALENTO & ASISTENCIAS";
 
   // Fila 1: Mini badge corporativo
@@ -296,14 +301,29 @@ export function getStatusBadgeStyle(status: string | boolean): { bgHex: string; 
   if (s.includes("ACTIVO") || s.includes("PRESENT") || s.includes("PUNTUAL")) {
     return { bgHex: EXCEL_PALETTE.STATUS_PUNTUAL_BG, fgHex: EXCEL_PALETTE.STATUS_PUNTUAL_FG };
   }
-  if (s.includes("TARDANZA") || s.includes("LATE")) {
+  if (s.includes("TARDANZA") || s.includes("TARDE") || s.includes("LATE")) {
     return { bgHex: EXCEL_PALETTE.STATUS_TARDANZA_BG, fgHex: EXCEL_PALETTE.STATUS_TARDANZA_FG };
   }
-  if (s.includes("FALTA") || s.includes("ABSENT") || s.includes("INACTIVO")) {
+  if (
+    s.includes("FALTA") ||
+    s.includes("AUSENT") ||
+    s.includes("ABSENT") ||
+    s.includes("ABANDONO") ||
+    s.includes("INACTIVO")
+  ) {
     return { bgHex: EXCEL_PALETTE.STATUS_FALTA_BG, fgHex: EXCEL_PALETTE.STATUS_FALTA_FG };
   }
-  if (s.includes("JUSTIFICAD") || s.includes("PERMISO")) {
+  if (s.includes("INCOMPLETO")) {
+    return { bgHex: EXCEL_PALETTE.STATUS_INCOMPLETO_BG, fgHex: EXCEL_PALETTE.STATUS_INCOMPLETO_FG };
+  }
+  if (s.includes("JUSTIFICAD") || s.includes("PERMISO") || s.includes("DESCANSO_MEDICO")) {
     return { bgHex: EXCEL_PALETTE.STATUS_JUSTIFICADO_BG, fgHex: EXCEL_PALETTE.STATUS_JUSTIFICADO_FG };
+  }
+  if (s.includes("VACACIONES") || s.includes("FERIADO")) {
+    return { bgHex: EXCEL_PALETTE.STATUS_ESPECIAL_BG, fgHex: EXCEL_PALETTE.STATUS_ESPECIAL_FG };
+  }
+  if (s.includes("DIA_LIBRE") || s.includes("PENDIENTE")) {
+    return { bgHex: EXCEL_PALETTE.STATUS_NEUTRO_BG, fgHex: EXCEL_PALETTE.STATUS_NEUTRO_FG };
   }
 
   return { bgHex: EXCEL_PALETTE.SLATE_CARD, fgHex: EXCEL_PALETTE.SLATE_MUTED };
@@ -326,6 +346,6 @@ export async function downloadExcelWorkbook(
   anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
-  document.body.removeChild(anchor);
+  anchor.remove();
   URL.revokeObjectURL(url);
 }

@@ -1,26 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  QrCode,
-  Plus,
-  Search,
-  Building,
-  Key,
-  Wifi,
-  WifiOff,
-  Edit2,
-  Trash2,
-  CheckCircle2,
-  RefreshCw,
-  Tablet,
-  Globe,
-  Clock,
-  Sparkles,
-  ExternalLink,
-  Copy,
-  Check,
-} from "lucide-react";
+import { QrCode, Plus, Building, Key, Wifi, Edit2, Trash2, CheckCircle2, RefreshCw, Tablet, MonitorSmartphone, SearchX, Sparkles, ExternalLink, Copy, Check, ChevronRight } from "lucide-react";
 import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import QRCode from "qrcode";
 import { formatDistanceToNow, parseISO } from "date-fns";
@@ -34,8 +15,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton, SkeletonTable } from "@/components/ui/Skeleton";
+import { SkeletonTable } from "@/components/ui/Skeleton";
 import {
   DataTableContainer,
   DataTableHeader,
@@ -45,6 +25,7 @@ import {
   DataTableCell,
   DataTableEmptyState,
 } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
@@ -72,6 +53,8 @@ export default function KiosksPage() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Modals state
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -282,7 +265,7 @@ export default function KiosksPage() {
           </span>
         }
         subtitle="Administra y monitorea en tiempo real los dispositivos físicos de escaneo QR, lectores NFC/RFID y tablets de recepción con sincronización criptográfica."
-        icon={Tablet}
+        icon={MonitorSmartphone}
         iconVariant="emerald"
         actionButtons={
           <>
@@ -357,8 +340,9 @@ export default function KiosksPage() {
           </div>
         </div>
         <button
+          type="button"
           onClick={() => setIsDiagnosticOpen(true)}
-          className="shrink-0 text-xs px-4 py-2.5 rounded-xl bg-surface-200 dark:bg-white/5 hover:bg-surface-300 dark:hover:bg-white/10 hover:border-info-400 dark:hover:border-cyan-500/30 border border-surface-300 dark:border-white/10 text-surface-800 dark:text-slate-200 transition flex items-center gap-2 font-medium cursor-pointer active:scale-95 shadow-sm"
+          className="shrink-0 min-h-[40px] text-xs px-4 py-2 rounded-xl bg-white dark:bg-white/5 hover:bg-surface-50 dark:hover:bg-white/10 hover:border-info-400 dark:hover:border-cyan-500/30 border border-surface-300 dark:border-white/10 text-surface-800 dark:text-slate-200 transition flex items-center gap-2 font-semibold cursor-pointer active:scale-95 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         >
           <Sparkles className="w-4 h-4 text-info-600 dark:text-cyan-400" />
           <span>Diagnóstico de Red Kiosks</span>
@@ -575,20 +559,26 @@ export default function KiosksPage() {
           
           {/* Provisioning Card */}
           <div className="glass-panel rounded-2xl border border-primary-300 dark:border-emerald-500/30 p-5 space-y-4 bg-surface-50 dark:bg-surface-900/90 backdrop-blur-2xl shadow-[0_0_30px_rgba(16,185,129,0.05)]">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse"></div>
+                <span className="w-2.5 h-2.5 rounded-full bg-primary-500 dark:bg-emerald-400 shrink-0" aria-hidden="true" />
                 <h2 className="font-bold text-sm uppercase tracking-wider text-surface-900 dark:text-white">Emparejamiento Rápido</h2>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary-100 dark:bg-emerald-500/10 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30">FAST-PAIR</span>
+              <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-surface-100 dark:bg-white/5 text-surface-600 dark:text-slate-300 border border-surface-200 dark:border-white/10 shrink-0">
+                FAST-PAIR
+              </span>
             </div>
 
             {kiosks.length > 0 && (
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold text-surface-500 dark:text-slate-400 uppercase tracking-wider block">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="fast-pair-kiosk-select"
+                  className="text-[11px] font-semibold text-surface-600 dark:text-slate-300 uppercase tracking-wider block"
+                >
                   Kiosk Seleccionado
                 </label>
                 <CustomSelect
+                  id="fast-pair-kiosk-select"
                   value={activeFastPairKiosk?.id || ""}
                   onChange={(val) => setSelectedFastPairKioskId(val)}
                   options={fastPairOptions}
@@ -600,54 +590,61 @@ export default function KiosksPage() {
             <div className="p-5 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex flex-col items-center text-center">
               {activeFastPairKiosk ? (
                 <>
-                  <div
+                  <button
+                    type="button"
                     onClick={() => {
                       setSelectedKiosk(activeFastPairKiosk);
                       setIsKeyModalOpen(true);
                     }}
-                    className="p-3 bg-white rounded-2xl shadow-2xl relative group mb-3 transition-transform hover:scale-105 duration-300 cursor-pointer"
+                    aria-label={`Ampliar código QR de ${activeFastPairKiosk.name}`}
+                    className="p-3 bg-white rounded-2xl shadow-lg relative group mb-3 transition-transform hover:scale-[1.03] duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
                     title="Clic para ampliar o ver clave completa"
                   >
                     {fastPairQrUrl ? (
-                      <img src={fastPairQrUrl} alt="Fast-Pair QR" className="w-40 h-40 object-contain" />
+                      <img src={fastPairQrUrl} alt={`Código QR de emparejamiento para ${activeFastPairKiosk.name}`} className="w-40 h-40 object-contain" />
                     ) : (
                       <div className="w-40 h-40 flex items-center justify-center">
                         <RefreshCw className="w-8 h-8 text-primary-500 dark:text-emerald-500 animate-spin" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-surface-900/60 dark:bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex flex-col items-center justify-center text-white gap-1">
-                      <ExternalLink className="w-6 h-6 text-primary-400 dark:text-emerald-400" />
-                      <span className="text-[10px] font-bold">Ampliar QR</span>
+                    <div className="absolute inset-0 bg-surface-900/60 dark:bg-slate-950/60 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity rounded-2xl flex flex-col items-center justify-center text-white gap-1">
+                      <ExternalLink className="w-5 h-5 text-primary-400 dark:text-emerald-400" />
+                      <span className="text-[11px] font-bold">Ampliar QR</span>
                     </div>
-                  </div>
+                  </button>
                   
-                  <span className="text-[11px] font-mono text-primary-600 dark:text-emerald-400 font-semibold tracking-wider uppercase">
+                  <span className="text-xs font-mono text-primary-700 dark:text-emerald-400 font-semibold tracking-wider uppercase">
                     {activeFastPairKiosk.name}
                   </span>
-                  <p className="text-[11px] text-surface-500 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
-                    Sede: <span className="text-surface-800 dark:text-slate-200">{activeFastPairKiosk.location.name}</span>
+                  <p className="text-xs text-surface-600 dark:text-slate-400 mt-1 max-w-xs leading-relaxed">
+                    Sede: <span className="font-medium text-surface-800 dark:text-slate-200">{activeFastPairKiosk.location.name}</span>
+                  </p>
+                  <p className="text-[11px] text-surface-500 dark:text-slate-400 mt-1">
+                    Escanea desde el kiosk o toca el QR para ampliar
                   </p>
 
                   <div className="w-full mt-4 pt-3 border-t border-surface-200 dark:border-white/5 flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(activeFastPairKiosk.apiKey);
                         setIsCopiedFastKey(true);
-                        toast.success("API Key copiada al portapapeles");
+                        toast.success("Clave API copiada al portapapeles");
                         setTimeout(() => setIsCopiedFastKey(false), 2000);
                       }}
-                      className="flex-1 py-2 px-3 rounded-xl bg-surface-200 dark:bg-white/5 hover:bg-surface-300 dark:hover:bg-white/10 text-surface-800 dark:text-slate-200 border border-surface-300 dark:border-white/10 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      className="flex-1 min-h-[40px] py-2 px-3 rounded-xl bg-white dark:bg-white/5 hover:bg-surface-50 dark:hover:bg-white/10 text-surface-800 dark:text-slate-200 border border-surface-300 dark:border-white/10 shadow-xs text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                     >
-                      {isCopiedFastKey ? <Check className="w-3.5 h-3.5 text-primary-500 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-surface-500 dark:text-slate-400" />}
-                      <span>{isCopiedFastKey ? "Copiada" : "Copiar Key"}</span>
+                      {isCopiedFastKey ? <Check className="w-3.5 h-3.5 text-primary-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-surface-600 dark:text-slate-400" />}
+                      <span>{isCopiedFastKey ? "Copiada" : "Copiar Clave"}</span>
                     </button>
 
                     <button
+                      type="button"
                       onClick={() => {
                         setSelectedKiosk(activeFastPairKiosk);
                         setIsKeyModalOpen(true);
                       }}
-                      className="py-2 px-3 rounded-xl bg-primary-50 dark:bg-emerald-500/15 hover:bg-primary-100 dark:hover:bg-emerald-500/25 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      className="min-h-[40px] py-2 px-3.5 rounded-xl bg-primary-50 dark:bg-emerald-500/15 hover:bg-primary-100 dark:hover:bg-emerald-500/25 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                     >
                       <Key className="w-3.5 h-3.5" />
                       <span>Ver Clave</span>
@@ -657,13 +654,14 @@ export default function KiosksPage() {
               ) : (
                 <div className="py-6 space-y-3">
                   <Tablet className="w-12 h-12 text-surface-400 dark:text-slate-600 mx-auto" />
-                  <p className="text-xs text-surface-500 dark:text-slate-400">Sin kioskos registrados para vincular</p>
+                  <p className="text-xs text-surface-600 dark:text-slate-400">Sin kioskos registrados para vincular</p>
                   <button
+                    type="button"
                     onClick={() => {
                       setEditingKiosk(null);
                       setIsFormOpen(true);
                     }}
-                    className="px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-400 text-white text-xs font-bold transition cursor-pointer"
+                    className="min-h-[40px] px-4 py-2 rounded-xl bg-primary-500 hover:bg-primary-400 text-white text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                   >
                     Registrar Kiosk
                   </button>
@@ -674,49 +672,63 @@ export default function KiosksPage() {
 
           {/* Peripherals Status Card */}
           <div className="glass-panel rounded-2xl border border-surface-200 dark:border-white/5 p-5 space-y-4 bg-surface-50 dark:bg-surface-900/60 backdrop-blur-xl">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-xs uppercase tracking-wider text-surface-500 dark:text-slate-400">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-bold text-xs uppercase tracking-wider text-surface-700 dark:text-slate-300">
                 Telemetría &amp; Periféricos
               </h2>
               <button
+                type="button"
                 onClick={() => setIsDiagnosticOpen(true)}
-                className="text-[10px] font-mono text-primary-600 dark:text-emerald-400 hover:text-primary-500 dark:hover:text-emerald-300 transition flex items-center gap-1 cursor-pointer bg-primary-50 dark:bg-emerald-500/10 hover:bg-primary-100 dark:hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-primary-200 dark:border-emerald-500/20"
+                className="text-xs font-semibold text-primary-700 dark:text-emerald-400 hover:text-primary-800 dark:hover:text-emerald-300 transition flex items-center gap-1.5 cursor-pointer bg-primary-50 dark:bg-emerald-500/10 hover:bg-primary-100 dark:hover:bg-emerald-500/20 px-2.5 py-1.5 rounded-lg border border-primary-200 dark:border-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               >
-                <Sparkles className="w-3 h-3" />
-                Auditar
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Auditar</span>
               </button>
             </div>
             <div className="space-y-2.5 text-xs">
-              <div 
-                onClick={() => setIsDiagnosticOpen(true)}
-                className="flex items-center justify-between p-3 rounded-xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 hover:border-primary-300 dark:hover:border-emerald-500/20 transition cursor-pointer"
-              >
-                <span className="text-surface-700 dark:text-slate-300 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-primary-500 dark:bg-emerald-400"></span>
-                  Cámaras QR Sensibilidad HD
-                </span>
-                <span className="font-mono text-surface-900 dark:text-white font-bold">{stats.active} Disp.</span>
-              </div>
-              <div 
-                onClick={() => setIsDiagnosticOpen(true)}
-                className="flex items-center justify-between p-3 rounded-xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 hover:border-primary-300 dark:hover:border-emerald-500/20 transition cursor-pointer"
-              >
-                <span className="text-surface-700 dark:text-slate-300 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-primary-500 dark:bg-emerald-400"></span>
-                  Sensores NFC Mifare WebAPI
-                </span>
-                <span className="font-mono text-surface-900 dark:text-white font-bold">{stats.active} Disp.</span>
-              </div>
-              <div 
-                onClick={() => setIsDiagnosticOpen(true)}
-                className="flex items-center justify-between p-3 rounded-xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 hover:border-info-300 dark:hover:border-cyan-500/20 transition cursor-pointer"
-              >
-                <span className="text-surface-700 dark:text-slate-300 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-info-500 dark:bg-cyan-400"></span>
-                  Cola de Sincronización
-                </span>
-                <span className="font-mono text-info-600 dark:text-cyan-300 font-semibold">0 pendientes</span>
-              </div>
+              {[
+                {
+                  label: "Cámaras QR Sensibilidad HD",
+                  statusText: "Operativo",
+                  dotClass: "bg-primary-500 dark:bg-emerald-400",
+                  value: `${stats.active} Disp.`,
+                  valueClass: "text-surface-900 dark:text-white font-bold",
+                  hoverBorderClass: "hover:border-primary-300 dark:hover:border-emerald-500/20",
+                },
+                {
+                  label: "Sensores NFC Mifare WebAPI",
+                  statusText: "Operativo",
+                  dotClass: "bg-primary-500 dark:bg-emerald-400",
+                  value: `${stats.active} Disp.`,
+                  valueClass: "text-surface-900 dark:text-white font-bold",
+                  hoverBorderClass: "hover:border-primary-300 dark:hover:border-emerald-500/20",
+                },
+                {
+                  label: "Cola de Sincronización",
+                  statusText: "Al día",
+                  dotClass: "bg-info-500 dark:bg-cyan-400",
+                  value: "0 pendientes",
+                  valueClass: "text-info-700 dark:text-cyan-300 font-semibold",
+                  hoverBorderClass: "hover:border-info-300 dark:hover:border-cyan-500/20",
+                },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => setIsDiagnosticOpen(true)}
+                  className={`w-full text-left flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 ${item.hoverBorderClass} transition cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}
+                >
+                  <span className="text-surface-800 dark:text-slate-200 flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${item.dotClass}`} aria-hidden="true" />
+                    <span className="truncate">{item.label}</span>
+                    <span className="sr-only">({item.statusText})</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className={`font-mono ${item.valueClass}`}>{item.value}</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-surface-400 dark:text-slate-500 group-hover:text-surface-600 dark:group-hover:text-slate-300 transition-colors" aria-hidden="true" />
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -726,7 +738,23 @@ export default function KiosksPage() {
         isLoading ? (
           <SkeletonTable rows={5} cols={7} />
         ) : (
-          <DataTableContainer>
+          <DataTableContainer
+            footer={
+              <DataTablePagination
+                currentPage={Math.min(page, Math.max(1, Math.ceil(filteredKiosks.length / pageSize)))}
+                totalPages={Math.max(1, Math.ceil(filteredKiosks.length / pageSize))}
+                totalItems={filteredKiosks.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemLabel="terminales"
+              />
+            }
+          >
             <DataTableHeader>
               <DataTableHead>Terminal / Tótem</DataTableHead>
               <DataTableHead>Sede Asignada</DataTableHead>
@@ -740,10 +768,16 @@ export default function KiosksPage() {
               {filteredKiosks.length === 0 ? (
                 <DataTableEmptyState
                   colSpan={7}
+                  icon={search ? SearchX : MonitorSmartphone}
                   message={search ? "Prueba cambiando los criterios de búsqueda." : "No hay terminales kiosk registrados aún."}
                 />
               ) : (
-                filteredKiosks.map((k) => {
+                filteredKiosks
+                  .slice(
+                    (Math.min(page, Math.max(1, Math.ceil(filteredKiosks.length / pageSize))) - 1) * pageSize,
+                    Math.min(page, Math.max(1, Math.ceil(filteredKiosks.length / pageSize))) * pageSize
+                  )
+                  .map((k) => {
                   const online = isKioskOnline(k.lastSeenAt);
                   const isProvisioning = !k.isActive;
                   const isSelectedForPairing = activeFastPairKiosk?.id === k.id;
@@ -821,27 +855,29 @@ export default function KiosksPage() {
                           {k.ipAddress || "127.0.0.1"}
                         </span>
                       </DataTableCell>
-                      <DataTableCell className="text-right">
-                        <ActionButtonGroup>
+                      <DataTableCell align="right">
+                        <ActionButtonGroup align="right">
                           <ActionButton
+                            size="sm"
                             variant={isSelectedForPairing ? "primary" : "neutral"}
+                            icon={<QrCode className="w-3.5 h-3.5" />}
                             onClick={() => setSelectedFastPairKioskId(k.id)}
                             title="Fast-Pair QR"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                           <ActionButton
+                            size="sm"
                             variant="neutral"
+                            icon={<Key className="w-3.5 h-3.5" />}
                             onClick={() => {
                               setSelectedKiosk(k);
                               setIsKeyModalOpen(true);
                             }}
                             title="Ver Llave API"
-                          >
-                            <Key className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                           <ActionButton
+                            size="sm"
                             variant="warning"
+                            icon={<Edit2 className="w-3.5 h-3.5" />}
                             onClick={() => {
                               setEditingKiosk({
                                 id: k.id,
@@ -852,16 +888,14 @@ export default function KiosksPage() {
                               setIsFormOpen(true);
                             }}
                             title="Editar terminal"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                           <ActionButton
+                            size="sm"
                             variant={k.isActive ? "danger" : "success"}
+                            icon={<Trash2 className="w-3.5 h-3.5" />}
                             onClick={() => handleToggleStatus(k)}
                             title={k.isActive ? "Desactivar Kiosko" : "Reactivar Kiosko"}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                         </ActionButtonGroup>
                       </DataTableCell>
                     </DataTableRow>

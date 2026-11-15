@@ -2,18 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import {
-  Printer,
-  Building2,
-  User,
-  ShieldCheck,
-  Calendar,
-  FileText,
-  FileCheck2,
-  ExternalLink,
-  MapPin,
-  Clock,
-} from "lucide-react";
+import { Printer, User, Calendar, FileText, FileCheck2, ExternalLink } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { ModalShell } from "@/components/ui/ModalShell";
@@ -37,34 +26,63 @@ interface JustificationCertificateModalProps {
     entryTime?: string | null;
     exitTime?: string | null;
     lateMinutes?: number | null;
+    attachmentUrl?: string | null;
   } | null;
 }
 
 function parseJustification(notes?: string | null) {
   if (!notes) return { justification: "", categoryLabel: "", previousNotes: "" };
-  const justMatch = notes.match(/\[JUSTIFICACI[ÓO]N(?:\s*-\s*Tipo:\s*([^\]]+))?\]:\s*([\s\S]*?)(?:\n\(Notas previas:|$)/i);
-  const prevMatch = notes.match(/\(Notas previas:\s*([\s\S]*?)\)$/i);
 
-  if (justMatch) {
+  const upper = notes.toUpperCase();
+  const tagIdx = upper.includes("[JUSTIFICACIÓN")
+    ? upper.indexOf("[JUSTIFICACIÓN")
+    : upper.indexOf("[JUSTIFICACION");
+
+  if (tagIdx === -1) {
     return {
-      categoryLabel: justMatch[1] ? justMatch[1].trim() : "",
-      justification: justMatch[2].trim(),
-      previousNotes: prevMatch ? prevMatch[1].trim() : "",
+      categoryLabel: "",
+      justification: notes.trim(),
+      previousNotes: "",
     };
   }
 
+  const closeTagIdx = notes.indexOf("]:", tagIdx);
+  if (closeTagIdx === -1) {
+    return {
+      categoryLabel: "",
+      justification: notes.trim(),
+      previousNotes: "",
+    };
+  }
+
+  const headerSegment = notes.slice(tagIdx, closeTagIdx);
+  const tipoIdx = headerSegment.toUpperCase().indexOf("TIPO:");
+  const categoryLabel = tipoIdx === -1 ? "" : headerSegment.slice(tipoIdx + 5).trim();
+
+  const body = notes.slice(closeTagIdx + 2);
+  const prevIdx = body.toUpperCase().indexOf("(NOTAS PREVIAS:");
+  const hasPrev = prevIdx !== -1 && body.endsWith(")");
+  const justification = hasPrev ? body.slice(0, prevIdx).trim() : body.trim();
+  const previousNotes = hasPrev ? body.slice(prevIdx + 15, -1).trim() : "";
+
   return {
-    categoryLabel: "",
-    justification: notes.trim(),
-    previousNotes: "",
+    categoryLabel,
+    justification,
+    previousNotes,
   };
+}
+
+function getCertificateTitle(isPermiso: boolean, categoryLabel: string): string {
+  if (isPermiso) return "Constancia Oficial de Permiso Laboral Acreditado";
+  if (categoryLabel) return `Constancia Oficial de Justificación: ${categoryLabel}`;
+  return "Constancia Oficial de Justificación de Incidencia Laboral";
 }
 
 export function JustificationCertificateModal({
   isOpen,
   onClose,
   attendance,
-}: JustificationCertificateModalProps) {
+}: Readonly<JustificationCertificateModalProps>) {
   const [mounted, setMounted] = useState(false);
   const [org, setOrg] = useState<{
     name: string;
@@ -100,7 +118,7 @@ export function JustificationCertificateModal({
 
   const extractedUrl = useMemo(() => {
     if (!justification) return null;
-    const match = justification.match(/(https?:\/\/[^\s]+)/i);
+    const match = /(https?:\/\/\S+)/i.exec(justification);
     return match ? match[1] : null;
   }, [justification]);
 
@@ -123,17 +141,6 @@ export function JustificationCertificateModal({
       const raw = typeof attendance.date === "string" ? attendance.date.slice(0, 10) : "";
       const d = parseISO(raw);
       return format(d, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es });
-    } catch {
-      return String(attendance.date);
-    }
-  }, [attendance?.date]);
-
-  const formattedShortDate = useMemo(() => {
-    if (!attendance?.date) return "";
-    try {
-      const raw = typeof attendance.date === "string" ? attendance.date.slice(0, 10) : "";
-      const d = parseISO(raw);
-      return format(d, "dd/MM/yyyy");
     } catch {
       return String(attendance.date);
     }
@@ -219,11 +226,7 @@ export function JustificationCertificateModal({
         {/* Título Principal de la Constancia */}
         <div className="text-center space-y-1 py-1 print-avoid-break">
           <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-wide uppercase underline underline-offset-4 decoration-2 decoration-slate-900">
-            {isPermiso
-              ? "Constancia Oficial de Permiso Laboral Acreditado"
-              : categoryLabel
-              ? `Constancia Oficial de Justificación: ${categoryLabel}`
-              : "Constancia Oficial de Justificación de Incidencia Laboral"}
+            {getCertificateTitle(isPermiso, categoryLabel)}
           </h2>
           <p className="text-xs text-slate-500 font-medium">
             Documento de control laboral expedido bajo el Reglamento Interno de Trabajo
@@ -390,15 +393,16 @@ export function JustificationCertificateModal({
 
   const footer = (
     <div className="flex items-center justify-between w-full">
-      {extractedUrl ? (
+      {attendance.attachmentUrl || extractedUrl ? (
         <a
-          href={extractedUrl}
+          href={attendance.attachmentUrl || extractedUrl || "#"}
+          download={attendance.attachmentUrl?.startsWith("data:") ? `sustento-${certificateFolio}` : undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="h-10 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 dark:text-sky-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
         >
           <ExternalLink className="w-3.5 h-3.5" />
-          <span>Abrir Enlace de Respaldo</span>
+          <span>{attendance.attachmentUrl ? "Ver Sustento Adjunto" : "Abrir Enlace de Respaldo"}</span>
         </a>
       ) : (
         <span className="text-xs text-surface-400 dark:text-slate-500">
@@ -454,25 +458,6 @@ export function JustificationCertificateModal({
                 @page {
                   size: A4 portrait;
                   margin: 10mm 12mm;
-                }
-                body * {
-                  visibility: hidden;
-                }
-                #printable-certificate-portal,
-                #printable-certificate-portal * {
-                  visibility: visible;
-                }
-                #printable-certificate-portal {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  background: white !important;
-                  color: black !important;
-                }
-                .print-avoid-break {
-                  break-inside: avoid;
-                  page-break-inside: avoid;
                 }
               }
             `}</style>

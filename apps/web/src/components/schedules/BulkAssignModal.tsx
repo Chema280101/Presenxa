@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Users, Loader2, Search, MapPin, CheckSquare, Square, CheckCircle2 } from "lucide-react";
+import { Users, Loader2, Search, MapPin, CheckSquare, Square, CheckCircle2, Clock } from "lucide-react";
 import { clsx } from "clsx";
 import { useToast } from "@/providers/ToastProvider";
 import { ModalShell } from "@/components/ui/ModalShell";
@@ -165,8 +165,9 @@ export function BulkAssignModal({ isOpen, onClose, onSuccess }: BulkAssignModalP
       </span>
       <div className="flex items-center gap-3">
         <button
+          type="button"
           onClick={onClose}
-          className="h-10 px-5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
+          className="h-10 px-5 rounded-xl bg-surface-100 hover:bg-surface-200 text-surface-700 hover:text-surface-900 border border-surface-200/90 hover:border-surface-300 dark:bg-surface-850 dark:hover:bg-surface-800 dark:text-slate-300 dark:hover:text-white dark:border-surface-700/70 dark:hover:border-surface-600 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
         >
           Cancelar
         </button>
@@ -202,8 +203,9 @@ export function BulkAssignModal({ isOpen, onClose, onSuccess }: BulkAssignModalP
             <CustomSelect
               value={selectedScheduleId}
               onChange={(val) => setSelectedScheduleId(val)}
-              options={schedules.map(s => ({ value: s.id, label: s.name }))}
+              options={schedules.map(s => ({ value: s.id, label: s.name, icon: Clock }))}
               placeholder="Selecciona un horario activo..."
+              leftIcon={Clock}
             />
           </div>
           

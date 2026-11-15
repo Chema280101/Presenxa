@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import crypto from "crypto";
@@ -11,6 +12,11 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -39,6 +45,17 @@ export async function POST(
         name: true,
         apiKey: true,
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_UPDATED",
+      entityType: "KIOSK",
+      entityId: updated.id,
+      oldData: { name: existing.name, apiKeyRotated: false },
+      newData: { name: updated.name, apiKeyRotated: true },
+      req,
     });
 
     return NextResponse.json({

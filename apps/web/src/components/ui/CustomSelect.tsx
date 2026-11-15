@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check, Search, X, LucideIcon } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -27,6 +28,8 @@ export interface CustomSelectProps {
   leftIcon?: LucideIcon | React.ElementType;
   searchable?: boolean;
   searchPlaceholder?: string;
+  "aria-invalid"?: boolean;
+  "aria-describedby"?: string;
 }
 
 export function CustomSelect({
@@ -43,13 +46,23 @@ export function CustomSelect({
   leftIcon: LeftIcon,
   searchable = false,
   searchPlaceholder = "Buscar...",
+  "aria-invalid": ariaInvalid,
+  "aria-describedby": ariaDescribedBy,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const [openUpward, setOpenUpward] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const selectedOption = options.find((opt) => opt.value === value);
 
@@ -65,32 +78,73 @@ export function CustomSelect({
     });
   }, [options, searchable, searchTerm]);
 
-  // Reset search term when opening or closing
-  useEffect(() => {
-    if (isOpen) {
-      setSearchTerm("");
-      // Focus search input on next frame
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    }
-  }, [isOpen]);
+  // Compute portal coordinates and auto-flip if near bottom of viewport
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const estimatedMenuHeight = searchable ? 310 : 260;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const shouldFlipUp = spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow;
 
-  // Close when clicking outside
+    setOpenUpward(shouldFlipUp);
+    setMenuStyle({
+      position: "fixed",
+      left: rect.left,
+      width: rect.width,
+      ...(shouldFlipUp
+        ? { bottom: window.innerHeight - rect.top + 6 }
+        : { top: rect.bottom + 6 }),
+    });
+  }, [searchable]);
+
+  // Reset search term and position synchronously before paint when opening
+  useLayoutEffect(() => {
+    if (isOpen) {
+      updateMenuPosition();
+      setSearchTerm("");
+    }
+  }, [isOpen, updateMenuPosition]);
+
+  useEffect(() => {
+    if (isOpen && searchable) {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 30);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, searchable]);
+
+  // Close when clicking outside or scrolling/resizing outside the listbox
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const inTrigger = containerRef.current?.contains(target);
+      const inListbox = listboxRef.current?.contains(target);
+      if (!inTrigger && !inListbox) {
         setIsOpen(false);
       }
     };
 
+    const handleScrollOrResize = (event: Event) => {
+      if (listboxRef.current && event.target instanceof Node && listboxRef.current.contains(event.target)) {
+        return;
+      }
+      updateMenuPosition();
+    };
+
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
+      window.addEventListener("scroll", handleScrollOrResize, true);
+      window.addEventListener("resize", handleScrollOrResize);
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
     };
-  }, [isOpen]);
+  }, [isOpen, updateMenuPosition]);
 
   // Keyboard navigation
   const handleKeyDown = useCallback(
@@ -169,7 +223,8 @@ export function CustomSelect({
     }
   }, [highlightedIndex, isOpen]);
 
-  const showLeftPadding = hasLeftIcon || !!LeftIcon;
+  const TriggerIcon = LeftIcon || (!hasLeftIcon ? selectedOption?.icon : undefined);
+  const useExternalIconPadding = hasLeftIcon && !TriggerIcon;
 
   return (
     <div
@@ -182,28 +237,39 @@ export function CustomSelect({
 
       {/* Select Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         id={id}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={clsx(
           "w-full h-11 text-sm text-left flex items-center justify-between gap-2.5",
-          "rounded-xl font-medium border shadow-xs outline-none transition-all cursor-pointer select-none",
+          "rounded-xl font-medium border shadow-xs outline-none transition-colors duration-150 cursor-pointer select-none active:scale-100",
           "bg-white dark:bg-white/[0.05] dark:hover:bg-white/[0.08]",
           "text-surface-900 dark:text-white",
           "border-surface-200 dark:border-white/10 dark:hover:border-white/20",
           "focus:border-primary-500 dark:focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-400/20",
           isOpen && "border-primary-500 dark:border-primary-400 ring-2 ring-primary-500/20 dark:ring-primary-400/20",
           disabled && "opacity-50 cursor-not-allowed",
-          showLeftPadding ? "pl-10 pr-3.5" : "px-3.5",
+          useExternalIconPadding ? "pl-10 pr-3.5" : "px-3.5",
           className
         )}
       >
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {LeftIcon && (
-            <LeftIcon className="w-4 h-4 text-surface-400 dark:text-surface-400 flex-shrink-0" />
+          {TriggerIcon && (
+            <TriggerIcon
+              className={clsx(
+                "w-4 h-4 flex-shrink-0 transition-colors",
+                isOpen
+                  ? "text-primary-500 dark:text-primary-400"
+                  : "text-surface-400 dark:text-surface-400"
+              )}
+              aria-hidden="true"
+            />
           )}
           <span
             className={clsx(
@@ -216,6 +282,7 @@ export function CustomSelect({
         </div>
 
         <ChevronDown
+          aria-hidden="true"
           className={clsx(
             "w-4 h-4 text-surface-400 dark:text-surface-400 transition-transform duration-200 flex-shrink-0",
             isOpen && "rotate-180 text-primary-500 dark:text-primary-400"
@@ -223,18 +290,20 @@ export function CustomSelect({
         />
       </button>
 
-      {/* Custom Dropdown Panel */}
-      {isOpen && (
+      {/* Custom Dropdown Panel (Portaled to escape modal overflow) */}
+      {isOpen && mounted && menuStyle.position === "fixed" && createPortal(
         <div
           ref={listboxRef}
           role="listbox"
+          style={menuStyle}
+          onKeyDown={handleKeyDown}
           className={clsx(
-            "absolute left-0 right-0 top-full mt-1.5 z-50",
+            "z-[70]",
             "bg-white dark:bg-[#0c1424]",
             "border border-surface-200 dark:border-white/15",
             "rounded-2xl shadow-xl shadow-surface-950/15 dark:shadow-black/70",
             "p-1.5 overflow-hidden",
-            "animate-in fade-in-0 zoom-in-95 duration-150 origin-top",
+            openUpward ? "origin-bottom" : "origin-top",
             dropdownClassName
           )}
         >
@@ -348,7 +417,8 @@ export function CustomSelect({
               })
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

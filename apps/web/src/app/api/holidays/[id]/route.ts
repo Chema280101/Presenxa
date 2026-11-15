@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 
 export async function DELETE(
@@ -30,6 +31,16 @@ export async function DELETE(
 
     await prisma.holiday.delete({
       where: { id },
+    });
+
+    await logAuditEvent({
+      organizationId,
+      userId: session.user.id,
+      action: "ENTITY_DELETED",
+      entityType: "HOLIDAY",
+      entityId: existing.id,
+      oldData: { name: existing.name, date: existing.date },
+      req,
     });
 
     return NextResponse.json({ success: true, message: "Feriado eliminado con éxito" });

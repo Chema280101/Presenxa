@@ -13,7 +13,14 @@ export async function POST(req: Request) {
       where: { apiKey },
       include: {
         location: {
-          select: { id: true, name: true, timezone: true },
+          select: {
+            id: true,
+            name: true,
+            timezone: true,
+            organization: {
+              select: { settings: true },
+            },
+          },
         },
       },
     });
@@ -37,11 +44,23 @@ export async function POST(req: Request) {
       },
     });
 
+    const orgSettings = (kiosk.location.organization?.settings as Record<string, unknown> | null) ?? null;
+    const offlineBuffer = typeof orgSettings?.offline_buffer === "boolean" ? orgSettings.offline_buffer : true;
+    const orgTimezone = typeof orgSettings?.timezone === "string" && orgSettings.timezone ? orgSettings.timezone : null;
+
     return NextResponse.json({
       status: "ONLINE",
       serverTime: new Date().toISOString(),
-      location: kiosk.location,
+      location: {
+        id: kiosk.location.id,
+        name: kiosk.location.name,
+        timezone: kiosk.location.timezone || orgTimezone,
+      },
       kiosk: { id: kiosk.id, name: kiosk.name },
+      settings: {
+        offlineBuffer,
+        timezone: kiosk.location.timezone || orgTimezone,
+      },
     });
   } catch (error: any) {
     console.error("Error en heartbeat de kiosk:", error);

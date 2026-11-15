@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -23,7 +24,7 @@ const UpdateScheduleSchema = z.object({
 
 // GET /api/schedules/[id]
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -109,6 +110,31 @@ export async function PUT(
       data: parsed.data,
     });
 
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_UPDATED",
+      entityType: "SCHEDULE",
+      entityId: updated.id,
+      oldData: {
+        name: existing.name,
+        entryHour: existing.entryHour,
+        entryMinute: existing.entryMinute,
+        exitHour: existing.exitHour,
+        exitMinute: existing.exitMinute,
+        isActive: existing.isActive,
+      },
+      newData: {
+        name: updated.name,
+        entryHour: updated.entryHour,
+        entryMinute: updated.entryMinute,
+        exitHour: updated.exitHour,
+        exitMinute: updated.exitMinute,
+        isActive: updated.isActive,
+      },
+      req,
+    });
+
     return NextResponse.json({ schedule: updated });
   } catch (error: any) {
     console.error("Error al actualizar horario:", error);
@@ -144,6 +170,17 @@ export async function DELETE(
     const schedule = await prisma.schedule.update({
       where: { id },
       data: { isActive: false },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_DELETED",
+      entityType: "SCHEDULE",
+      entityId: schedule.id,
+      oldData: { name: existing.name, isActive: existing.isActive },
+      newData: { name: schedule.name, isActive: schedule.isActive },
+      req,
     });
 
     return NextResponse.json({ message: "Horario desactivado correctamente", schedule });

@@ -1,28 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  CalendarDays,
-  CheckCircle2,
-  Clock,
-  Plus,
-  XCircle,
-  FileText,
-  User,
-  Calendar,
-  RefreshCw,
-  Umbrella,
-  Stethoscope,
-  HeartHandshake,
-  Baby,
-  Eye,
-  Trash2,
-  Check,
-  X,
-  AlertCircle,
-  ExternalLink,
-  FolderTree,
-} from "lucide-react";
+import { CalendarDays, CalendarOff, SearchX, CheckCircle2, Clock, Plus, XCircle, FileText, Calendar, RefreshCw, Umbrella, Stethoscope, HeartHandshake, Baby, Trash2, Check, X, AlertCircle, ExternalLink, FolderTree, SlidersHorizontal } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
@@ -30,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { FormField, formTextareaBaseClass, getFormInputClass } from "@/components/ui/FormField";
 import { AdminTimeOffModal } from "@/components/time-off/AdminTimeOffModal";
 import {
   DataTableContainer,
@@ -104,9 +84,41 @@ export default function AusenciasPage() {
   const [departmentFilter, setDepartmentFilter] = useState("ALL");
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"REQUESTS" | "KARDEX">("REQUESTS");
+  const [kardexList, setKardexList] = useState<Array<{
+    userId: string;
+    fullName: string;
+    email: string;
+    documentId?: string | null;
+    departmentName: string;
+    locationName: string;
+    vacationDaysPerYear: number;
+    vacationDaysAdjustment: number;
+    totalAssigned: number;
+    daysTaken: number;
+    pendingDays: number;
+    availableDays: number;
+  }>>([]);
+  const [kardexYear, setKardexYear] = useState<number>(new Date().getFullYear());
+  const [isLoadingKardex, setIsLoadingKardex] = useState(false);
+  const [editingKardexUser, setEditingKardexUser] = useState<{
+    userId: string;
+    fullName: string;
+    vacationDaysPerYear: number;
+    vacationDaysAdjustment: number;
+  } | null>(null);
+  const [isSavingKardex, setIsSavingKardex] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 1 });
+  const [serverMetrics, setServerMetrics] = useState<{
+    pending: number;
+    approved: number;
+    rejected: number;
+    activeToday: number;
+  } | null>(null);
 
   // Rejection modal state
   const [rejectingRequest, setRejectingRequest] = useState<TimeOffItem | null>(null);
@@ -116,23 +128,48 @@ export default function AusenciasPage() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((r) => r.json())
+      .then((deptData) => {
+        if (deptData.departments) setDepartments(deptData.departments);
+      })
+      .catch((err) => console.error("Error loading departments:", err));
+  }, []);
+
   const fetchRequests = async () => {
     try {
       setIsLoading(true);
-      const [res, deptRes] = await Promise.all([
-        fetch("/api/time-off"),
-        fetch("/api/departments"),
-      ]);
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        pageSize: String(pageSize),
+      });
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (typeFilter !== "ALL") params.set("type", typeFilter);
+      if (departmentFilter !== "ALL") params.set("departmentId", departmentFilter);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+
+      const res = await fetch(`/api/time-off?${params.toString()}`);
       const data = await res.json();
-      const deptData = await deptRes.json();
       if (data.requests) {
         setRequests(data.requests);
       }
-      if (deptData.departments) {
-        setDepartments(deptData.departments);
+      if (data.pagination) {
+        setPagination(data.pagination);
+      }
+      if (data.metrics) {
+        setServerMetrics(data.metrics);
       }
     } catch (err) {
-      console.error("Error loading time off requests or departments:", err);
+      console.error("Error loading time off requests:", err);
       toast.error("Error al cargar las solicitudes de ausencia");
     } finally {
       setIsLoading(false);
@@ -141,58 +178,15 @@ export default function AusenciasPage() {
 
   useEffect(() => {
     fetchRequests();
-  }, []);
+  }, [currentPage, pageSize, statusFilter, typeFilter, departmentFilter, debouncedSearch]);
 
-  // Filtered requests
-  const filteredRequests = useMemo(() => {
-    return requests.filter((req) => {
-      const fullName = `${req.user?.firstName || ""} ${req.user?.lastName || ""}`.toLowerCase();
-      const email = (req.user?.email || "").toLowerCase();
-      const dept = (req.user?.department?.name || "").toLowerCase();
-      const term = search.toLowerCase();
-
-      const matchesSearch = !search || fullName.includes(term) || email.includes(term) || dept.includes(term);
-      const matchesStatus = statusFilter === "ALL" || req.status === statusFilter;
-      const matchesType = typeFilter === "ALL" || req.type === typeFilter;
-      
-      const targetDeptName = departments.find(d => d.id === departmentFilter)?.name.toLowerCase();
-      const matchesDept = departmentFilter === "ALL" || (targetDeptName && dept === targetDeptName);
-
-      return matchesSearch && matchesStatus && matchesType && matchesDept;
-    });
-  }, [requests, search, statusFilter, typeFilter, departmentFilter, departments]);
-
-  // Reset page when search or filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, statusFilter, typeFilter, departmentFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const filteredRequests = requests;
+  const totalPages = pagination.totalPages;
   const safeCurrentPage = Math.min(currentPage, totalPages);
-
-  const paginatedRequests = useMemo(() => {
-    const start = (safeCurrentPage - 1) * pageSize;
-    return filteredRequests.slice(start, start + pageSize);
-  }, [filteredRequests, safeCurrentPage, pageSize]);
+  const paginatedRequests = requests;
 
   // Statistics
-  const stats = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
-
-    const pending = requests.filter((r) => r.status === "PENDING").length;
-    const approved = requests.filter((r) => r.status === "APPROVED").length;
-    const rejected = requests.filter((r) => r.status === "REJECTED").length;
-
-    // Active today
-    const activeToday = requests.filter((r) => {
-      if (r.status !== "APPROVED") return false;
-      const start = new Date(r.startDate).toISOString().split("T")[0];
-      const end = new Date(r.endDate).toISOString().split("T")[0];
-      return today >= start && today <= end;
-    }).length;
-
-    return { pending, approved, rejected, activeToday };
-  }, [requests]);
+  const stats = serverMetrics || { pending: 0, approved: 0, rejected: 0, activeToday: 0 };
 
   // Quick Approve
   const handleApprove = async (req: TimeOffItem) => {
@@ -256,6 +250,54 @@ export default function AusenciasPage() {
     }
   };
 
+  const fetchKardex = async () => {
+    try {
+      setIsLoadingKardex(true);
+      const res = await fetch("/api/time-off/kardex");
+      const data = await res.json();
+      if (res.ok && data.kardex) {
+        setKardexList(data.kardex);
+        if (data.year) setKardexYear(data.year);
+      }
+    } catch {
+      toast.error("Error al cargar el kardex vacacional");
+    } finally {
+      setIsLoadingKardex(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView === "KARDEX" && kardexList.length === 0) {
+      void fetchKardex();
+    }
+  }, [activeView]);
+
+  const handleSaveKardex = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingKardexUser) return;
+    try {
+      setIsSavingKardex(true);
+      const res = await fetch("/api/time-off/kardex", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: editingKardexUser.userId,
+          vacationDaysPerYear: Number(editingKardexUser.vacationDaysPerYear),
+          vacationDaysAdjustment: Number(editingKardexUser.vacationDaysAdjustment),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al guardar");
+      toast.success("Saldo vacacional actualizado");
+      setEditingKardexUser(null);
+      await fetchKardex();
+    } catch (err: any) {
+      toast.error(err.message || "Error al actualizar saldo");
+    } finally {
+      setIsSavingKardex(false);
+    }
+  };
+
   // Delete Request
   const handleDelete = async (req: TimeOffItem) => {
     const ok = await confirm({
@@ -301,7 +343,7 @@ export default function AusenciasPage() {
           )
         }
         subtitle="Aprueba o rechaza solicitudes de vacaciones, permisos y descansos médicos con justificación oficial."
-        icon={CalendarDays}
+        icon={CalendarOff}
         iconVariant="emerald"
         actionButtons={
           <>
@@ -324,6 +366,144 @@ export default function AusenciasPage() {
         }
       />
 
+      {/* 2. View Switcher Tabs */}
+      <div className="inline-flex p-1 rounded-xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700">
+        <button
+          type="button"
+          onClick={() => setActiveView("REQUESTS")}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            activeView === "REQUESTS"
+              ? "bg-white dark:bg-surface-900 text-surface-900 dark:text-white shadow-xs"
+              : "text-surface-500 dark:text-surface-400 hover:text-surface-800 dark:hover:text-surface-200"
+          }`}
+        >
+          Solicitudes y Permisos
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveView("KARDEX")}
+          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+            activeView === "KARDEX"
+              ? "bg-white dark:bg-surface-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
+              : "text-surface-500 dark:text-surface-400 hover:text-surface-800 dark:hover:text-surface-200"
+          }`}
+        >
+          <Umbrella className="w-3.5 h-3.5" />
+          Kardex Vacacional {kardexYear}
+        </button>
+      </div>
+
+      {activeView === "KARDEX" ? (
+        <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 shadow-sm overflow-hidden">
+          <div className="p-4 sm:p-5 border-b border-surface-200 dark:border-surface-800 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-surface-900 dark:text-white">
+                Saldo de Vacaciones por Colaborador ({kardexYear})
+              </h3>
+              <p className="text-xs text-surface-500 dark:text-surface-400">
+                Cuenta corriente: Días anuales asignados + ajustes manuales menos días gozados aprobados.
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={fetchKardex}
+              isLoading={isLoadingKardex}
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
+            >
+              Recalcular
+            </Button>
+          </div>
+
+          {isLoadingKardex ? (
+            <div className="p-6">
+              <SkeletonTable rows={6} cols={6} />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-surface-50 dark:bg-surface-950/60 border-b border-surface-200 dark:border-surface-800 text-surface-500 dark:text-surface-400 uppercase font-bold">
+                  <tr>
+                    <th className="px-4 py-3">Colaborador</th>
+                    <th className="px-4 py-3">Área / Sede</th>
+                    <th className="px-4 py-3 text-center">Anual / Ajuste</th>
+                    <th className="px-4 py-3 text-center">Gozados</th>
+                    <th className="px-4 py-3 text-center">Pendientes</th>
+                    <th className="px-4 py-3">Saldo Disponible</th>
+                    <th className="px-4 py-3 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-100 dark:divide-surface-800">
+                  {kardexList.map((row) => {
+                    const pct = row.totalAssigned > 0 ? Math.min(100, Math.round((row.daysTaken / row.totalAssigned) * 100)) : 0;
+                    return (
+                      <tr key={row.userId} className="hover:bg-surface-50/80 dark:hover:bg-surface-800/40">
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-surface-900 dark:text-white">{row.fullName}</div>
+                          <div className="text-[11px] font-mono text-surface-500 dark:text-surface-400">{row.documentId || row.email}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-surface-800 dark:text-surface-200">{row.departmentName}</div>
+                          <div className="text-[11px] text-surface-500 dark:text-surface-400">{row.locationName}</div>
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono">
+                          <span className="font-bold text-surface-900 dark:text-white">{row.vacationDaysPerYear}d</span>
+                          {row.vacationDaysAdjustment !== 0 && (
+                            <span className={`ml-1 text-[11px] font-bold ${row.vacationDaysAdjustment > 0 ? "text-emerald-600" : "text-rose-500"}`}>
+                              ({row.vacationDaysAdjustment > 0 ? `+${row.vacationDaysAdjustment}` : row.vacationDaysAdjustment})
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                          {row.daysTaken} d
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono text-amber-600 dark:text-amber-400">
+                          {row.pendingDays > 0 ? `${row.pendingDays} d` : "—"}
+                        </td>
+                        <td className="px-4 py-3 min-w-[160px]">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`font-mono font-black ${row.availableDays <= 3 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {row.availableDays} días libres
+                            </span>
+                            <span className="text-[10px] text-surface-500 dark:text-surface-400">{pct}% usado</span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-surface-200 dark:bg-surface-800 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${row.availableDays <= 3 ? "bg-rose-500" : "bg-emerald-500"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <ActionButtonGroup align="right">
+                            <ActionButton
+                              size="sm"
+                              variant="neutral"
+                              icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+                              title="Ajustar saldo de vacaciones"
+                              onClick={() =>
+                                setEditingKardexUser({
+                                  userId: row.userId,
+                                  fullName: row.fullName,
+                                  vacationDaysPerYear: row.vacationDaysPerYear,
+                                  vacationDaysAdjustment: row.vacationDaysAdjustment,
+                                })
+                              }
+                            >
+                              Ajustar
+                            </ActionButton>
+                          </ActionButtonGroup>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       {/* 2. Operational KPIs */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -364,15 +544,17 @@ export default function AusenciasPage() {
         searchPlaceholder="Buscar por colaborador, correo o departamento..."
         onReset={() => {
           setSearch("");
+          setDebouncedSearch("");
           setStatusFilter("ALL");
           setTypeFilter("ALL");
           setDepartmentFilter("ALL");
+          setCurrentPage(1);
         }}
         filters={[
           {
             id: "status",
             value: statusFilter,
-            onChange: setStatusFilter,
+            onChange: (val) => { setStatusFilter(val); setCurrentPage(1); },
             options: [
               { value: "ALL", label: "Todos los estados" },
               { value: "PENDING", label: "Pendientes" },
@@ -383,7 +565,7 @@ export default function AusenciasPage() {
           {
             id: "type",
             value: typeFilter,
-            onChange: setTypeFilter,
+            onChange: (val) => { setTypeFilter(val); setCurrentPage(1); },
             options: [
               { value: "ALL", label: "Todos los tipos" },
               { value: "VACACIONES", label: "Vacaciones" },
@@ -397,7 +579,7 @@ export default function AusenciasPage() {
             id: "department",
             icon: FolderTree,
             value: departmentFilter,
-            onChange: setDepartmentFilter,
+            onChange: (val) => { setDepartmentFilter(val); setCurrentPage(1); },
             options: [
               { value: "ALL", label: "Todos los departamentos" },
               ...departments.map((d) => ({ value: d.id, label: d.name })),
@@ -415,7 +597,7 @@ export default function AusenciasPage() {
             <DataTablePagination
               currentPage={safeCurrentPage}
               totalPages={totalPages}
-              totalItems={filteredRequests.length}
+              totalItems={pagination.total}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
               onPageSizeChange={(newSize) => {
@@ -439,6 +621,7 @@ export default function AusenciasPage() {
             {paginatedRequests.length === 0 ? (
               <DataTableEmptyState
                 colSpan={6}
+                icon={search || statusFilter !== "ALL" || typeFilter !== "ALL" ? SearchX : CalendarOff}
                 message={
                   search || statusFilter !== "ALL" || typeFilter !== "ALL"
                     ? "No se encontraron solicitudes con los filtros seleccionados."
@@ -536,7 +719,7 @@ export default function AusenciasPage() {
                         {req.reason ? (
                           <p className="line-clamp-2">{req.reason}</p>
                         ) : (
-                          <span className="text-surface-400 italic">Sin observaciones</span>
+                          <span className="text-surface-500 dark:text-surface-400 italic">Sin observaciones</span>
                         )}
                       </div>
                       {req.rejectionReason && (
@@ -628,7 +811,11 @@ export default function AusenciasPage() {
                             variant="neutral"
                             icon={<FileText className="w-3.5 h-3.5" />}
                             title="Ver documento adjunto"
-                            onClick={() => window.open(req.documentUrl!, "_blank", "noopener,noreferrer")}
+                            onClick={() => {
+                              if (req.documentUrl) {
+                                window.open(req.documentUrl, "_blank", "noopener,noreferrer");
+                              }
+                            }}
                           />
                         )}
                       </ActionButtonGroup>
@@ -647,6 +834,69 @@ export default function AusenciasPage() {
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchRequests}
       />
+        </>
+      )}
+
+      {/* Modal de Ajuste de Saldo Vacacional */}
+      {editingKardexUser && (
+        <ModalShell
+          isOpen={Boolean(editingKardexUser)}
+          onClose={() => setEditingKardexUser(null)}
+          title="Ajustar Saldo Vacacional"
+          description={`Colaborador: ${editingKardexUser.fullName}`}
+          icon={Umbrella}
+          iconVariant="success"
+          maxWidth="sm"
+          footer={
+            <>
+              <Button type="button" variant="secondary" onClick={() => setEditingKardexUser(null)} disabled={isSavingKardex}>
+                Cancelar
+              </Button>
+              <Button type="submit" form="kardex-adjust-form" variant="primary" isLoading={isSavingKardex}>
+                Guardar Saldo
+              </Button>
+            </>
+          }
+        >
+          <form id="kardex-adjust-form" onSubmit={handleSaveKardex} className="space-y-4">
+            <FormField
+              label="Días por Año (Ej. 30 General, 15 MYPE)"
+              icon={Calendar}
+              required
+            >
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={editingKardexUser.vacationDaysPerYear}
+                onChange={(e) =>
+                  setEditingKardexUser((prev) =>
+                    prev ? { ...prev, vacationDaysPerYear: Number(e.target.value) } : null
+                  )
+                }
+                className={getFormInputClass({ hasLeftIcon: true, className: "font-mono font-bold" })}
+              />
+            </FormField>
+            <FormField
+              label="Ajuste Manual (+/- Días acumulados o descontados)"
+              icon={SlidersHorizontal}
+            >
+              <input
+                type="number"
+                min={-60}
+                max={60}
+                value={editingKardexUser.vacationDaysAdjustment}
+                onChange={(e) =>
+                  setEditingKardexUser((prev) =>
+                    prev ? { ...prev, vacationDaysAdjustment: Number(e.target.value) } : null
+                  )
+                }
+                className={getFormInputClass({ hasLeftIcon: true, className: "font-mono font-bold" })}
+              />
+            </FormField>
+          </form>
+        </ModalShell>
+      )}
 
       {/* Rejection Prompt Modal */}
       {rejectingRequest && (
@@ -680,18 +930,15 @@ export default function AusenciasPage() {
           }
         >
           <form id="rejection-form" onSubmit={handleConfirmReject} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-surface-700 dark:text-surface-300 uppercase tracking-wider">
-                Motivo de Rechazo (Opcional)
-              </label>
+            <FormField label="Motivo de Rechazo" icon={FileText} optional>
               <textarea
                 value={rejectionReasonText}
                 onChange={(e) => setRejectionReasonText(e.target.value)}
                 placeholder="Ej: Coincide con cierre de auditoría o cruce con otro turno clave..."
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-500 transition resize-none placeholder:text-surface-400"
+                className={`${formTextareaBaseClass} pl-10`}
               />
-            </div>
+            </FormField>
           </form>
         </ModalShell>
       )}

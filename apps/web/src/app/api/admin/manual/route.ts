@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   }
 
   const role = (session.user as any)?.role;
-  const isAdmin = ["ADMIN", "SUPER_ADMIN", "SUPERADMIN"].includes(role);
+  const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(role);
 
   if (!isAdmin) {
     return NextResponse.json(
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `${dispositionType}; filename="Manual_Administrador_Hotel_Italia.pdf"`,
+        "Content-Disposition": `${dispositionType}; filename="Manual_Administrador_Presenxa.pdf"`,
         "Cache-Control": "private, no-cache, no-store, must-revalidate",
         "Content-Length": fileBuffer.length.toString(),
       },

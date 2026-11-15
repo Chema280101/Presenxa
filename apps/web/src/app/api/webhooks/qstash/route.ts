@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { Receiver } from "@upstash/qstash";
 import webpush from "web-push";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@asistencias/db";
+import { z } from "zod";
 
-const prisma = new PrismaClient();
-
-// El Payload que esperamos de Upstash
-interface QStashPayload {
-  userId: string;
-  sedeName: string;
-  entryTime: string; // ej: "09:00"
-}
+const QStashPayloadSchema = z.object({
+  userId: z.string().uuid("ID de usuario inválido"),
+  sedeName: z.string().min(1, "Nombre de sede requerido"),
+  entryTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Formato HH:mm esperado"),
+});
 
 export async function POST(req: Request) {
   // ── Verificar firma de QStash manualmente (lazy) ───────────────
@@ -42,8 +40,33 @@ export async function POST(req: Request) {
 
   // ── Procesar el payload ─────────────────────────────────────────
   try {
-    const body: QStashPayload = JSON.parse(rawBody);
-    const { userId, sedeName, entryTime } = body;
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Malformed JSON payload" }, { status: 400 });
+    }
+
+    const parseResult = QStashPayloadSchema.safeParse(parsedJson);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: "Payload inválido", details: parseResult.error.format() },
+        { status: 400 }
+      );
+    }
+
+    const { userId, sedeName, entryTime } = parseResult.data;
+
+    // Verificar existencia del usuario
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      console.warn(`[QStash Webhook] Usuario ${userId} inactivo o no existe.`);
+      return NextResponse.json({ success: false, message: "Usuario inactivo o no encontrado" });
+    }
 
     console.log(`[QStash Webhook] Procesando notificación para usuario ${userId} en ${sedeName}`);
 
@@ -54,6 +77,7 @@ export async function POST(req: Request) {
         type: "CAMBIO_SEDE_HORARIO",
         title: "Recordatorio de Sede Asignada",
         body: `Recuerda que hoy tu turno empieza a las ${entryTime} en ${sedeName}. ¡Te esperamos!`,
+        data: { sedeName, entryTime },
       },
     });
 
@@ -63,13 +87,14 @@ export async function POST(req: Request) {
     });
 
     if (subscriptions.length > 0) {
-      // Configurar Web Push solo si hay suscripciones y keys disponibles
-      const vapidPublic = process.env.VAPID_PUBLIC_KEY;
+      const vapidPublic =
+        process.env.VAPID_PUBLIC_KEY ||
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
       const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@asistencias.com";
 
       if (!vapidPublic || !vapidPrivate) {
-        console.error("[QStash Webhook] Faltan variables VAPID, no se enviarán push.");
+        console.warn("[QStash Webhook] Faltan variables VAPID, no se enviarán push.");
       } else {
         webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
@@ -80,13 +105,20 @@ export async function POST(req: Request) {
               JSON.stringify({
                 title: notification.title,
                 body: notification.body,
-                url: "/dashboard",
+                url: "/app",
+                data: {
+                  notificationId: notification.id,
+                  type: "CAMBIO_SEDE_HORARIO",
+                  sedeName,
+                  entryTime,
+                },
               })
             )
             .catch((err) => {
               console.error(`Error enviando push a suscripción ${sub.id}:`, err);
-              if (err.statusCode === 410) {
-                return prisma.pushSubscription.delete({ where: { id: sub.id } });
+              // Limpiar endpoints revocados o caducados (404 o 410)
+              if (err.statusCode === 410 || err.statusCode === 404) {
+                return prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => null);
               }
             })
         );

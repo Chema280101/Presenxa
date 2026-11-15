@@ -1,21 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import {
-  Flame,
-  Clock,
-  LogOut,
-  AlertTriangle,
-  Building,
-  TrendingUp,
-  Sparkles,
-  Calendar,
-  Layers,
-  ChevronRight,
-  Sun,
-  Moon,
-  Info,
-} from "lucide-react";
+import { Flame, Clock, LogOut, AlertTriangle, Building, TrendingUp, Info } from "lucide-react";
 
 export type HeatmapMode = "ENTRIES" | "EXITS" | "LATES" | "ABSENTEEISM";
 
@@ -87,9 +73,9 @@ interface AttendanceHeatmapProps {
 export function AttendanceHeatmap({
   matrix,
   locationPatterns,
-  rolePatterns,
+  rolePatterns: _rolePatterns,
   insights,
-  isLoading = false,
+  isLoading: _isLoading = false,
 }: AttendanceHeatmapProps) {
   const [activeMode, setActiveMode] = useState<HeatmapMode>("ENTRIES");
   const [timeRangeMode, setTimeRangeMode] = useState<"WORK" | "FULL">("WORK");

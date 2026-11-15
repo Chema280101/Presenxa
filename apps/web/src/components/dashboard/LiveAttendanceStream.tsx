@@ -2,19 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { 
-  Radio, 
-  ChevronRight, 
-  ShieldCheck, 
-  Smartphone, 
-  CreditCard, 
-  KeyRound, 
-  Tablet,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  LogOut
-} from "lucide-react";
+import { ChevronRight, ShieldCheck, Tablet, LogOut } from "lucide-react";
 
 export interface StreamEvent {
   id: string;
@@ -59,10 +47,11 @@ export function LiveAttendanceStream({
         setIsUpdating(true);
         const res = await fetch("/api/attendance");
         if (!res.ok) return;
-        const data = await res.json();
-        if (Array.isArray(data) && isMounted) {
-          if (data.length > 0) {
-            const mapped: StreamEvent[] = data.slice(0, 8).map((att: any) => {
+        const resJson = await res.json();
+        const list = Array.isArray(resJson) ? resJson : Array.isArray(resJson?.attendances) ? resJson.attendances : null;
+        if (list && isMounted) {
+          if (list.length > 0) {
+            const mapped: StreamEvent[] = list.slice(0, 8).map((att: any) => {
               const timeDate = att.entryTime || att.checkInTime ? new Date(att.entryTime || att.checkInTime) : new Date(att.createdAt);
               const timeStr = timeDate.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
               const initials = `${att.user?.firstName?.[0] || ""}${att.user?.lastName?.[0] || ""}`.toUpperCase() || "CL";
@@ -82,7 +71,7 @@ export function LiveAttendanceStream({
             });
             setEvents(mapped);
           }
-          setSyncCount(data.length);
+          setSyncCount(list.length);
         }
       } catch {
         // Polling silencioso tolerante a fallos

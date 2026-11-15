@@ -10,11 +10,11 @@ export default function Icon() {
   try {
     // Intentar buscar en root/apps/web/public (si se corre desde la raíz del monorepo)
     logoData = readFileSync(join(process.cwd(), "apps/web/public/brand/logo.png"));
-  } catch (e) {
+  } catch {
     try {
       // Intentar buscar en root/public (si se corre desde apps/web)
       logoData = readFileSync(join(process.cwd(), "public/brand/logo.png"));
-    } catch (e2) {
+    } catch {
       // Fallback a un pixel transparente si no se encuentra (para no romper el build/render)
       logoData = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
     }

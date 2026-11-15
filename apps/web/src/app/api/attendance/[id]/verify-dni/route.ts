@@ -123,7 +123,7 @@ export async function POST(
           },
           data: { readAt: now },
         });
-      } catch {}
+      } catch { /* Ignorado intencionalmente */ }
 
       // Log de Auditoría
       await logAuditEvent({
@@ -186,7 +186,7 @@ export async function POST(
           },
           data: { readAt: now },
         });
-      } catch {}
+      } catch { /* Ignorado intencionalmente */ }
 
       // Log de Auditoría
       await logAuditEvent({

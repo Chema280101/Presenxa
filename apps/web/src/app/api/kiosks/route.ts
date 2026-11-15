@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
+import { parsePaginationParams, buildPaginationMeta } from "@/lib/pagination";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,7 +12,7 @@ const CreateKioskSchema = z.object({
 });
 
 // GET /api/kiosks
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -25,28 +27,59 @@ export async function GET() {
   }
 
   try {
-    const kiosks = await prisma.kiosk.findMany({
-      where: {
-        location: {
-          organizationId: session.user.organizationId,
-        },
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search")?.trim() || "";
+    const locationId = searchParams.get("locationId");
+    const { hasPagination, page, pageSize, skip, take } = parsePaginationParams(
+      searchParams,
+      25
+    );
+
+    const where: any = {
+      location: {
+        organizationId: session.user.organizationId,
       },
-      orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
+    };
+    if (locationId && locationId !== "ALL") {
+      where.locationId = locationId;
+    }
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { location: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    const [kiosks, total] = await Promise.all([
+      prisma.kiosk.findMany({
+        where,
+        orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
+        skip,
+        take,
+        include: {
+          location: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+            },
+          },
+          _count: {
+            select: {
+              attendances: true,
+            },
           },
         },
-        _count: {
-          select: {
-            attendances: true,
-          },
-        },
-      },
-    });
+      }),
+      hasPagination ? prisma.kiosk.count({ where }) : Promise.resolve(0),
+    ]);
+
+    if (hasPagination) {
+      return NextResponse.json({
+        kiosks,
+        pagination: buildPaginationMeta(page, pageSize, total),
+      });
+    }
 
     return NextResponse.json({ kiosks });
   } catch (error: any) {
@@ -63,6 +96,14 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const userRole = (session.user as any).role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole)) {
+    return NextResponse.json(
+      { error: "No tienes permiso para registrar dispositivos kiosk" },
+      { status: 403 }
+    );
   }
 
   try {
@@ -107,6 +148,16 @@ export async function POST(req: Request) {
           select: { id: true, name: true },
         },
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_CREATED",
+      entityType: "KIOSK",
+      entityId: kiosk.id,
+      newData: { name: kiosk.name, locationId: kiosk.locationId, locationName: kiosk.location?.name },
+      req,
     });
 
     return NextResponse.json({ kiosk }, { status: 201 });

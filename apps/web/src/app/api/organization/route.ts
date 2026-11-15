@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,7 +16,7 @@ const UpdateOrganizationSchema = z.object({
       email: z.string().optional().nullable(),
       address: z.string().optional().nullable(),
       footerText: z.string().optional().nullable(),
-      grace_period_minutes: z.number().min(1).max(60).optional().nullable(),
+      grace_period_minutes: z.number().min(0).max(120).optional().nullable(),
       tolerance_minutes: z.number().min(0).max(120).optional().nullable(),
       timezone: z.string().optional().nullable(),
       offline_buffer: z.boolean().optional().nullable(),
@@ -110,7 +111,7 @@ export async function PATCH(req: Request) {
     // Obtener configuración previa para merge
     const currentOrg = await prisma.organization.findUnique({
       where: { id: session.user.organizationId },
-      select: { settings: true },
+      select: { name: true, type: true, logoUrl: true, settings: true },
     });
 
     const currentSettings =
@@ -131,6 +132,17 @@ export async function PATCH(req: Request) {
         logoUrl: logoUrl !== undefined ? logoUrl : undefined,
         settings: updatedSettings,
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_UPDATED",
+      entityType: "ORGANIZATION",
+      entityId: updated.id,
+      oldData: currentOrg ? { name: currentOrg.name, type: currentOrg.type, logoUrl: currentOrg.logoUrl } : undefined,
+      newData: { name: updated.name, type: updated.type, logoUrl: updated.logoUrl, settingsUpdated: Boolean(settings) },
+      req,
     });
 
     return NextResponse.json({

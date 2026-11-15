@@ -1,44 +1,825 @@
-import { prisma, AttendanceStatus, AuditAction } from "@asistencias/db";
+import { prisma, AttendanceStatus, AuditAction, Prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { differenceInMinutes } from "date-fns";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { isSignedQrPayload, verifySignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
-import { getLocalDateString, getLocalTodayDate, getLocalTimeParts, formatLocalTime } from "@/lib/dateUtils";
+import {
+  DEFAULT_TIMEZONE,
+  getLocalDateString,
+  getLocalTodayDate,
+  getLocalTimeParts,
+  formatLocalTime,
+  computeOvertime,
+} from "@/lib/dateUtils";
 import { generateMicroInteraction } from "@/lib/microInteractions";
 import { checkToleranceWeeklyLimit } from "@/lib/toleranceChecker";
 import { sendPushToSupervisors } from "@/lib/webPush";
+import { notifySupervisorsInOrg, notifyUserWithPush } from "@/lib/notifications";
 
 const ScanSchema = z.object({
   qrToken: z.string().min(1, "El token QR o documento es requerido"),
   mode: z.enum(["AUTO", "ENTRY", "EXIT"]).default("AUTO"),
+  verificationPhotoUrl: z.string().optional().nullable(),
 });
 
-// POST /api/attendance/scan
-export async function POST(req: Request) {
-  try {
-    const apiKey = req.headers.get("x-kiosk-api-key");
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Falta la clave de autenticación del Kiosk (x-kiosk-api-key)" },
-        { status: 401 }
-      );
-    }
+type ScanType = "ENTRY" | "EXIT" | "ALREADY_REGISTERED";
+type AttendanceRecord = NonNullable<Awaited<ReturnType<typeof prisma.attendance.findUnique>>>;
 
-    // ── 1. RATE LIMITING: Máximo 120 peticiones por minuto por Kiosk (capacidad de hora punta) ─────
-    const forwardedFor = req.headers.get("x-forwarded-for");
-    const ipAddress = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
-    const rateLimitKey = `kiosk_scan:${apiKey}:${ipAddress}`;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-    const rateResult = await checkRateLimit({
-      key: rateLimitKey,
-      limit: 120,
-      windowSeconds: 60,
+function formatWorkedDuration(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
+}
+
+function appendDniNote(existingNotes: string | null | undefined, dniNote: string, isDniScan: boolean): string | null {
+  if (!isDniScan) return existingNotes ?? null;
+  return existingNotes ? `${existingNotes} | ${dniNote}` : dniNote;
+}
+
+function resolveScanMethodLabel(isNfcScan: boolean, isSigned: boolean, isDniScan: boolean): string {
+  if (isNfcScan) return "NFC";
+  if (isSigned) return "QR_SECURE";
+  if (isDniScan) return "MANUAL_DNI";
+  return "QR_STANDARD";
+}
+
+function buildScanUserWhere(
+  organizationId: string,
+  searchQrToken: string,
+  cleanToken: string,
+  isUuid: boolean,
+  verifiedUserId?: string
+): Prisma.UserWhereInput {
+  if (verifiedUserId) {
+    return {
+      organizationId,
+      isActive: true,
+      id: verifiedUserId,
+      qrToken: searchQrToken,
+      qrInvalidatedAt: null,
+    };
+  }
+
+  const orConditions: Prisma.UserWhereInput[] = [
+    { documentId: { equals: searchQrToken, mode: "insensitive" } },
+    { nfcCardUid: { equals: searchQrToken, mode: "insensitive" } },
+    { nfcCardUid: { equals: cleanToken, mode: "insensitive" } },
+  ];
+
+  if (isUuid) {
+    orConditions.unshift({ qrToken: searchQrToken, qrInvalidatedAt: null });
+  }
+
+  return {
+    organizationId,
+    isActive: true,
+    OR: orConditions,
+  };
+}
+
+function classifyScanCredentials(
+  user: { qrToken: string | null; nfcCardUid: string | null },
+  rawInputToken: string,
+  searchQrToken: string,
+  cleanToken: string,
+  isUuid: boolean
+) {
+  const isSigned = isSignedQrPayload(rawInputToken);
+  const lowerSearch = searchQrToken.toLowerCase();
+  const isQrTokenMatch = Boolean(isUuid && lowerSearch === user.qrToken?.toLowerCase());
+  const nfcUid = user.nfcCardUid;
+  const isNfcScan = Boolean(
+    !isSigned &&
+      !isQrTokenMatch &&
+      nfcUid &&
+      (nfcUid.toLowerCase() === lowerSearch ||
+        nfcUid.replace(/[:-\s]/g, "").toLowerCase() === cleanToken.toLowerCase())
+  );
+  const isDniScan = !isSigned && !isQrTokenMatch && !isNfcScan;
+
+  return { isSigned, isQrTokenMatch, isNfcScan, isDniScan };
+}
+
+async function findRecentAccidentalExit(userId: string, now: Date, timezone: string) {
+  const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+  const recentExit = await prisma.attendance.findFirst({
+    where: {
+      userId,
+      OR: [{ exitTime: { gte: twoMinutesAgo } }, { exitTime2: { gte: twoMinutesAgo } }],
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!recentExit) return null;
+
+  const hasBothExits = Boolean(recentExit.exitTime2 && recentExit.exitTime);
+  const exit2Date = recentExit.exitTime2 ?? now;
+  const exit1Date = recentExit.exitTime ?? now;
+  const lastExitDate =
+    hasBothExits && exit2Date >= exit1Date
+      ? recentExit.exitTime2
+      : recentExit.exitTime2 || recentExit.exitTime;
+
+  const message = `Tu salida ya fue registrada a las ${formatLocalTime(
+    lastExitDate || now,
+    "HH:mm",
+    timezone
+  )}. ¡Que tengas buen descanso!`;
+
+  return { attendance: recentExit, message };
+}
+
+function findOpenOvernightShift(userId: string, now: Date) {
+  const sixteenHoursAgo = new Date(now.getTime() - 16 * 60 * 60 * 1000);
+  return prisma.attendance.findFirst({
+    where: {
+      userId,
+      entryTime: { gte: sixteenHoursAgo },
+      OR: [{ exitTime: null }, { entryTime2: { not: null }, exitTime2: null }],
+    },
+    orderBy: { entryTime: "desc" },
+  });
+}
+
+interface ShiftExecutionContext {
+  user: { id: string; firstName: string; lastName: string; documentId: string | null };
+  kiosk: {
+    id: string;
+    name: string;
+    locationId: string;
+    location: {
+      organizationId: string;
+      organization?: { settings: unknown } | null;
+    };
+  };
+  schedule?: {
+    isSplit?: boolean;
+    entryHour: number;
+    entryMinute: number;
+    exitHour: number;
+    exitMinute: number;
+    toleranceMinutes: number | null;
+    entryHour2: number | null;
+    entryMinute2: number | null;
+    exitHour2: number | null;
+    exitMinute2: number | null;
+    toleranceMinutes2: number | null;
+  } | null;
+  today: Date;
+  now: Date;
+  timezone: string;
+  localTimeFormatted: string;
+  actualTotalMinutes: number;
+  isDniScan: boolean;
+  initialDniNotes: string | null;
+  mode: "AUTO" | "ENTRY" | "EXIT";
+  changedBy: string;
+}
+
+interface ShiftExecutionResult {
+  attendance: AttendanceRecord;
+  scanType: ScanType;
+  status: AttendanceStatus;
+  message: string;
+}
+
+function resolveOrgSettings(settings: unknown): {
+  toleranceMinutes: number;
+  timezone: string | null;
+} {
+  if (!settings || typeof settings !== "object") {
+    return { toleranceMinutes: 0, timezone: null };
+  }
+  const s = settings as Record<string, unknown>;
+  const toleranceMinutes = typeof s.tolerance_minutes === "number" && Number.isFinite(s.tolerance_minutes)
+    ? Math.max(0, s.tolerance_minutes)
+    : 0;
+  const timezone = typeof s.timezone === "string" && s.timezone.trim() ? s.timezone.trim() : null;
+  return { toleranceMinutes, timezone };
+}
+
+function resolveToleranceMinutes(scheduleTolerance: number | null | undefined, orgSettings: unknown): number {
+  if (typeof scheduleTolerance === "number" && Number.isFinite(scheduleTolerance)) {
+    return scheduleTolerance;
+  }
+  return resolveOrgSettings(orgSettings).toleranceMinutes;
+}
+
+async function notifyToleranceAlert(params: {
+  organizationId: string;
+  user: { id: string; firstName: string; lastName: string };
+  exceededTolerance: boolean;
+  isLastTolerance: boolean;
+}): Promise<void> {
+  if (params.exceededTolerance) {
+    await notifySupervisorsInOrg({
+      organizationId: params.organizationId,
+      type: "LLEGADA_TARDE",
+      title: "Límite de Tolerancia",
+      body: `${params.user.firstName} ${params.user.lastName} ha excedido las tolerancias semanales permitidas.`,
+      url: "/asistencias",
+      tag: `tolerance-limit-${params.user.id}`,
+      data: { category: "TOLERANCE_EXCEEDED", userId: params.user.id },
+    });
+  } else if (params.isLastTolerance) {
+    await notifyUserWithPush({
+      userId: params.user.id,
+      type: "LLEGADA_TARDE",
+      title: "Última tolerancia semanal usada",
+      body: "Usaste tu última tolerancia semanal disponible; el próximo ingreso fuera de hora será tardanza.",
+      url: "/app",
+      tag: `tolerance-warn-${params.user.id}`,
+      data: { category: "TOLERANCE_WARNING" },
+    });
+  }
+}
+
+async function handleSplitShiftEntry1(ctx: ShiftExecutionContext): Promise<ShiftExecutionResult> {
+  let isLate = false;
+  let diffLate = 0;
+  let usedTol = false;
+  let excTol = false;
+  let isLastTol = false;
+
+  if (ctx.schedule) {
+    const scheduledMinutes = ctx.schedule.entryHour * 60 + ctx.schedule.entryMinute;
+    const tolerance = resolveToleranceMinutes(ctx.schedule.toleranceMinutes, ctx.kiosk.location.organization?.settings);
+    const checkResult = await checkToleranceWeeklyLimit(
+      ctx.user.id,
+      ctx.kiosk.location.organization?.settings,
+      ctx.today,
+      ctx.actualTotalMinutes,
+      scheduledMinutes,
+      tolerance
+    );
+    isLate = checkResult.isLate;
+    diffLate = checkResult.diffLate;
+    usedTol = checkResult.usedTolerance;
+    excTol = checkResult.exceededTolerance;
+    isLastTol = checkResult.isLastTolerance;
+  }
+
+  const status = isLate ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
+  let message = isLate
+    ? `¡Hola, ${ctx.user.firstName}! Entrada Tramo 1 registrada con tardanza (+${diffLate} min).`
+    : `¡Bienvenido(a), ${ctx.user.firstName}! Entrada Tramo 1 registrada puntualmente.`;
+
+  if (excTol) {
+    message += " (Has excedido tu límite de tolerancias semanales)";
+  }
+  await notifyToleranceAlert({
+    organizationId: ctx.kiosk.location.organizationId,
+    user: ctx.user,
+    exceededTolerance: excTol,
+    isLastTolerance: isLastTol,
+  });
+  if (ctx.isDniScan) {
+    message += " (Pendiente de confirmación)";
+  }
+
+  const lateMinutes = diffLate > 0 ? diffLate : null;
+  const attendance = await prisma.attendance.upsert({
+    where: { userId_date: { userId: ctx.user.id, date: ctx.today } },
+    update: {
+      entryTime: ctx.now,
+      status,
+      lateMinutes,
+      usedTolerance: usedTol,
+      exceededTolerance: excTol,
+      locationId: ctx.kiosk.locationId,
+      kioskId: ctx.kiosk.id,
+      notes: ctx.initialDniNotes,
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+    create: {
+      userId: ctx.user.id,
+      locationId: ctx.kiosk.locationId,
+      kioskId: ctx.kiosk.id,
+      date: ctx.today,
+      entryTime: ctx.now,
+      status,
+      lateMinutes,
+      usedTolerance: usedTol,
+      exceededTolerance: excTol,
+      notes: ctx.initialDniNotes,
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+  });
+
+  return { attendance, scanType: "ENTRY", status, message };
+}
+
+async function handleSplitShiftExit1(
+  attendance: AttendanceRecord,
+  ctx: ShiftExecutionContext
+): Promise<ShiftExecutionResult> {
+  const shift1Worked = Math.max(0, differenceInMinutes(ctx.now, new Date(attendance.entryTime ?? ctx.now)));
+  const workedStr = formatWorkedDuration(shift1Worked);
+  const dniSuffix = ctx.isDniScan ? " (Pendiente de confirmación)" : "";
+  const message = `¡Buen provecho, ${ctx.user.firstName}! Salida a receso registrada (Tramo 1: ${workedStr}).${dniSuffix}`;
+
+  const dniNote = `[PENDIENTE_VALIDACION_DNI] Salida Tramo 1 por DNI a las ${formatLocalTime(ctx.now, "HH:mm:ss", ctx.timezone)}.`;
+  const updated = await prisma.attendance.update({
+    where: { id: attendance.id },
+    data: {
+      exitTime: ctx.now,
+      workedMinutes: shift1Worked,
+      notes: appendDniNote(attendance.notes, dniNote, ctx.isDniScan),
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+  });
+
+  return { attendance: updated, scanType: "EXIT", status: updated.status, message };
+}
+
+async function evaluateSecondShiftTolerance(ctx: ShiftExecutionContext) {
+  if (ctx.schedule?.entryHour2 === null || ctx.schedule?.entryHour2 === undefined) {
+    return { diffLate2: 0, usedTol2: false, excTol2: false };
+  }
+  const scheduledMinutes2 = ctx.schedule.entryHour2 * 60 + (ctx.schedule.entryMinute2 || 0);
+  const tolerance2 = resolveToleranceMinutes(
+    ctx.schedule.toleranceMinutes2 ?? ctx.schedule.toleranceMinutes,
+    ctx.kiosk.location.organization?.settings
+  );
+  const checkResult = await checkToleranceWeeklyLimit(
+    ctx.user.id,
+    ctx.kiosk.location.organization?.settings,
+    ctx.today,
+    ctx.actualTotalMinutes,
+    scheduledMinutes2,
+    tolerance2
+  );
+  return {
+    diffLate2: checkResult.diffLate,
+    usedTol2: checkResult.usedTolerance,
+    excTol2: checkResult.exceededTolerance,
+  };
+}
+
+async function handleSplitShiftEntry2(
+  attendance: AttendanceRecord,
+  ctx: ShiftExecutionContext
+): Promise<ShiftExecutionResult> {
+  const exit1Time = new Date(attendance.exitTime ?? ctx.now);
+  const diffSinceExit1 = differenceInMinutes(ctx.now, exit1Time);
+  if (diffSinceExit1 < 2 && ctx.mode !== "ENTRY") {
+    const message = `Tu salida a receso fue registrada a las ${formatLocalTime(
+      exit1Time,
+      "HH:mm",
+      ctx.timezone
+    )}. ¡Disfruta tu refrigerio!`;
+    return { attendance, scanType: "ALREADY_REGISTERED", status: attendance.status, message };
+  }
+
+  const { diffLate2, usedTol2, excTol2 } = await evaluateSecondShiftTolerance(ctx);
+
+  const nextStatus = diffLate2 > 0 ? AttendanceStatus.TARDE : attendance.status;
+  const totalLate = (attendance.lateMinutes || 0) + diffLate2;
+  let message =
+    diffLate2 > 0
+      ? `¡Bienvenido de vuelta, ${ctx.user.firstName}! Entrada Tramo 2 registrada con tardanza (+${diffLate2} min).`
+      : `¡Bienvenido de vuelta, ${ctx.user.firstName}! Entrada Tramo 2 registrada a tiempo.`;
+
+  if (excTol2) {
+    message += " (Límite de tolerancias semanales excedido)";
+    await sendPushToSupervisors(ctx.kiosk.location.organizationId, {
+      title: "Límite de Tolerancia",
+      body: `${ctx.user.firstName} ${ctx.user.lastName} ha excedido las tolerancias semanales permitidas.`,
+    });
+  }
+  if (ctx.isDniScan) {
+    message += " (Pendiente de confirmación)";
+  }
+
+  const dniNote = `[PENDIENTE_VALIDACION_DNI] Entrada Tramo 2 por DNI a las ${formatLocalTime(ctx.now, "HH:mm:ss", ctx.timezone)}.`;
+  const updated = await prisma.attendance.update({
+    where: { id: attendance.id },
+    data: {
+      entryTime2: ctx.now,
+      status: nextStatus,
+      lateMinutes: totalLate > 0 ? totalLate : null,
+      lateMinutes2: diffLate2 > 0 ? diffLate2 : null,
+      usedTolerance: attendance.usedTolerance || usedTol2,
+      exceededTolerance: attendance.exceededTolerance || excTol2,
+      notes: appendDniNote(attendance.notes, dniNote, ctx.isDniScan),
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+  });
+
+  return { attendance: updated, scanType: "ENTRY", status: updated.status, message };
+}
+
+async function handleSplitShiftExit2(
+  attendance: AttendanceRecord,
+  ctx: ShiftExecutionContext
+): Promise<ShiftExecutionResult> {
+  const shift1Worked = Math.max(
+    0,
+    differenceInMinutes(new Date(attendance.exitTime ?? ctx.now), new Date(attendance.entryTime ?? ctx.now))
+  );
+  const shift2Worked = Math.max(0, differenceInMinutes(ctx.now, new Date(attendance.entryTime2 ?? ctx.now)));
+  const workedMinutes = shift1Worked + shift2Worked;
+
+  if (!attendance.exitTime2) {
+    const workedStr = formatWorkedDuration(workedMinutes);
+    const dniSuffix = ctx.isDniScan ? " (Pendiente de confirmación)" : "";
+    const message = `¡Hasta luego, ${ctx.user.firstName}! Jornada completada con éxito. Total trabajado: ${workedStr}.${dniSuffix}`;
+    const dniNote = `[PENDIENTE_VALIDACION_DNI] Salida final por DNI a las ${formatLocalTime(ctx.now, "HH:mm:ss", ctx.timezone)}.`;
+    const overtime = computeOvertime(ctx.now, ctx.schedule, ctx.timezone);
+
+    const updated = await prisma.attendance.update({
+      where: { id: attendance.id },
+      data: {
+        exitTime2: ctx.now,
+        workedMinutes,
+        overtimeMinutes: overtime.overtimeMinutes,
+        overtimeStatus: overtime.overtimeStatus,
+        notes: appendDniNote(attendance.notes, dniNote, ctx.isDniScan),
+        statusChangedBy: ctx.changedBy,
+        statusChangedAt: ctx.now,
+      },
+    });
+    return { attendance: updated, scanType: "EXIT", status: updated.status, message };
+  }
+
+  const diffSinceExit2 = differenceInMinutes(ctx.now, new Date(attendance.exitTime2));
+  if (diffSinceExit2 < 2 && ctx.mode !== "EXIT") {
+    const message = `Tu salida final ya fue registrada a las ${formatLocalTime(
+      new Date(attendance.exitTime2),
+      "HH:mm",
+      ctx.timezone
+    )}. ¡Que tengas buen descanso!`;
+    return { attendance, scanType: "ALREADY_REGISTERED", status: attendance.status, message };
+  }
+
+  const updated = await prisma.attendance.update({
+    where: { id: attendance.id },
+    data: {
+      exitTime2: ctx.now,
+      workedMinutes,
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+  });
+  const message = `Salida final actualizada a las ${formatLocalTime(ctx.now, "HH:mm", ctx.timezone)}. ¡Buen descanso!`;
+  return { attendance: updated, scanType: "EXIT", status: updated.status, message };
+}
+
+async function processSplitShift(
+  attendance: AttendanceRecord | null,
+  ctx: ShiftExecutionContext
+): Promise<ShiftExecutionResult> {
+  if (!attendance?.entryTime) return handleSplitShiftEntry1(ctx);
+  if (!attendance.exitTime) return handleSplitShiftExit1(attendance, ctx);
+  if (!attendance.entryTime2) return handleSplitShiftEntry2(attendance, ctx);
+  return handleSplitShiftExit2(attendance, ctx);
+}
+
+function buildContinuousEntryMessage(
+  firstName: string,
+  isDniScan: boolean,
+  hasSchedule: boolean,
+  isLate: boolean,
+  lateMinutes: number,
+  localTimeFormatted: string
+): string {
+  if (isLate) {
+    return isDniScan
+      ? `¡Hola, ${firstName}! Entrada por DNI registrada (${localTimeFormatted}, +${lateMinutes} min tarde). Pendiente de confirmación del supervisor.`
+      : `¡Hola, ${firstName}! Entrada registrada con tardanza (+${lateMinutes} min).`;
+  }
+  if (isDniScan) {
+    return `¡Hola, ${firstName}! Entrada por DNI registrada a las ${localTimeFormatted}. Pendiente de confirmación del supervisor.`;
+  }
+  return hasSchedule
+    ? `¡Bienvenido(a), ${firstName}! Entrada registrada puntualmente.`
+    : `¡Bienvenido(a), ${firstName}! Entrada registrada con éxito.`;
+}
+
+async function handleContinuousEntry(ctx: ShiftExecutionContext): Promise<ShiftExecutionResult> {
+  let isLate = false;
+  let lateMinutes = 0;
+  let usedTol = false;
+  let excTol = false;
+  let isLastTol = false;
+
+  if (ctx.schedule) {
+    const scheduledTotalMinutes = ctx.schedule.entryHour * 60 + ctx.schedule.entryMinute;
+    const tolerance = resolveToleranceMinutes(ctx.schedule.toleranceMinutes, ctx.kiosk.location.organization?.settings);
+    const checkResult = await checkToleranceWeeklyLimit(
+      ctx.user.id,
+      ctx.kiosk.location.organization?.settings,
+      ctx.today,
+      ctx.actualTotalMinutes,
+      scheduledTotalMinutes,
+      tolerance
+    );
+    isLate = checkResult.isLate;
+    lateMinutes = isLate ? checkResult.diffLate : 0;
+    usedTol = checkResult.usedTolerance;
+    excTol = checkResult.exceededTolerance;
+    isLastTol = checkResult.isLastTolerance;
+  }
+
+  const status = isLate ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
+  let message = buildContinuousEntryMessage(
+    ctx.user.firstName,
+    ctx.isDniScan,
+    Boolean(ctx.schedule),
+    isLate,
+    lateMinutes,
+    ctx.localTimeFormatted
+  );
+
+  if (isLate && excTol) {
+    message += " (Límite de tolerancias semanales excedido)";
+  }
+  await notifyToleranceAlert({
+    organizationId: ctx.kiosk.location.organizationId,
+    user: ctx.user,
+    exceededTolerance: isLate && excTol,
+    isLastTolerance: isLastTol,
+  });
+
+  const lateValue = lateMinutes > 0 ? lateMinutes : null;
+  const attendance = await prisma.attendance.upsert({
+    where: { userId_date: { userId: ctx.user.id, date: ctx.today } },
+    update: {
+      entryTime: ctx.now,
+      status,
+      lateMinutes: lateValue,
+      usedTolerance: usedTol,
+      exceededTolerance: excTol,
+      locationId: ctx.kiosk.locationId,
+      kioskId: ctx.kiosk.id,
+      notes: ctx.initialDniNotes,
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+    create: {
+      userId: ctx.user.id,
+      locationId: ctx.kiosk.locationId,
+      kioskId: ctx.kiosk.id,
+      date: ctx.today,
+      entryTime: ctx.now,
+      status,
+      lateMinutes: lateValue,
+      usedTolerance: usedTol,
+      exceededTolerance: excTol,
+      notes: ctx.initialDniNotes,
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+  });
+
+  return { attendance, scanType: "ENTRY", status, message };
+}
+
+async function processContinuousShift(
+  attendance: AttendanceRecord | null,
+  ctx: ShiftExecutionContext
+): Promise<ShiftExecutionResult> {
+  if (!attendance?.entryTime) {
+    return handleContinuousEntry(ctx);
+  }
+
+  const isExplicitExit = ctx.mode === "EXIT";
+  const entryDate = new Date(attendance.entryTime);
+  const workedMinutes = Math.max(0, differenceInMinutes(ctx.now, entryDate));
+
+  if (!attendance.exitTime || isExplicitExit) {
+    const finalStatus =
+      attendance.status === AttendanceStatus.TARDE ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
+    const dniNote = `[PENDIENTE_VALIDACION_DNI] Salida manual por DNI a las ${formatLocalTime(ctx.now, "HH:mm:ss", ctx.timezone)}.`;
+    const overtime = computeOvertime(ctx.now, ctx.schedule, ctx.timezone);
+
+    const updated = await prisma.attendance.update({
+      where: { id: attendance.id },
+      data: {
+        exitTime: ctx.now,
+        workedMinutes,
+        overtimeMinutes: overtime.overtimeMinutes,
+        overtimeStatus: overtime.overtimeStatus,
+        status: finalStatus,
+        notes: appendDniNote(attendance.notes, dniNote, ctx.isDniScan),
+        statusChangedBy: ctx.changedBy,
+        statusChangedAt: ctx.now,
+      },
     });
 
-    if (!rateResult.success) {
-      return NextResponse.json(
+    const workedStr = formatWorkedDuration(workedMinutes);
+    const message = ctx.isDniScan
+      ? `¡Hasta luego, ${ctx.user.firstName}! Salida por DNI registrada (${workedStr} trabajados). Pendiente de confirmación del supervisor.`
+      : `¡Hasta luego, ${ctx.user.firstName}! Salida registrada. Tiempo trabajado: ${workedStr}.`;
+
+    return { attendance: updated, scanType: "EXIT", status: finalStatus, message };
+  }
+
+  const diffSinceExit = differenceInMinutes(ctx.now, new Date(attendance.exitTime));
+  if (diffSinceExit < 2) {
+    const message = `Tu salida ya fue registrada a las ${formatLocalTime(
+      new Date(attendance.exitTime),
+      "HH:mm",
+      ctx.timezone
+    )}. ¡Que tengas buen descanso!`;
+    return { attendance, scanType: "ALREADY_REGISTERED", status: attendance.status, message };
+  }
+
+  const updated = await prisma.attendance.update({
+    where: { id: attendance.id },
+    data: {
+      exitTime: ctx.now,
+      workedMinutes,
+      statusChangedBy: ctx.changedBy,
+      statusChangedAt: ctx.now,
+    },
+  });
+
+  const message = `Salida actualizada a las ${formatLocalTime(ctx.now, "HH:mm", ctx.timezone)}. ¡Buen descanso!`;
+  return { attendance: updated, scanType: "EXIT", status: updated.status, message };
+}
+
+async function notifySupervisorsForDniScan(params: {
+  organizationId: string;
+  locationId: string;
+  locationName: string;
+  kioskName: string;
+  user: { id: string; firstName: string; lastName: string; photoUrl: string | null; documentId: string | null };
+  searchQrToken: string;
+  attendanceId: string;
+  scanType: ScanType;
+  status: AttendanceStatus;
+  now: Date;
+  timezone: string;
+}) {
+  try {
+    const supervisors = await prisma.user.findMany({
+      where: {
+        organizationId: params.organizationId,
+        isActive: true,
+        role: { in: ["ADMIN", "SUPERVISOR", "SUPER_ADMIN"] },
+        OR: [{ locationId: null }, { locationId: params.locationId }],
+      },
+      select: { id: true },
+    });
+
+    if (supervisors.length === 0) return;
+
+    const fullName = `${params.user.firstName} ${params.user.lastName}`;
+    const docId = params.user.documentId || params.searchQrToken;
+    const actionLabel = params.scanType === "ENTRY" ? "ENTRADA" : "SALIDA";
+    const notifTitle = `⚠️ Solicitud de Marcación por DNI — ${fullName}`;
+    const notifBody = `${fullName} (DNI: ${docId}) marcó ${actionLabel} manualmente en ${params.kioskName} a las ${formatLocalTime(params.now, "HH:mm", params.timezone)}. Requiere confirmación de identidad.`;
+
+    const notificationData = {
+      isDniApproval: true,
+      attendanceId: params.attendanceId,
+      userId: params.user.id,
+      userName: fullName,
+      userPhoto: params.user.photoUrl,
+      documentId: docId,
+      scanType: params.scanType,
+      time: formatLocalTime(params.now, "HH:mm:ss", params.timezone),
+      locationId: params.locationId,
+      locationName: params.locationName,
+      kioskName: params.kioskName,
+      proposedStatus: params.status,
+    };
+
+    await prisma.notification.createMany({
+      data: supervisors.map((sup) => ({
+        userId: sup.id,
+        type: "LLEGADA_TARDE",
+        title: notifTitle,
+        body: notifBody,
+        data: notificationData,
+      })),
+    });
+
+    await sendPushToSupervisors(params.organizationId, {
+      title: notifTitle,
+      body: notifBody,
+      url: "/asistencias",
+      tag: `dni-verify-${params.attendanceId}`,
+      data: notificationData,
+    });
+  } catch (notifErr) {
+    console.error("Error al despachar notificación de verificación DNI:", notifErr);
+  }
+}
+
+async function updateKioskHeartbeatIfNeeded(
+  kiosk: { id: string; lastSeenAt: Date | null; ipAddress: string | null },
+  ipAddress: string
+) {
+  const reqTime = new Date();
+  const isStale = !kiosk.lastSeenAt || reqTime.getTime() - kiosk.lastSeenAt.getTime() > 60000;
+  if (isStale || kiosk.ipAddress !== ipAddress) {
+    await prisma.kiosk.update({
+      where: { id: kiosk.id },
+      data: { lastSeenAt: reqTime, ipAddress },
+    });
+  }
+}
+
+function isQrTokenExpiredByDays(
+  isQrOrSigned: boolean,
+  qrGeneratedAt: Date | null
+): boolean {
+  if (!isQrOrSigned || !qrGeneratedAt) return false;
+  const daysSinceGenerated = (Date.now() - new Date(qrGeneratedAt).getTime()) / (1000 * 60 * 60 * 24);
+  return daysSinceGenerated > 60;
+}
+
+async function executeShiftAttendance(params: {
+  user: ShiftExecutionContext["user"];
+  kiosk: ShiftExecutionContext["kiosk"];
+  schedule: ShiftExecutionContext["schedule"];
+  today: Date;
+  now: Date;
+  timezone: string;
+  isDniScan: boolean;
+  searchQrToken: string;
+  mode: "AUTO" | "ENTRY" | "EXIT";
+}): Promise<ShiftExecutionResult | null> {
+  const { user, kiosk, schedule, today, now, timezone, isDniScan, searchQrToken, mode } = params;
+  let attendance = await prisma.attendance.findUnique({
+    where: { userId_date: { userId: user.id, date: today } },
+  });
+
+  if (mode !== "ENTRY") {
+    const recentExitInfo = await findRecentAccidentalExit(user.id, now, timezone);
+    if (recentExitInfo) {
+      return {
+        attendance: recentExitInfo.attendance,
+        scanType: "ALREADY_REGISTERED",
+        status: recentExitInfo.attendance.status,
+        message: recentExitInfo.message,
+      };
+    }
+    if (!attendance?.entryTime) {
+      const openPreviousShift = await findOpenOvernightShift(user.id, now);
+      if (openPreviousShift) {
+        attendance = openPreviousShift;
+      }
+    }
+  }
+
+  const { hour: localHour, minute: localMinute } = getLocalTimeParts(now, timezone);
+  const initialDniNotes = isDniScan
+    ? `[PENDIENTE_VALIDACION_DNI] Marcación manual por DNI (${user.documentId || searchQrToken}) en ${kiosk.name} a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
+    : null;
+
+  const shiftCtx: ShiftExecutionContext = {
+    user,
+    kiosk,
+    schedule,
+    today,
+    now,
+    timezone,
+    localTimeFormatted: formatLocalTime(now, "HH:mm", timezone),
+    actualTotalMinutes: localHour * 60 + localMinute,
+    isDniScan,
+    initialDniNotes,
+    mode,
+    changedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
+  };
+
+  return schedule?.isSplit
+    ? processSplitShift(attendance, shiftCtx)
+    : processContinuousShift(attendance, shiftCtx);
+}
+
+async function authenticateScanKiosk(req: Request) {
+  const apiKey = req.headers.get("x-kiosk-api-key");
+  if (!apiKey) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Falta la clave de autenticación del Kiosk (x-kiosk-api-key)" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const ipAddress = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+  const rateResult = await checkRateLimit({
+    key: `kiosk_scan:${apiKey}:${ipAddress}`,
+    limit: 120,
+    windowSeconds: 60,
+  });
+
+  if (!rateResult.success) {
+    return {
+      errorResponse: NextResponse.json(
         {
           error: "Frecuencia general de escaneos excedida en este Kiosk. Por favor espera unos segundos.",
           retryAfter: rateResult.resetSeconds,
@@ -51,118 +832,110 @@ export async function POST(req: Request) {
             "X-RateLimit-Remaining": String(rateResult.remaining),
           },
         }
-      );
-    }
+      ),
+    };
+  }
 
-    // ── 2. Validar Kiosk ───────────────────────────────────────────────────
-    const kiosk = await prisma.kiosk.findUnique({
-      where: { apiKey },
-      include: {
-        location: {
-          include: {
-            organization: true,
-          },
-        },
-      },
-    });
+  const kiosk = await prisma.kiosk.findUnique({
+    where: { apiKey },
+    include: { location: { include: { organization: true } } },
+  });
 
-    if (!kiosk || !kiosk.isActive) {
-      return NextResponse.json(
-        { error: "Dispositivo Kiosk no registrado, inactivo o clave incorrecta" },
+  if (!kiosk?.isActive || !kiosk.location?.isActive) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Dispositivo Kiosk o sede no registrada, inactiva o clave incorrecta" },
         { status: 401 }
-      );
-    }
+      ),
+    };
+  }
 
-    // Actualizar heartbeat del Kiosk (Debounced a 1 min para evitar N+1 escrituras)
-    const reqTime = new Date();
-    if (!kiosk.lastSeenAt || reqTime.getTime() - kiosk.lastSeenAt.getTime() > 60000 || kiosk.ipAddress !== ipAddress) {
-      await prisma.kiosk.update({
-        where: { id: kiosk.id },
-        data: { lastSeenAt: reqTime, ipAddress },
-      });
-    }
+  await updateKioskHeartbeatIfNeeded(kiosk, ipAddress);
+  return { kiosk };
+}
 
-    // ── 3. Parsear body ────────────────────────────────────────────────────
-    const body = await req.json();
-    const parsed = ScanSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
+async function parseAndVerifyScanRequest(req: Request, organizationId: string) {
+  const parsed = ScanSchema.safeParse(await req.json());
+  if (!parsed.success) {
+    return {
+      errorResponse: NextResponse.json(
         { error: "Datos de escaneo inválidos", details: parsed.error.format() },
         { status: 400 }
-      );
-    }
+      ),
+    };
+  }
 
-    const { qrToken: rawToken, mode } = parsed.data;
+  const { qrToken: rawToken, mode, verificationPhotoUrl } = parsed.data;
+  const trimmedRawToken = rawToken.trim();
+  let searchQrToken = trimmedRawToken;
+  let verifiedUserId: string | undefined;
 
-    // ── 4. Validación de Firma Criptográfica HMAC (si el QR está firmado) ──
-    let searchQrToken = rawToken.trim();
-    let verifiedUserId: string | undefined;
-
-    if (isSignedQrPayload(rawToken)) {
-      const verification = verifySignedQrPayload(rawToken);
-      if (!verification.isValid) {
-        return NextResponse.json(
+  if (isSignedQrPayload(searchQrToken)) {
+    const verification = verifySignedQrPayload(searchQrToken);
+    if (!verification.isValid) {
+      return {
+        errorResponse: NextResponse.json(
           { error: verification.error || "Firma criptográfica del código QR inválida o alterada" },
           { status: 403 }
-        );
-      }
-      searchQrToken = verification.qrToken!;
-      verifiedUserId = verification.userId;
+        ),
+      };
     }
+    searchQrToken = verification.qrToken;
+    verifiedUserId = verification.userId;
+  }
 
-    // ── 4.5. DEBOUNCE POR USUARIO: Evitar doble marcación accidental del mismo empleado en < 5s ──
-    const userDebounceKey = `scan_debounce:${kiosk.location.organizationId}:${searchQrToken}`;
-    const debounceResult = await checkRateLimit({
-      key: userDebounceKey,
-      limit: 1,
-      windowSeconds: 5,
-    });
+  const debounceResult = await checkRateLimit({
+    key: `scan_debounce:${organizationId}:${searchQrToken}`,
+    limit: 1,
+    windowSeconds: 5,
+  });
 
-    if (!debounceResult.success) {
-      return NextResponse.json(
+  if (!debounceResult.success) {
+    return {
+      errorResponse: NextResponse.json(
         {
           error: "Marcación ya registrada hace un instante. Espera 5 segundos si necesitas volver a escanear.",
           retryAfter: debounceResult.resetSeconds,
         },
         { status: 429 }
-      );
-    }
-
-    // ── 5. Buscar Usuario en PostgreSQL ────────────────────────────────────
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      searchQrToken
-    );
-    const cleanToken = searchQrToken.replace(/[:-\s]/g, "");
-
-    const userWhere: any = {
-      organizationId: kiosk.location.organizationId,
-      isActive: true,
+      ),
     };
+  }
 
-    if (verifiedUserId) {
-      userWhere.id = verifiedUserId;
-      userWhere.qrToken = searchQrToken;
-      userWhere.qrInvalidatedAt = null;
-    } else {
-      const orConditions: any[] = [
-        { documentId: { equals: searchQrToken, mode: "insensitive" } },
-        { nfcCardUid: { equals: searchQrToken, mode: "insensitive" } },
-        { nfcCardUid: { equals: cleanToken, mode: "insensitive" } },
-      ];
-      if (isUuid) {
-        orConditions.unshift({ qrToken: searchQrToken, qrInvalidatedAt: null });
-      }
-      userWhere.OR = orConditions;
+  return { mode, trimmedRawToken, searchQrToken, verifiedUserId, verificationPhotoUrl };
+}
+
+// POST /api/attendance/scan
+export async function POST(req: Request) {
+  try {
+    const authResult = await authenticateScanKiosk(req);
+    if (authResult.errorResponse) {
+      return authResult.errorResponse;
     }
+    const { kiosk } = authResult;
+
+    const reqData = await parseAndVerifyScanRequest(req, kiosk.location.organizationId);
+    if (reqData.errorResponse) {
+      return reqData.errorResponse;
+    }
+    const { mode, trimmedRawToken, searchQrToken, verifiedUserId, verificationPhotoUrl } = reqData;
+
+    const isUuid = UUID_REGEX.test(searchQrToken);
+    const cleanToken = searchQrToken.replace(/[:-\s]/g, "");
+    const userWhere = buildScanUserWhere(
+      kiosk.location.organizationId,
+      searchQrToken,
+      cleanToken,
+      isUuid,
+      verifiedUserId
+    );
 
     const user = await prisma.user.findFirst({
       where: userWhere,
       include: {
         location: true,
         userSchedules: {
-          where: {
-            OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
-          },
+          where: { OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] },
           include: { schedule: true },
           take: 1,
         },
@@ -171,571 +944,88 @@ export async function POST(req: Request) {
 
     if (!user) {
       return NextResponse.json(
-        {
-          error: "Credencial no reconocida (QR/NFC/DNI inválido o usuario inactivo)",
-        },
+        { error: "Credencial no reconocida (QR/NFC/DNI inválido o usuario inactivo)" },
         { status: 404 }
       );
     }
 
-    const isSigned = isSignedQrPayload(rawToken);
-    const isQrTokenMatch = isUuid && user.qrToken && searchQrToken.toLowerCase() === user.qrToken.toLowerCase();
-    const isNfcScan = !isSigned && !isQrTokenMatch && !!user.nfcCardUid && (
-      user.nfcCardUid.toLowerCase() === searchQrToken.toLowerCase() ||
-      user.nfcCardUid.replace(/[:-\s]/g, "").toLowerCase() === cleanToken.toLowerCase()
+    const { isSigned, isQrTokenMatch, isNfcScan, isDniScan } = classifyScanCredentials(
+      user,
+      trimmedRawToken,
+      searchQrToken,
+      cleanToken,
+      isUuid
     );
-    const isDniScan = !isSigned && !isQrTokenMatch && !isNfcScan;
 
-    // ── 6. Control de Expiración por Tiempo para QR (Máx 60 días sin renovar) ───────
-    if ((isQrTokenMatch || isSigned) && user.qrGeneratedAt) {
-      const daysSinceGenerated =
-        (Date.now() - new Date(user.qrGeneratedAt).getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceGenerated > 60) {
-        return NextResponse.json(
-          {
-            error: "Tu credencial QR ha caducado por seguridad (> 60 días). Solicita su renovación a tu administrador.",
-          },
-          { status: 403 }
-        );
-      }
-    }
-
-    const timezone = kiosk.location.timezone || "America/Lima";
-    const now = new Date();
-    const today = getLocalTodayDate(now, timezone);
-    const schedule = user.userSchedules?.[0]?.schedule;
-
-    // ── 7. Buscar o crear asistencia del día ────────────────────────────────
-    let attendance = await prisma.attendance.findUnique({
-      where: {
-        userId_date: {
-          userId: user.id,
-          date: today,
-        },
-      },
-    });
-
-    let scanType: "ENTRY" | "EXIT" | "ALREADY_REGISTERED" = "ENTRY";
-    let message = "";
-    let status: AttendanceStatus = attendance?.status || AttendanceStatus.PRESENTE;
-    let lateMinutes = attendance?.lateMinutes || 0;
-    let workedMinutes = attendance?.workedMinutes || 0;
-
-    // ── 7.1. Detección de Turnos Nocturnos y Prevención de Re-escaneo ──────────
-    // A. Re-escaneo accidental reciente (< 2 min): si ya registró salida hace poco
-    if (mode !== "ENTRY") {
-      const recentExit = await prisma.attendance.findFirst({
-        where: {
-          userId: user.id,
-          OR: [
-            { exitTime: { gte: new Date(now.getTime() - 2 * 60 * 1000) } },
-            { exitTime2: { gte: new Date(now.getTime() - 2 * 60 * 1000) } },
-          ],
-        },
-        orderBy: { updatedAt: "desc" },
-      });
-
-      if (recentExit) {
-        attendance = recentExit;
-        scanType = "ALREADY_REGISTERED";
-        const lastExitDate =
-          recentExit.exitTime2 && recentExit.exitTime && recentExit.exitTime2 >= recentExit.exitTime
-            ? recentExit.exitTime2
-            : recentExit.exitTime2 || recentExit.exitTime;
-        message = `Tu salida ya fue registrada a las ${formatLocalTime(
-          lastExitDate || now,
-          "HH:mm",
-          timezone
-        )}. ¡Que tengas buen descanso!`;
-      }
-    }
-
-    // B. Soporte para Turnos Nocturnos 24/7 (Cruce de medianoche, ej: 22:00 a 06:00):
-    // Si no es un re-escaneo y hoy aún no hay entrada registrada, buscamos si el colaborador
-    // tiene un turno abierto previo (iniciado en las últimas 16 horas) pendiente de registrar salida.
-    if (scanType !== "ALREADY_REGISTERED" && mode !== "ENTRY" && (!attendance || !attendance.entryTime)) {
-      const sixteenHoursAgo = new Date(now.getTime() - 16 * 60 * 60 * 1000);
-      const openPreviousShift = await prisma.attendance.findFirst({
-        where: {
-          userId: user.id,
-          entryTime: { gte: sixteenHoursAgo },
-          OR: [
-            { exitTime: null },
-            { entryTime2: { not: null }, exitTime2: null },
-          ],
-        },
-        orderBy: { entryTime: "desc" },
-      });
-
-      if (openPreviousShift) {
-        attendance = openPreviousShift;
-        status = openPreviousShift.status;
-        lateMinutes = openPreviousShift.lateMinutes || 0;
-        workedMinutes = openPreviousShift.workedMinutes || 0;
-      }
-    }
-
-    const isSplit = Boolean(schedule?.isSplit);
-    const localTimeFormatted = formatLocalTime(now, "HH:mm", timezone);
-    const { hour: localHour, minute: localMinute } = getLocalTimeParts(now, timezone);
-    const actualTotalMinutes = localHour * 60 + localMinute;
-
-    const initialDniNotes = isDniScan
-      ? `[PENDIENTE_VALIDACION_DNI] Marcación manual por DNI (${user.documentId || searchQrToken}) en ${kiosk.name} a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
-      : null;
-
-    if (scanType !== "ALREADY_REGISTERED") {
-    if (isSplit) {
-      // ══════════════════════════════════════════════════════════════════════
-      //  MODALIDAD: HORARIO PARTIDO (DOBLE TURNO / 4 MARCACIONES)
-      // ══════════════════════════════════════════════════════════════════════
-
-      if (!attendance || !attendance.entryTime) {
-        // ── 1.ª MARCACIÓN: ENTRADA TRAMO 1 (MAÑANA) ──────────────────────────
-        scanType = "ENTRY";
-        let isLate = false;
-        let diffLate = 0;
-        let usedTol = false;
-        let excTol = false;
-
-        if (schedule) {
-          const scheduledMinutes = schedule.entryHour * 60 + schedule.entryMinute;
-          const tolerance = schedule.toleranceMinutes || 0;
-          const checkResult = await checkToleranceWeeklyLimit(
-            user.id,
-            kiosk.location.organization?.settings,
-            today,
-            actualTotalMinutes,
-            scheduledMinutes,
-            tolerance
-          );
-          isLate = checkResult.isLate;
-          diffLate = checkResult.diffLate;
-          usedTol = checkResult.usedTolerance;
-          excTol = checkResult.exceededTolerance;
-        }
-
-        status = isLate ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
-        lateMinutes = diffLate;
-
-        message = isLate
-          ? `¡Hola, ${user.firstName}! Entrada Tramo 1 registrada con tardanza (+${diffLate} min).`
-          : `¡Bienvenido(a), ${user.firstName}! Entrada Tramo 1 registrada puntualmente.`;
-
-        if (excTol) {
-          message += " (Has excedido tu límite de tolerancias semanales)";
-          sendPushToSupervisors(kiosk.location.organizationId, { title: "Límite de Tolerancia", body: `${user.firstName} ${user.lastName} ha excedido las tolerancias semanales permitidas.` });
-        }
-
-        if (isDniScan) {
-          message += " (Pendiente de confirmación)";
-        }
-
-        attendance = await prisma.attendance.upsert({
-          where: { userId_date: { userId: user.id, date: today } },
-          update: {
-            entryTime: now,
-            status,
-            lateMinutes: diffLate > 0 ? diffLate : null,
-            usedTolerance: usedTol,
-            exceededTolerance: excTol,
-            locationId: kiosk.locationId,
-            kioskId: kiosk.id,
-            notes: initialDniNotes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-          create: {
-            userId: user.id,
-            locationId: kiosk.locationId,
-            kioskId: kiosk.id,
-            date: today,
-            entryTime: now,
-            status,
-            lateMinutes: diffLate > 0 ? diffLate : null,
-            usedTolerance: usedTol,
-            exceededTolerance: excTol,
-            notes: initialDniNotes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-        });
-      } else if (!attendance.exitTime) {
-        // ── 2.ª MARCACIÓN: SALIDA TRAMO 1 (RECESO / ALMUERZO) ────────────────
-        scanType = "EXIT";
-        const entryDate = new Date(attendance.entryTime);
-        const shift1Worked = Math.max(0, differenceInMinutes(now, entryDate));
-        workedMinutes = shift1Worked;
-
-        const hours = Math.floor(shift1Worked / 60);
-        const mins = shift1Worked % 60;
-        const workedStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
-
-        message = `¡Buen provecho, ${user.firstName}! Salida a receso registrada (Tramo 1: ${workedStr}).`;
-        if (isDniScan) message += " (Pendiente de confirmación)";
-
-        const exitNotes = isDniScan
-          ? `${attendance.notes ? attendance.notes + " | " : ""}[PENDIENTE_VALIDACION_DNI] Salida Tramo 1 por DNI a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
-          : attendance.notes;
-
-        attendance = await prisma.attendance.update({
-          where: { id: attendance.id },
-          data: {
-            exitTime: now,
-            workedMinutes: shift1Worked,
-            notes: exitNotes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-        });
-      } else if (!attendance.entryTime2) {
-        // ── 3.ª MARCACIÓN: ENTRADA TRAMO 2 (RETORNO DE RECESO / TARDE) ───────
-        const diffSinceExit1 = differenceInMinutes(now, new Date(attendance.exitTime));
-        if (diffSinceExit1 < 2 && mode !== "ENTRY") {
-          scanType = "ALREADY_REGISTERED";
-          message = `Tu salida a receso fue registrada a las ${formatLocalTime(
-            new Date(attendance.exitTime),
-            "HH:mm",
-            timezone
-          )}. ¡Disfruta tu refrigerio!`;
-        } else {
-          scanType = "ENTRY";
-          let diffLate2 = 0;
-
-          let usedTol2 = false;
-          let excTol2 = false;
-
-          if (schedule && schedule.entryHour2 !== null && schedule.entryHour2 !== undefined) {
-            const scheduledMinutes2 = schedule.entryHour2 * 60 + (schedule.entryMinute2 || 0);
-            const tolerance2 = schedule.toleranceMinutes2 ?? schedule.toleranceMinutes ?? 0;
-            const checkResult = await checkToleranceWeeklyLimit(
-              user.id,
-              kiosk.location.organization?.settings,
-              today,
-              actualTotalMinutes,
-              scheduledMinutes2,
-              tolerance2
-            );
-            diffLate2 = checkResult.diffLate;
-            usedTol2 = checkResult.usedTolerance;
-            excTol2 = checkResult.exceededTolerance;
-          }
-
-          if (diffLate2 > 0) {
-            status = AttendanceStatus.TARDE;
-          }
-          const totalLate = (attendance.lateMinutes || 0) + diffLate2;
-
-          message = diffLate2 > 0
-            ? `¡Bienvenido de vuelta, ${user.firstName}! Entrada Tramo 2 registrada con tardanza (+${diffLate2} min).`
-            : `¡Bienvenido de vuelta, ${user.firstName}! Entrada Tramo 2 registrada a tiempo.`;
-            
-          if (excTol2) {
-            message += " (Límite de tolerancias semanales excedido)";
-            sendPushToSupervisors(kiosk.location.organizationId, { title: "Límite de Tolerancia", body: `${user.firstName} ${user.lastName} ha excedido las tolerancias semanales permitidas.` });
-          }
-
-          if (isDniScan) message += " (Pendiente de confirmación)";
-
-          const entry2Notes = isDniScan
-            ? `${attendance.notes ? attendance.notes + " | " : ""}[PENDIENTE_VALIDACION_DNI] Entrada Tramo 2 por DNI a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
-            : attendance.notes;
-
-          attendance = await prisma.attendance.update({
-            where: { id: attendance.id },
-            data: {
-              entryTime2: now,
-              status: status === AttendanceStatus.TARDE || diffLate2 > 0 ? AttendanceStatus.TARDE : attendance.status,
-              lateMinutes: totalLate > 0 ? totalLate : null,
-              lateMinutes2: diffLate2 > 0 ? diffLate2 : null,
-              usedTolerance: usedTol2,
-              exceededTolerance: excTol2,
-              notes: entry2Notes,
-              statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-              statusChangedAt: now,
-            },
-          });
-        }
-      } else if (!attendance.exitTime2) {
-        // ── 4.ª MARCACIÓN: SALIDA TRAMO 2 (FIN DE JORNADA) ───────────────────
-        scanType = "EXIT";
-        const entryDate1 = new Date(attendance.entryTime);
-        const exitDate1 = new Date(attendance.exitTime);
-        const shift1Worked = Math.max(0, differenceInMinutes(exitDate1, entryDate1));
-
-        const entryDate2 = new Date(attendance.entryTime2);
-        const shift2Worked = Math.max(0, differenceInMinutes(now, entryDate2));
-
-        workedMinutes = shift1Worked + shift2Worked;
-
-        const hours = Math.floor(workedMinutes / 60);
-        const mins = workedMinutes % 60;
-        const workedStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
-
-        message = `¡Hasta luego, ${user.firstName}! Jornada completada con éxito. Total trabajado: ${workedStr}.`;
-        if (isDniScan) message += " (Pendiente de confirmación)";
-
-        const exit2Notes = isDniScan
-          ? `${attendance.notes ? attendance.notes + " | " : ""}[PENDIENTE_VALIDACION_DNI] Salida final por DNI a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
-          : attendance.notes;
-
-        attendance = await prisma.attendance.update({
-          where: { id: attendance.id },
-          data: {
-            exitTime2: now,
-            workedMinutes,
-            notes: exit2Notes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-        });
-      } else {
-        // ── RE-ESCANEO: JORNADA COMPLETA YA REGISTRADA ───────────────────────
-        const diffSinceExit2 = differenceInMinutes(now, new Date(attendance.exitTime2));
-        if (diffSinceExit2 < 2 && mode !== "EXIT") {
-          scanType = "ALREADY_REGISTERED";
-          message = `Tu salida final ya fue registrada a las ${formatLocalTime(
-            new Date(attendance.exitTime2),
-            "HH:mm",
-            timezone
-          )}. ¡Que tengas buen descanso!`;
-        } else {
-          scanType = "EXIT";
-          const entryDate1 = new Date(attendance.entryTime);
-          const exitDate1 = new Date(attendance.exitTime);
-          const shift1Worked = Math.max(0, differenceInMinutes(exitDate1, entryDate1));
-
-          const entryDate2 = new Date(attendance.entryTime2);
-          const shift2Worked = Math.max(0, differenceInMinutes(now, entryDate2));
-          workedMinutes = shift1Worked + shift2Worked;
-
-          attendance = await prisma.attendance.update({
-            where: { id: attendance.id },
-            data: {
-              exitTime2: now,
-              workedMinutes,
-              statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-              statusChangedAt: now,
-            },
-          });
-
-          message = `Salida final actualizada a las ${formatLocalTime(now, "HH:mm", timezone)}. ¡Buen descanso!`;
-        }
-      }
-    } else {
-      // ══════════════════════════════════════════════════════════════════════
-      //  MODALIDAD: JORNADA CONTINUA (TURNO ÚNICO / 2 MARCACIONES)
-      // ══════════════════════════════════════════════════════════════════════
-
-      const isExplicitExit = mode === "EXIT";
-
-      if (!attendance || !attendance.entryTime) {
-        // ── CASO A: REGISTRO DE ENTRADA ──────────────────────────────────
-        scanType = "ENTRY";
-        
-        let usedTol3 = false;
-        let excTol3 = false;
-
-        if (schedule) {
-          const scheduledEntryHour = schedule.entryHour;
-          const scheduledEntryMin = schedule.entryMinute;
-          const tolerance = schedule.toleranceMinutes || 0;
-
-          const scheduledTotalMinutes = scheduledEntryHour * 60 + scheduledEntryMin;
-          const checkResult = await checkToleranceWeeklyLimit(
-            user.id,
-            kiosk.location.organization?.settings,
-            today,
-            actualTotalMinutes,
-            scheduledTotalMinutes,
-            tolerance
-          );
-          
-          usedTol3 = checkResult.usedTolerance;
-          excTol3 = checkResult.exceededTolerance;
-
-          if (checkResult.isLate) {
-            status = AttendanceStatus.TARDE;
-            lateMinutes = checkResult.diffLate;
-            message = isDniScan
-              ? `¡Hola, ${user.firstName}! Entrada por DNI registrada (${localTimeFormatted}, +${lateMinutes} min tarde). Pendiente de confirmación del supervisor.`
-              : `¡Hola, ${user.firstName}! Entrada registrada con tardanza (+${lateMinutes} min).`;
-              
-            if (checkResult.exceededTolerance) {
-              message += " (Límite de tolerancias semanales excedido)";
-              sendPushToSupervisors(kiosk.location.organizationId, { title: "Límite de Tolerancia", body: `${user.firstName} ${user.lastName} ha excedido las tolerancias semanales permitidas.` });
-            }
-          } else {
-            status = AttendanceStatus.PRESENTE;
-            message = isDniScan
-              ? `¡Hola, ${user.firstName}! Entrada por DNI registrada a las ${localTimeFormatted}. Pendiente de confirmación del supervisor.`
-              : `¡Bienvenido(a), ${user.firstName}! Entrada registrada puntualmente.`;
-          }
-        } else {
-          status = AttendanceStatus.PRESENTE;
-          message = isDniScan
-            ? `¡Hola, ${user.firstName}! Entrada por DNI registrada a las ${localTimeFormatted}. Pendiente de confirmación del supervisor.`
-            : `¡Bienvenido(a), ${user.firstName}! Entrada registrada con éxito.`;
-        }
-
-        attendance = await prisma.attendance.upsert({
-          where: {
-            userId_date: {
-              userId: user.id,
-              date: today,
-            },
-          },
-          update: {
-            entryTime: now,
-            status,
-            lateMinutes: lateMinutes > 0 ? lateMinutes : null,
-            usedTolerance: usedTol3,
-            exceededTolerance: excTol3,
-            locationId: kiosk.locationId,
-            kioskId: kiosk.id,
-            notes: initialDniNotes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-          create: {
-            userId: user.id,
-            locationId: kiosk.locationId,
-            kioskId: kiosk.id,
-            date: today,
-            entryTime: now,
-            status,
-            lateMinutes: lateMinutes > 0 ? lateMinutes : null,
-            usedTolerance: usedTol3,
-            exceededTolerance: excTol3,
-            notes: initialDniNotes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-        });
-      } else if (!attendance.exitTime || isExplicitExit) {
-        // ── CASO B: REGISTRO DE SALIDA ───────────────────────────────────
-        scanType = "EXIT";
-
-        const entryDate = new Date(attendance.entryTime);
-        workedMinutes = Math.max(0, differenceInMinutes(now, entryDate));
-
-        const finalStatus =
-          attendance.status === AttendanceStatus.TARDE
-            ? AttendanceStatus.TARDE
-            : AttendanceStatus.PRESENTE;
-
-        const exitNotes = isDniScan
-          ? `${attendance.notes ? attendance.notes + " | " : ""}[PENDIENTE_VALIDACION_DNI] Salida manual por DNI a las ${formatLocalTime(now, "HH:mm:ss", timezone)}.`
-          : attendance.notes;
-
-        attendance = await prisma.attendance.update({
-          where: { id: attendance.id },
-          data: {
-            exitTime: now,
-            workedMinutes,
-            status: finalStatus,
-            notes: exitNotes,
-            statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-            statusChangedAt: now,
-          },
-        });
-
-        const hours = Math.floor(workedMinutes / 60);
-        const mins = workedMinutes % 60;
-        const workedStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
-
-        message = isDniScan
-          ? `¡Hasta luego, ${user.firstName}! Salida por DNI registrada (${workedStr} trabajados). Pendiente de confirmación del supervisor.`
-          : `¡Hasta luego, ${user.firstName}! Salida registrada. Tiempo trabajado: ${workedStr}.`;
-      } else {
-        // ── CASO C: YA TIENE ENTRADA Y SALIDA REGISTRADAS ─────────────────
-        const diffSinceExit = differenceInMinutes(now, new Date(attendance.exitTime));
-        if (diffSinceExit < 2 && !isExplicitExit) {
-          scanType = "ALREADY_REGISTERED";
-          message = `Tu salida ya fue registrada a las ${formatLocalTime(
-            new Date(attendance.exitTime),
-            "HH:mm",
-            timezone
-          )}. ¡Que tengas buen descanso!`;
-        } else {
-          scanType = "EXIT";
-          const entryDate = new Date(attendance.entryTime);
-          workedMinutes = Math.max(0, differenceInMinutes(now, entryDate));
-
-          attendance = await prisma.attendance.update({
-            where: { id: attendance.id },
-            data: {
-              exitTime: now,
-              workedMinutes,
-              statusChangedBy: isDniScan ? `KIOSK_DNI_${kiosk.name}` : `KIOSK_${kiosk.name}`,
-              statusChangedAt: now,
-            },
-          });
-
-          message = `Salida actualizada a las ${formatLocalTime(now, "HH:mm", timezone)}. ¡Buen descanso!`;
-        }
-      }
-    }
-    }
-
-    if (!attendance) {
+    if (isQrTokenExpiredByDays(isQrTokenMatch || isSigned, user.qrGeneratedAt)) {
       return NextResponse.json(
-        { error: "No se pudo determinar el registro de asistencia" },
-        { status: 500 }
+        {
+          error: "Tu credencial QR ha caducado por seguridad (> 60 días). Solicita su renovación a tu administrador.",
+        },
+        { status: 403 }
       );
     }
 
-    // ── 8. Notificar a Supervisores si la marcación fue por DNI ─────────────
-    if (isDniScan && scanType !== "ALREADY_REGISTERED") {
-      try {
-        const supervisors = await prisma.user.findMany({
-          where: {
-            organizationId: kiosk.location.organizationId,
-            isActive: true,
-            role: { in: ["ADMIN", "SUPERVISOR", "SUPER_ADMIN"] },
-            OR: [
-              { locationId: null },
-              { locationId: kiosk.locationId },
-            ],
-          },
-          select: { id: true },
-        });
+    const orgSettings = resolveOrgSettings(kiosk.location.organization?.settings);
+    const timezone = kiosk.location.timezone || orgSettings.timezone || DEFAULT_TIMEZONE;
+    const now = new Date();
+    const today = getLocalTodayDate(now, timezone);
 
-        const notifTitle = `⚠️ Solicitud de Marcación por DNI — ${user.firstName} ${user.lastName}`;
-        const notifBody = `${user.firstName} ${user.lastName} (DNI: ${user.documentId || searchQrToken}) marcó ${scanType === "ENTRY" ? "ENTRADA" : "SALIDA"} manualmente en ${kiosk.name} a las ${formatLocalTime(now, "HH:mm", timezone)}. Requiere confirmación de identidad.`;
+    const shiftOverride = await prisma.shiftOverride.findUnique({
+      where: { userId_date: { userId: user.id, date: today } },
+      include: { schedule: true },
+    });
 
-        const notificationData = {
-          isDniApproval: true,
-          attendanceId: attendance.id,
-          userId: user.id,
-          userName: `${user.firstName} ${user.lastName}`,
-          userPhoto: user.photoUrl,
-          documentId: user.documentId || searchQrToken,
-          scanType,
-          time: formatLocalTime(now, "HH:mm:ss", timezone),
-          locationId: kiosk.locationId,
-          locationName: kiosk.location.name,
-          kioskName: kiosk.name,
-          proposedStatus: status,
-        };
-
-        if (supervisors.length > 0) {
-          await prisma.notification.createMany({
-            data: supervisors.map((sup) => ({
-              userId: sup.id,
-              type: "LLEGADA_TARDE", // Uso de tipo existente
-              title: notifTitle,
-              body: notifBody,
-              data: notificationData,
-            })),
-          });
-        }
-      } catch (notifErr) {
-        console.error("Error al despachar notificación de verificación DNI:", notifErr);
-      }
+    if (shiftOverride?.isDayOff) {
+      return NextResponse.json(
+        { error: "Hoy es tu día libre programado. No requieres registrar asistencia." },
+        { status: 400 }
+      );
     }
 
-    // ── 9. Registrar Log de Auditoría ──────────────────────────────────────
+    const schedule = shiftOverride?.schedule || user.userSchedules?.[0]?.schedule;
+    const isSplit = Boolean(schedule?.isSplit);
+    const shiftResult = await executeShiftAttendance({
+      user,
+      kiosk,
+      schedule,
+      today,
+      now,
+      timezone,
+      isDniScan,
+      searchQrToken,
+      mode,
+    });
+
+    if (!shiftResult) {
+      return NextResponse.json({ error: "No se pudo determinar el registro de asistencia" }, { status: 500 });
+    }
+
+    const { attendance, scanType, status, message } = shiftResult;
+
+    if (isDniScan && verificationPhotoUrl && scanType !== "ALREADY_REGISTERED") {
+      await prisma.attendance.update({
+        where: { id: attendance.id },
+        data: { verificationPhotoUrl },
+      });
+    }
+
+    if (isDniScan && scanType !== "ALREADY_REGISTERED") {
+      await notifySupervisorsForDniScan({
+        organizationId: kiosk.location.organizationId,
+        locationId: kiosk.locationId,
+        locationName: kiosk.location.name,
+        kioskName: kiosk.name,
+        user,
+        searchQrToken,
+        attendanceId: attendance.id,
+        scanType,
+        status,
+        now,
+        timezone,
+      });
+    }
+
     await logAuditEvent({
       organizationId: kiosk.location.organizationId,
       userId: user.id,
@@ -753,15 +1043,14 @@ export async function POST(req: Request) {
         exitTime2: attendance.exitTime2,
         lateMinutes: attendance.lateMinutes,
         lateMinutes2: attendance.lateMinutes2,
-        isSigned: isSigned,
-        isNfcScan: isNfcScan,
+        isSigned,
+        isNfcScan,
         isDniScan,
         requiresVerification: isDniScan,
       },
       req,
     });
 
-    // ── 10. Generar Micro-Interacciones Personalizadas ────────────────────
     const microInteraction = await generateMicroInteraction({
       user,
       attendance,
@@ -778,7 +1067,7 @@ export async function POST(req: Request) {
       success: true,
       scanType,
       message,
-      method: isNfcScan ? "NFC" : isSigned ? "QR_SECURE" : isDniScan ? "MANUAL_DNI" : "QR_STANDARD",
+      method: resolveScanMethodLabel(isNfcScan, isSigned, isDniScan),
       requiresVerification: isDniScan,
       time: formatLocalTime(now, "HH:mm:ss", timezone),
       date: getLocalDateString(now, timezone),
@@ -806,11 +1095,8 @@ export async function POST(req: Request) {
         name: kiosk.name,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error en escaneo de asistencia:", error);
-    return NextResponse.json(
-      { error: "Error interno al procesar escaneo" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error interno al procesar escaneo" }, { status: 500 });
   }
 }

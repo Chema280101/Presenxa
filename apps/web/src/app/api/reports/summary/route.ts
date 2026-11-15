@@ -4,6 +4,75 @@ import { AttendanceStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { startOfMonth, endOfMonth, parseISO, format } from "date-fns";
 
+interface LateSeverity {
+  tolerance: number;
+  light: number;
+  severe: number;
+  critical: number;
+}
+
+function classifyLateSeverity(lateMinutes: number | null, severity: LateSeverity): void {
+  if (!lateMinutes) return;
+  if (lateMinutes <= 5) severity.tolerance++;
+  else if (lateMinutes <= 15) severity.light++;
+  else if (lateMinutes <= 30) severity.severe++;
+  else severity.critical++;
+}
+
+function aggregateDailyAndSeverity(
+  attendances: Array<{ date: Date; status: AttendanceStatus; lateMinutes: number | null }>
+) {
+  const dayMap: Record<
+    string,
+    { date: string; present: number; late: number; absent: number; abandoned: number }
+  > = {};
+  const lateSeverity: LateSeverity = { tolerance: 0, light: 0, severe: 0, critical: 0 };
+
+  for (const att of attendances) {
+    const dateKey = format(new Date(att.date), "yyyy-MM-dd");
+    if (!dayMap[dateKey]) {
+      dayMap[dateKey] = { date: dateKey, present: 0, late: 0, absent: 0, abandoned: 0 };
+    }
+
+    if (att.status === AttendanceStatus.PRESENTE) dayMap[dateKey].present++;
+    else if (att.status === AttendanceStatus.TARDE) {
+      dayMap[dateKey].late++;
+      classifyLateSeverity(att.lateMinutes, lateSeverity);
+    } else if (att.status === AttendanceStatus.AUSENTE) dayMap[dateKey].absent++;
+    else if (att.status === AttendanceStatus.ABANDONO_PUESTO) dayMap[dateKey].abandoned++;
+  }
+
+  return { dailyBreakdown: Object.values(dayMap), lateSeverity };
+}
+
+function buildSummaryWhereClause(
+  organizationId: string,
+  searchParams: URLSearchParams
+) {
+  const monthParam = searchParams.get("month");
+  const startDateParam = searchParams.get("startDate");
+  const endDateParam = searchParams.get("endDate");
+  const locationId = searchParams.get("locationId");
+  const departmentId = searchParams.get("departmentId");
+  const roleParam = searchParams.get("role");
+  const userId = searchParams.get("userId");
+
+  const baseDate = monthParam ? parseISO(`${monthParam}-01`) : new Date();
+  const rangeStart = startDateParam && endDateParam ? parseISO(startDateParam) : startOfMonth(baseDate);
+  const rangeEnd = startDateParam && endDateParam ? parseISO(endDateParam) : endOfMonth(baseDate);
+
+  const where: any = {
+    user: { organizationId },
+    date: { gte: rangeStart, lte: rangeEnd },
+  };
+  if (userId && userId !== "ALL") where.userId = userId;
+  if (locationId && locationId !== "ALL") where.locationId = locationId;
+  if (departmentId && departmentId !== "ALL") where.user.departmentId = departmentId;
+  if (roleParam && roleParam !== "ALL") where.user.role = roleParam;
+
+  return { where, rangeStart, monthParam, userId, locationId, departmentId, roleParam };
+}
+
 // GET /api/reports/summary?month=2026-08
 export async function GET(req: Request) {
   const session = await auth();
@@ -11,37 +80,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
-  const monthParam = searchParams.get("month"); // "YYYY-MM"
-  const locationId = searchParams.get("locationId");
-  const departmentId = searchParams.get("departmentId");
-  const userId = searchParams.get("userId");
-
-  const baseDate = monthParam ? parseISO(`${monthParam}-01`) : new Date();
-  const monthStart = startOfMonth(baseDate);
-  const monthEnd = endOfMonth(baseDate);
-
-  const where: any = {
-    user: {
-      organizationId: session.user.organizationId,
-    },
-    date: {
-      gte: monthStart,
-      lte: monthEnd,
-    },
-  };
-
-  if (userId && userId !== "ALL") {
-    where.userId = userId;
-  }
-
-  if (locationId && locationId !== "ALL") {
-    where.locationId = locationId;
-  }
-
-  if (departmentId && departmentId !== "ALL") {
-    where.user.departmentId = departmentId;
-  }
+  const { where, rangeStart, monthParam, userId, locationId, departmentId, roleParam } =
+    buildSummaryWhereClause(session.user.organizationId, searchParams);
 
   try {
     const [attendances, totalUsers] = await Promise.all([
@@ -63,6 +109,7 @@ export async function GET(req: Request) {
               isActive: true,
               ...(departmentId && departmentId !== "ALL" ? { departmentId } : {}),
               ...(locationId && locationId !== "ALL" ? { locationId } : {}),
+              ...(roleParam && roleParam !== "ALL" ? { role: roleParam as any } : {}),
             },
           }),
     ]);
@@ -99,45 +146,10 @@ export async function GET(req: Request) {
       ? Math.round(((presentCount + lateCount) / totalRecords) * 100)
       : 0;
 
-    // Day by day aggregation
-    const dayMap: Record<string, { date: string; present: number; late: number; absent: number; abandoned: number }> = {};
-    const lateSeverity = {
-      tolerance: 0, // 1-5 min
-      light: 0,     // 6-15 min
-      severe: 0,    // 16-30 min
-      critical: 0,  // > 30 min
-    };
-
-    attendances.forEach((att) => {
-      const dateKey = format(new Date(att.date), "yyyy-MM-dd");
-      if (!dayMap[dateKey]) {
-        dayMap[dateKey] = {
-          date: dateKey,
-          present: 0,
-          late: 0,
-          absent: 0,
-          abandoned: 0,
-        };
-      }
-
-      if (att.status === AttendanceStatus.PRESENTE) dayMap[dateKey].present++;
-      else if (att.status === AttendanceStatus.TARDE) {
-        dayMap[dateKey].late++;
-        if (att.lateMinutes) {
-          if (att.lateMinutes <= 5) lateSeverity.tolerance++;
-          else if (att.lateMinutes <= 15) lateSeverity.light++;
-          else if (att.lateMinutes <= 30) lateSeverity.severe++;
-          else lateSeverity.critical++;
-        }
-      }
-      else if (att.status === AttendanceStatus.AUSENTE) dayMap[dateKey].absent++;
-      else if (att.status === AttendanceStatus.ABANDONO_PUESTO) dayMap[dateKey].abandoned++;
-    });
-
-    const dailyBreakdown = Object.values(dayMap);
+    const { dailyBreakdown, lateSeverity } = aggregateDailyAndSeverity(attendances);
 
     return NextResponse.json({
-      month: format(baseDate, "yyyy-MM"),
+      month: monthParam || format(rangeStart, "yyyy-MM"),
       totalUsers,
       totalRecords,
       presentCount,

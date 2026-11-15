@@ -1,19 +1,25 @@
 import React from "react";
+import { Inbox } from "lucide-react";
 import { clsx } from "clsx";
 
 export function DataTableContainer({
   children,
   mobileContent,
   footer,
+  ariaLabel = "Tabla de datos",
   className,
 }: {
   children: React.ReactNode;
   mobileContent?: React.ReactNode;
   footer?: React.ReactNode;
+  ariaLabel?: string;
   className?: string;
 }) {
   return (
-    <section className={clsx("rounded-2xl border border-surface-200 dark:border-surface-800 shadow-xl overflow-hidden flex flex-col bg-surface-50 dark:bg-surface-950", className)}>
+    <section
+      aria-label={ariaLabel}
+      className={clsx("rounded-2xl border border-surface-200 dark:border-surface-800 shadow-xl overflow-hidden flex flex-col bg-surface-50 dark:bg-surface-950", className)}
+    >
       {mobileContent ? (
         <>
           <div className="hidden md:block overflow-x-auto">
@@ -89,14 +95,26 @@ export function DataTableRow({
   onClick?: () => void;
   isSelected?: boolean;
 }) {
+  const handleKeyDown = onClick
+    ? (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick();
+        }
+      }
+    : undefined;
+
   return (
     <tr
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={onClick ? 0 : undefined}
       className={clsx(
-        "transition group",
-        onClick && "cursor-pointer",
+        "transition-colors group",
+        onClick &&
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500",
         isSelected
-          ? "bg-primary-50 dark:bg-primary-950/20 border-l-2 border-l-primary-500"
+          ? "bg-primary-50 dark:bg-primary-950/20 shadow-[inset_3px_0_0_0_var(--color-primary-500)]"
           : "hover:bg-surface-100 dark:hover:bg-surface-800/40",
         className
       )}
@@ -137,14 +155,40 @@ export function DataTableCell({
 export function DataTableEmptyState({
   colSpan,
   message = "No se encontraron resultados",
+  description,
+  icon: Icon = Inbox,
+  action,
+  children,
 }: {
   colSpan: number;
   message?: string;
+  description?: string;
+  icon?: React.ElementType;
+  action?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="p-8 text-center text-surface-500 dark:text-surface-500">
-        {message}
+      <td colSpan={colSpan} className="px-6 py-12 text-center text-surface-500 dark:text-surface-400">
+        {children ?? (
+          <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+            <div
+              aria-hidden="true"
+              className="w-12 h-12 rounded-2xl bg-surface-100 dark:bg-surface-800/80 border border-surface-200 dark:border-surface-700/70 flex items-center justify-center mb-3 text-surface-400 dark:text-surface-500"
+            >
+              <Icon className="w-6 h-6" strokeWidth={1.75} aria-hidden="true" />
+            </div>
+            <p className="text-sm font-semibold text-surface-800 dark:text-surface-200">
+              {message}
+            </p>
+            {description && (
+              <p className="text-xs text-surface-500 dark:text-surface-400 mt-1 leading-relaxed">
+                {description}
+              </p>
+            )}
+            {action && <div className="mt-4">{action}</div>}
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -174,7 +218,14 @@ export function DataTableCheckbox({
   }, [indeterminate]);
 
   return (
-    <div className={clsx("flex items-center justify-center", className)} onClick={(e) => e.stopPropagation()}>
+    <label
+      className={clsx(
+        "inline-flex items-center justify-center min-w-7 min-h-7 p-1.5 rounded-lg",
+        disabled ? "cursor-not-allowed" : "cursor-pointer",
+        className
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
       <input
         ref={ref}
         type="checkbox"
@@ -182,9 +233,9 @@ export function DataTableCheckbox({
         onChange={onChange}
         disabled={disabled}
         aria-label={ariaLabel}
-        className="w-4 h-4 rounded-md border border-surface-300 dark:border-surface-700 bg-white dark:bg-surface-900 text-primary-600 accent-primary-600 focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-0 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-4 h-4 rounded-md border border-surface-300 dark:border-surface-700 bg-white dark:bg-surface-900 text-primary-600 accent-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-0 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
       />
-    </div>
+    </label>
   );
 }
 

@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,9 +11,14 @@ const UpdateLocationSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+function checkAdminOrSupervisor(session: any) {
+  const role = session?.user?.role;
+  return ["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role);
+}
+
 // GET /api/locations/[id]
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -20,9 +26,15 @@ export async function GET(
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  if (!checkAdminOrSupervisor(session)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
+  }
+
   const { id } = await params;
 
   try {
+    const isAdmin = ["ADMIN", "SUPER_ADMIN"].includes(session.user.role as string);
+
     const location = await prisma.location.findFirst({
       where: {
         id,
@@ -34,7 +46,13 @@ export async function GET(
           select: { id: true, firstName: true, lastName: true, email: true, role: true },
         },
         kiosks: {
-          select: { id: true, name: true, apiKey: true, isActive: true, lastSeenAt: true },
+          select: {
+            id: true,
+            name: true,
+            apiKey: isAdmin, // Solo admins ven apiKey
+            isActive: true,
+            lastSeenAt: true,
+          },
         },
       },
     });
@@ -58,6 +76,11 @@ export async function PUT(
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -89,6 +112,17 @@ export async function PUT(
       data: parsed.data,
     });
 
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_UPDATED",
+      entityType: "LOCATION",
+      entityId: updated.id,
+      oldData: { name: existing.name, address: existing.address, timezone: existing.timezone, isActive: existing.isActive },
+      newData: { name: updated.name, address: updated.address, timezone: updated.timezone, isActive: updated.isActive },
+      req,
+    });
+
     return NextResponse.json({ location: updated });
   } catch (error: any) {
     console.error("Error al actualizar sede:", error);
@@ -104,6 +138,11 @@ export async function DELETE(
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -124,6 +163,17 @@ export async function DELETE(
     const location = await prisma.location.update({
       where: { id },
       data: { isActive: false },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_DELETED",
+      entityType: "LOCATION",
+      entityId: location.id,
+      oldData: { name: existing.name, isActive: existing.isActive },
+      newData: { name: location.name, isActive: location.isActive },
+      req,
     });
 
     return NextResponse.json({ message: "Sede desactivada correctamente", location });

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@asistencias/db";
 import { auth } from "@/auth";
 import { runDailyStarter } from "@/lib/jobs/dailyStarter";
 import { runDailyCloser } from "@/lib/jobs/dailyCloser";
 import { runLateMonitor } from "@/lib/jobs/lateMonitor";
 import { sendPushToAllAdmins } from "@/lib/webPush";
+import { getLocalTodayDate } from "@/lib/dateUtils";
 
 const CRON_SECRET = (() => {
   const s = process.env.CRON_SECRET || process.env.NEXTAUTH_SECRET;
@@ -45,6 +47,16 @@ async function isAuthorized(request: Request): Promise<boolean> {
   return false;
 }
 
+function parseDateParam(raw: string): Date | undefined {
+  // Un string YYYY-MM-DD se interpreta como medianoche UTC en JS; usar 12:00 UTC evita
+  // que al convertir a America/Lima (UTC-5) retroceda al día calendario anterior.
+  const trimmed = raw.trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+    ? new Date(`${trimmed}T12:00:00.000Z`)
+    : new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 function resolveTargetDate(request: Request, body?: any): Date | undefined {
   const url = new URL(request.url);
   const dateParam = url.searchParams.get("date");
@@ -54,12 +66,12 @@ function resolveTargetDate(request: Request, body?: any): Date | undefined {
     return new Date(Date.now() - 24 * 60 * 60 * 1000);
   }
 
-  if (body?.date) {
-    return new Date(body.date);
+  if (typeof body?.date === "string" && body.date) {
+    return parseDateParam(body.date);
   }
 
   if (dateParam) {
-    return new Date(dateParam);
+    return parseDateParam(dateParam);
   }
 
   return undefined;
@@ -119,11 +131,25 @@ export async function GET(
   const { action } = await params;
 
   if (action === "status") {
+    const targetDate = resolveTargetDate(request);
+    const dateDb = getLocalTodayDate(targetDate);
+    const [sodCount, eodCount] = await Promise.all([
+      prisma.attendance.count({ where: { date: dateDb } }),
+      prisma.attendance.count({ where: { date: dateDb, statusChangedBy: "CRON_EOD" } }),
+    ]);
+    const schedulerRunning = Boolean(
+      process.env.VERCEL || process.env.ENABLE_CRON_SCHEDULER === "true"
+    );
+
     return NextResponse.json({
-      online: true,
-      status: "active",
-      message: "Motor de automatizaciones nativo activo",
-      schedulerRunning: true,
+      online: schedulerRunning,
+      status: schedulerRunning ? "active" : "standby",
+      message: schedulerRunning
+        ? "Scheduler automático activo (Vercel Cron)"
+        : "Scheduler en standby (solo ejecución manual en entorno local)",
+      schedulerRunning,
+      sodCount,
+      eodCount,
       timestamp: new Date().toISOString(),
     });
   }

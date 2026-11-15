@@ -14,12 +14,20 @@ import {
 import { es } from "date-fns/locale";
 
 import { generateAttendanceExcelWorkbook } from "@/lib/exportAttendanceExcel";
+import { formatAttendanceStatus } from "@/lib/attendanceFormatters";
+import { formatUserRole } from "@/lib/exportUsersExcel";
+import { toCsvRow } from "@/lib/csvUtils";
 
 // GET /api/reports/export?period=TODAY|WEEK|MONTH|CUSTOM&startDate=...&endDate=...&locationId=...&role=...&format=xlsx|csv
 export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const userRole = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -110,10 +118,34 @@ export async function GET(req: Request) {
       prisma.attendance.findMany({
         where,
         orderBy: [{ date: "asc" }, { entryTime: "asc" }],
-        include: {
-          user: true,
-          location: true,
-          kiosk: true,
+        select: {
+          id: true,
+          date: true,
+          entryTime: true,
+          exitTime: true,
+          entryTime2: true,
+          exitTime2: true,
+          workedMinutes: true,
+          lateMinutes: true,
+          lateMinutes2: true,
+          status: true,
+          notes: true,
+          statusChangedBy: true,
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+              documentId: true,
+              role: true,
+            },
+          },
+          location: {
+            select: { name: true },
+          },
+          kiosk: {
+            select: { name: true },
+          },
         },
       }),
       userId && userId !== "ALL"
@@ -165,19 +197,28 @@ export async function GET(req: Request) {
       });
     }
 
-    // Formato CSV UTF-8 con BOM para sistemas legados o externos
-    const metaHeader = [
-      targetUser
-        ? `"KARDEX OFICIAL DE ASISTENCIA INDIVIDUAL - ${companyName.toUpperCase()}"`
-        : `"REPORTE OFICIAL DE ASISTENCIA - ${companyName.toUpperCase()}"`,
-      targetUser
-        ? `"Colaborador: ${targetUser.lastName}, ${targetUser.firstName} (DNI: ${targetUser.documentId || "S/D"}) - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}"`
-        : `"${ruc} - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}"`,
-      `"Total Registros: ${attendances.length} - Software: Presenxa Control Inteligente"`,
-      "", // blank line
-    ];
+    // Formato CSV UTF-8 con BOM, sanitizado contra Formula Injection (RFC 4180)
+    const includeMeta = searchParams.get("meta") === "1";
+    const metaHeader = includeMeta
+      ? [
+          toCsvRow([
+            targetUser
+              ? `KARDEX OFICIAL DE ASISTENCIA INDIVIDUAL - ${companyName.toUpperCase()}`
+              : `REPORTE OFICIAL DE ASISTENCIA - ${companyName.toUpperCase()}`,
+          ]),
+          toCsvRow([
+            targetUser
+              ? `Colaborador: ${targetUser.lastName}, ${targetUser.firstName} (DNI: ${targetUser.documentId || "S/D"}) - Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}`
+              : `${ruc ? `${ruc} - ` : ""}Periodo: ${periodLabel} - Generado: ${format(now, "dd/MM/yyyy HH:mm:ss")}`,
+          ]),
+          toCsvRow([
+            `Total Registros: ${attendances.length} - Software: Presenxa Control Inteligente`,
+          ]),
+          "",
+        ]
+      : [];
 
-    const tableHeader = [
+    const tableHeader = toCsvRow([
       "Fecha",
       "Documento / DNI",
       "Apellidos y Nombres",
@@ -194,7 +235,7 @@ export async function GET(req: Request) {
       "Minutos Tardanza",
       "Notas / Justificación",
       "Auditado Por",
-    ].join(";");
+    ]);
 
     const rows = attendances.map((a) => {
       const dateStr = format(new Date(a.date), "dd/MM/yyyy");
@@ -202,28 +243,28 @@ export async function GET(req: Request) {
       const exitStr = a.exitTime ? format(new Date(a.exitTime), "HH:mm:ss") : "--:--:--";
       const entry2Str = a.entryTime2 ? format(new Date(a.entryTime2), "HH:mm:ss") : "--:--:--";
       const exit2Str = a.exitTime2 ? format(new Date(a.exitTime2), "HH:mm:ss") : "--:--:--";
-      const fullName = `"${a.user.lastName}, ${a.user.firstName}"`;
-      const notes = a.notes ? `"${a.notes.replace(/"/g, '""')}"` : "";
+      const fullName = `${a.user.lastName}, ${a.user.firstName}`;
       const workedHours = a.workedMinutes ? (a.workedMinutes / 60).toFixed(2) + " hrs" : "0.00 hrs";
+      const totalLate = (a.lateMinutes || 0) + (a.lateMinutes2 || 0);
 
-      return [
+      return toCsvRow([
         dateStr,
-        `"${a.user.documentId || ""}"`,
+        a.user.documentId || "",
         fullName,
         a.user.email,
-        a.user.role,
-        `"${a.location?.name || "Sin sede"}"`,
-        `"${a.kiosk?.name || "Virtual"}"`,
+        formatUserRole(a.user.role),
+        a.location?.name || "Sin sede",
+        a.kiosk?.name || "Virtual",
         entryStr,
         exitStr,
         entry2Str,
         exit2Str,
         workedHours,
-        a.status,
-        a.lateMinutes || 0,
-        notes,
-        `"${a.statusChangedBy || ""}"`,
-      ].join(";");
+        formatAttendanceStatus(a.status),
+        totalLate,
+        a.notes || "",
+        a.statusChangedBy || "",
+      ]);
     });
 
     const csvContent = "\uFEFF" + [...metaHeader, tableHeader, ...rows].join("\r\n");

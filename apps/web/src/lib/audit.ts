@@ -4,7 +4,17 @@ export interface LogAuditParams {
   organizationId?: string | null;
   userId?: string | null;
   action: AuditAction;
-  entityType: "ATTENDANCE" | "USER" | "LOCATION" | "KIOSK" | "SCHEDULE" | "SYSTEM";
+  entityType:
+    | "ATTENDANCE"
+    | "USER"
+    | "LOCATION"
+    | "KIOSK"
+    | "SCHEDULE"
+    | "DEPARTMENT"
+    | "HOLIDAY"
+    | "ORGANIZATION"
+    | "TIME_OFF_REQUEST"
+    | "SYSTEM";
   entityId?: string | null;
   oldData?: any;
   newData?: any;

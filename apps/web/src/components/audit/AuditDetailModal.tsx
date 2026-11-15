@@ -3,23 +3,7 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  ShieldAlert,
-  Clock,
-  User,
-  Activity,
-  Layers,
-  Globe,
-  Monitor,
-  Copy,
-  Check,
-  ArrowRight,
-  Code,
-  FileCheck,
-  AlertTriangle,
-  Trash2,
-  Edit3,
-} from "lucide-react";
+import { ShieldAlert, User, Activity, Layers, Globe, Monitor, Copy, Check, Code, FileCheck, AlertTriangle, Trash2, Edit3 } from "lucide-react";
 import { ModalShell } from "@/components/ui/ModalShell";
 import { Button } from "@/components/ui/Button";
 
@@ -62,10 +46,16 @@ const ACTION_MAP: Record<string, { label: string; variant: "primary" | "warning"
   USER_CREATED: { label: "Creación de Usuario", variant: "success", icon: User },
   USER_UPDATED: { label: "Modificación de Usuario", variant: "warning", icon: Edit3 },
   USER_DEACTIVATED: { label: "Desactivación de Usuario", variant: "danger", icon: Trash2 },
+  USER_PASSWORD_RESET: { label: "Reseteo de Contraseña (Admin)", variant: "warning", icon: AlertTriangle },
+  USER_PASSWORD_CHANGED: { label: "Cambio de Contraseña", variant: "info", icon: ShieldAlert },
+  OVERTIME_REVIEWED: { label: "Revisión de Horas Extras", variant: "info", icon: FileCheck },
   JOB_EXECUTED: { label: "Ejecución de Proceso (Cron)", variant: "info", icon: Activity },
   TIME_OFF_REQUESTED: { label: "Solicitud de Permiso / Vacaciones", variant: "info", icon: Activity },
   TIME_OFF_APPROVED: { label: "Permiso Aprobado", variant: "success", icon: FileCheck },
   TIME_OFF_REJECTED: { label: "Permiso Rechazado", variant: "danger", icon: AlertTriangle },
+  ENTITY_CREATED: { label: "Creación de Registro", variant: "success", icon: FileCheck },
+  ENTITY_UPDATED: { label: "Actualización de Registro", variant: "warning", icon: Edit3 },
+  ENTITY_DELETED: { label: "Eliminación / Desactivación", variant: "danger", icon: Trash2 },
 };
 
 // Diccionario de traducción de tipos de entidad
@@ -75,6 +65,10 @@ const ENTITY_MAP: Record<string, string> = {
   LOCATION: "Sede",
   KIOSK: "Kiosko",
   SCHEDULE: "Horario",
+  DEPARTMENT: "Departamento",
+  HOLIDAY: "Feriado",
+  ORGANIZATION: "Organización",
+  TIME_OFF_REQUEST: "Solicitud de Permiso",
   SYSTEM: "Sistema",
 };
 
@@ -173,7 +167,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
           <button
             type="button"
             onClick={() => setShowRawJson(!showRawJson)}
-            className="text-xs font-semibold text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="text-xs font-semibold text-surface-500 dark:text-surface-400 hover:text-surface-800 dark:hover:text-surface-200 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Code className="w-3.5 h-3.5" />
             <span>{showRawJson ? "Ocultar JSON técnico" : "Ver JSON técnico crudo"}</span>
@@ -189,7 +183,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 rounded-2xl bg-surface-100/70 dark:bg-surface-900/60 border border-surface-200 dark:border-surface-800">
           {/* Acción */}
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               Acción Realizada
             </span>
             <div className="flex items-center gap-2 mt-1">
@@ -201,7 +195,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
 
           {/* Actor / Responsable */}
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               Responsable (Actor)
             </span>
             <div className="flex items-center gap-2 mt-1">
@@ -215,7 +209,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
                     <div className="text-xs font-bold text-surface-900 dark:text-surface-100 leading-tight">
                       {log.user.firstName} {log.user.lastName}
                     </div>
-                    <div className="text-[10px] text-surface-500 font-mono">
+                    <div className="text-[10px] text-surface-500 dark:text-surface-400 font-mono">
                       {log.user.email}
                     </div>
                   </div>
@@ -231,7 +225,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
 
           {/* Entidad Afectada */}
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               Entidad y Destinatario Afectado
             </span>
             <div className="mt-1">
@@ -244,12 +238,12 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
                 </span>
               </div>
               {log.targetDetail && (
-                <p className="text-[11px] text-surface-500 font-mono mt-0.5">
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 font-mono mt-0.5">
                   {log.targetDetail}
                 </p>
               )}
               {log.entityId && !log.targetName && (
-                <p className="text-[10px] text-surface-400 font-mono truncate mt-0.5">
+                <p className="text-[10px] text-surface-500 dark:text-surface-400 font-mono truncate mt-0.5">
                   ID: {log.entityId}
                 </p>
               )}
@@ -258,17 +252,17 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
 
           {/* Metadatos de Red */}
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-surface-400">
               Origen de la Petición
             </span>
             <div className="mt-1 space-y-0.5 text-xs text-surface-600 dark:text-surface-300">
               <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                <Globe className="w-3.5 h-3.5 text-surface-400" />
+                <Globe className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400" />
                 <span>IP: {log.ipAddress || "127.0.0.1 (Local / Servidor)"}</span>
               </div>
               {log.userAgent && (
                 <div
-                  className="flex items-center gap-1.5 text-[10px] text-surface-400 truncate max-w-[260px]"
+                  className="flex items-center gap-1.5 text-[10px] text-surface-500 dark:text-surface-400 truncate max-w-[260px]"
                   title={log.userAgent}
                 >
                   <Monitor className="w-3 h-3 flex-shrink-0" />
@@ -289,7 +283,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
             <button
               type="button"
               onClick={handleCopyId}
-              className="text-[11px] font-mono text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex items-center gap-1 transition-colors cursor-pointer"
+              className="text-[11px] font-mono text-surface-500 dark:text-surface-400 hover:text-surface-600 dark:hover:text-surface-200 flex items-center gap-1 transition-colors cursor-pointer"
               title="Copiar ID del log"
             >
               {copied ? (
@@ -307,12 +301,12 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
           </div>
 
           {allKeys.length === 0 ? (
-            <div className="p-4 rounded-xl bg-surface-100/50 dark:bg-surface-900/30 border border-surface-200/60 dark:border-surface-800 text-center text-xs text-surface-500 italic">
+            <div className="p-4 rounded-xl bg-surface-100/50 dark:bg-surface-900/30 border border-surface-200/60 dark:border-surface-800 text-center text-xs text-surface-500 dark:text-surface-400 italic">
               Este evento no incluye parámetros de modificación en el registro.
             </div>
           ) : (
             <div className="rounded-xl border border-surface-200 dark:border-surface-800 overflow-hidden divide-y divide-surface-200 dark:divide-surface-800 text-xs">
-              <div className="grid grid-cols-12 bg-surface-100/70 dark:bg-surface-950/60 px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-surface-500">
+              <div className="grid grid-cols-12 bg-surface-100/70 dark:bg-surface-950/60 px-3 py-2 font-bold text-[10px] uppercase tracking-wider text-surface-500 dark:text-surface-400">
                 <div className="col-span-4">Campo Modificado</div>
                 <div className="col-span-4 text-rose-600 dark:text-rose-400">Valor Anterior</div>
                 <div className="col-span-4 text-emerald-600 dark:text-emerald-400">Valor Nuevo</div>
@@ -334,7 +328,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
                   >
                     <div className="col-span-4 font-semibold text-surface-800 dark:text-surface-200">
                       {FIELD_LABELS[key] || key}
-                      <div className="text-[10px] font-mono text-surface-400 font-normal">
+                      <div className="text-[10px] font-mono text-surface-500 dark:text-surface-400 font-normal">
                         {key}
                       </div>
                     </div>
@@ -344,7 +338,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
                           {formatValue(oldVal)}
                         </span>
                       ) : (
-                        <span className="text-surface-400 italic font-mono text-[10px]">
+                        <span className="text-surface-500 dark:text-surface-400 italic font-mono text-[10px]">
                           — (Vacío)
                         </span>
                       )}
@@ -355,7 +349,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
                           {formatValue(newVal)}
                         </span>
                       ) : (
-                        <span className="text-surface-400 italic font-mono text-[10px]">
+                        <span className="text-surface-500 dark:text-surface-400 italic font-mono text-[10px]">
                           — (Vacío)
                         </span>
                       )}
@@ -370,7 +364,7 @@ export function AuditDetailModal({ isOpen, onClose, log }: AuditDetailModalProps
         {/* JSON Técnico (Colapsable) */}
         {showRawJson && (
           <div className="p-3.5 rounded-xl bg-surface-950 text-slate-200 font-mono text-[10px] space-y-2 border border-surface-800 animate-fade-in-up">
-            <div className="flex items-center justify-between text-surface-400 font-bold uppercase tracking-wider">
+            <div className="flex items-center justify-between text-surface-500 dark:text-surface-400 font-bold uppercase tracking-wider">
               <span>Payload JSON Original</span>
               <span>{log.id}</span>
             </div>

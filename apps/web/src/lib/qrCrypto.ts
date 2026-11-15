@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 
 const DEFAULT_SECRET = (() => {
   const s = process.env.QR_HMAC_SECRET || process.env.NEXTAUTH_SECRET;
@@ -14,16 +14,23 @@ const DEFAULT_SECRET = (() => {
   }
   return s || "dev-qr-hmac-secret-not-for-prod";
 })();
-const DEFAULT_EXPIRATION_DAYS = 60; // 60 días de vigencia para el token firmado
-
-export interface VerifiedQrPayload {
-  isValid: boolean;
-  userId?: string;
-  qrToken?: string;
-  issuedAt?: Date;
-  isExpired?: boolean;
-  error?: string;
-}
+export type VerifiedQrPayload =
+  | {
+      isValid: true;
+      userId: string;
+      qrToken: string;
+      issuedAt: Date;
+      isExpired: false;
+      error?: undefined;
+    }
+  | {
+      isValid: false;
+      userId?: string;
+      qrToken?: string;
+      issuedAt?: Date;
+      isExpired?: boolean;
+      error?: string;
+    };
 
 /**
  * Genera un payload de código QR firmado digitalmente con HMAC-SHA256.
@@ -54,7 +61,8 @@ export function isSignedQrPayload(rawPayload: string): boolean {
 export function verifySignedQrPayload(
   rawPayload: string,
   maxAgeSeconds: number = 90, // Por defecto: 90 segundos de vigencia para el QR dinámico en pantalla
-  secret: string = DEFAULT_SECRET
+  secret: string = DEFAULT_SECRET,
+  referenceDate: Date = new Date() // Permite comparar contra la fecha real de escaneo en sincronización offline
 ): VerifiedQrPayload {
   if (!rawPayload || typeof rawPayload !== "string") {
     return { isValid: false, error: "Payload QR vacío o no válido" };
@@ -66,9 +74,9 @@ export function verifySignedQrPayload(
   }
 
   const [, userId, qrToken, timestampStr, providedSignature] = parts;
-  const timestamp = parseInt(timestampStr, 10);
+  const timestamp = Number.parseInt(timestampStr, 10);
 
-  if (isNaN(timestamp)) {
+  if (Number.isNaN(timestamp)) {
     return { isValid: false, error: "Marca de tiempo del QR corrupta" };
   }
 
@@ -86,8 +94,8 @@ export function verifySignedQrPayload(
   }
 
   // 2. Verificar caducidad por tiempo (Anti-Capturas de pantalla)
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const ageSeconds = nowSeconds - timestamp;
+  const refSeconds = Math.floor(referenceDate.getTime() / 1000);
+  const ageSeconds = refSeconds - timestamp;
 
   // Permitir pequeño margen de tolerancia hacia el futuro por desincronización de relojes (hasta 15s)
   if (ageSeconds < -15) {
@@ -99,13 +107,14 @@ export function verifySignedQrPayload(
 
   if (ageSeconds > maxAgeSeconds) {
     const mins = Math.floor(ageSeconds / 60);
+    const elapsedLabel = mins > 0 ? `hace ${mins} min` : `hace ${ageSeconds}s`;
     return {
       isValid: false,
       isExpired: true,
       userId,
       qrToken,
       issuedAt: new Date(timestamp * 1000),
-      error: `El código QR ha expirado (${mins > 0 ? `hace ${mins} min` : `hace ${ageSeconds}s`}). Por favor abre tu app para generar un QR en vivo.`,
+      error: `El código QR ha expirado (${elapsedLabel}). Por favor abre tu app para generar un QR en vivo.`,
     };
   }
 

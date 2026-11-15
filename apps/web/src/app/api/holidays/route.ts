@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
+import { parsePaginationParams, buildPaginationMeta } from "@/lib/pagination";
 import { prisma } from "@asistencias/db";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -14,10 +16,34 @@ export async function GET() {
       return NextResponse.json({ error: "Organización no encontrada" }, { status: 400 });
     }
 
-    const holidays = await prisma.holiday.findMany({
-      where: { organizationId },
-      orderBy: { date: "asc" },
-    });
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search")?.trim() || "";
+    const { hasPagination, page, pageSize, skip, take } = parsePaginationParams(
+      searchParams,
+      25
+    );
+
+    const where: any = { organizationId };
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+
+    const [holidays, total] = await Promise.all([
+      prisma.holiday.findMany({
+        where,
+        orderBy: { date: "asc" },
+        skip,
+        take,
+      }),
+      hasPagination ? prisma.holiday.count({ where }) : Promise.resolve(0),
+    ]);
+
+    if (hasPagination) {
+      return NextResponse.json({
+        holidays,
+        pagination: buildPaginationMeta(page, pageSize, total),
+      });
+    }
 
     return NextResponse.json({ holidays });
   } catch (error: any) {
@@ -57,6 +83,16 @@ export async function POST(req: Request) {
         locationId: locationId || null,
         isActive: true,
       },
+    });
+
+    await logAuditEvent({
+      organizationId,
+      userId: session.user.id,
+      action: "ENTITY_CREATED",
+      entityType: "HOLIDAY",
+      entityId: holiday.id,
+      newData: { name: holiday.name, date: date, locationId: holiday.locationId },
+      req,
     });
 
     return NextResponse.json({ holiday }, { status: 201 });

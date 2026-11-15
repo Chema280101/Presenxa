@@ -33,12 +33,15 @@ export function EmptyState({
       {/* Background ambient subtle glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-36 h-36 bg-primary-400/5 rounded-full blur-2xl pointer-events-none" />
 
-      <div className="w-14 h-14 rounded-3xl bg-primary-400/10 border border-primary-400/20 flex items-center justify-center mb-4 text-primary-300 shadow-inner relative z-10">
-        <Icon className="w-7 h-7" />
+      <div
+        aria-hidden="true"
+        className="w-14 h-14 rounded-3xl bg-primary-50 dark:bg-primary-400/10 border border-primary-200 dark:border-primary-400/20 flex items-center justify-center mb-4 text-primary-600 dark:text-primary-300 shadow-inner relative z-10"
+      >
+        <Icon className="w-7 h-7" aria-hidden="true" />
       </div>
 
-      <h4 className="text-base font-bold text-white mb-1.5 relative z-10">{title}</h4>
-      <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mb-6 max-w-xs relative z-10">
+      <h4 className="text-base font-bold text-surface-900 dark:text-white mb-1.5 relative z-10">{title}</h4>
+      <p className="text-xs sm:text-sm text-surface-600 dark:text-slate-400 leading-relaxed mb-6 max-w-xs relative z-10">
         {description}
       </p>
 

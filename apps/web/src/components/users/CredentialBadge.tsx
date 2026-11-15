@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Shield, MapPin, FileText, QrCode as QrIcon, AlertCircle, Phone, Clock, Lock } from "lucide-react";
+import { Shield, MapPin, FileText, QrCode as QrIcon, Phone, Clock, Lock } from "lucide-react";
 
 export type BadgeOrientation = "vertical" | "horizontal";
 

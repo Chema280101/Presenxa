@@ -58,14 +58,14 @@ export const ActionButton = forwardRef<HTMLButtonElement, ActionButtonProps>(
 
     const sizeClasses = {
       sm: hasText
-        ? "h-8 px-2.5 rounded-lg text-xs font-semibold gap-1.5"
-        : "h-8 w-8 rounded-lg",
+        ? "min-h-10 sm:min-h-0 sm:h-8 px-2.5 rounded-lg text-xs font-semibold gap-1.5"
+        : "min-h-10 min-w-10 sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-lg",
       md: hasText
-        ? "h-8.5 px-3 rounded-xl text-xs font-semibold gap-1.5"
-        : "h-8.5 w-8.5 rounded-xl",
+        ? "min-h-11 sm:min-h-0 sm:h-8.5 px-3 rounded-xl text-xs font-semibold gap-1.5"
+        : "min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 sm:h-8.5 sm:w-8.5 rounded-xl",
       lg: hasText
-        ? "h-10 px-3.5 rounded-xl text-sm font-semibold gap-2"
-        : "h-10 w-10 rounded-xl",
+        ? "min-h-11 sm:min-h-0 sm:h-10 px-3.5 rounded-xl text-sm font-semibold gap-2"
+        : "min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 sm:h-10 sm:w-10 rounded-xl",
     }[size];
 
     return (

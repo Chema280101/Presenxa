@@ -5,7 +5,7 @@
  *         expiración de ventana, y correctitud del conteo
  * ═══════════════════════════════════════════════════════════════════════
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { checkRateLimit } from "@/lib/rateLimit";
 
 // Force memory fallback (no Redis in tests)

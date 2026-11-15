@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { UserRole } from "@asistencias/db";
+import { parseCsvRFC4180 } from "@/lib/csvUtils";
 import {
   createPresenxaWorkbook,
   downloadExcelWorkbook,
@@ -169,16 +170,16 @@ export function BulkImportModal({
         });
       });
 
-      // Validación desplegable para la columna Rol (filas 2 a 300)
-      for (let r = 2; r <= 300; r++) {
+      // Validación desplegable para la columna Rol (filas 2 a 1000)
+      for (let r = 2; r <= 1000; r++) {
         const cell = ws.getCell(r, 6);
         cell.dataValidation = {
           type: "list",
           allowBlank: true,
-          formulae: ['"EMPLEADO,SUPERVISOR,ADMIN"'],
+          formulae: ['"EMPLEADO,SUPERVISOR,ADMIN,SUPER_ADMIN"'],
           showErrorMessage: true,
           errorTitle: "Rol no admitido",
-          error: "Seleccione un rol de la lista desplegable: EMPLEADO, SUPERVISOR o ADMIN.",
+          error: "Seleccione un rol de la lista desplegable: EMPLEADO, SUPERVISOR, ADMIN o SUPER_ADMIN.",
         };
       }
 
@@ -237,21 +238,24 @@ export function BulkImportModal({
     }
   };
 
-  // Procesador unificado para matrices de celdas (Excel o CSV)
+  // Procesador unificado para matrices de celdas (Excel o CSV) conservando número de fila real (1-based)
   const processMatrixData = (rawRows: any[][]) => {
-    const cleanRows = rawRows.filter(
-      (row) => row && row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== "")
-    );
+    const indexedRows = rawRows
+      .map((row, idx) => ({ row, excelRowNumber: idx + 1 }))
+      .filter(
+        ({ row }) =>
+          row && row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== "")
+      );
 
-    if (cleanRows.length < 2) {
+    if (indexedRows.length < 2) {
       toast.warning("El archivo debe contener una fila de encabezados y al menos una fila con datos.");
       return;
     }
 
     // Localizar inteligentemente la fila de encabezados
     let headerRowIdx = -1;
-    for (let r = 0; r < Math.min(cleanRows.length, 6); r++) {
-      const rowStrings = cleanRows[r].map((c) =>
+    for (let r = 0; r < Math.min(indexedRows.length, 6); r++) {
+      const rowStrings = indexedRows[r].row.map((c) =>
         String(c || "")
           .toLowerCase()
           .trim()
@@ -266,7 +270,7 @@ export function BulkImportModal({
 
     if (headerRowIdx === -1) headerRowIdx = 0;
 
-    const headerRow = cleanRows[headerRowIdx].map((h) =>
+    const headerRow = indexedRows[headerRowIdx].row.map((h) =>
       String(h || "")
         .toLowerCase()
         .trim()
@@ -284,8 +288,8 @@ export function BulkImportModal({
     const seenEmails = new Set<string>();
     const rows: ParsedUserRow[] = [];
 
-    for (let i = headerRowIdx + 1; i < cleanRows.length; i++) {
-      const row = cleanRows[i];
+    for (let i = headerRowIdx + 1; i < indexedRows.length; i++) {
+      const { row, excelRowNumber } = indexedRows[i];
       const firstName = String((fnIdx >= 0 ? row[fnIdx] : row[0]) || "").trim();
       const lastName = String((lnIdx >= 0 ? row[lnIdx] : row[1]) || "").trim();
       const email = String((emIdx >= 0 ? row[emIdx] : row[2]) || "").toLowerCase().trim();
@@ -314,7 +318,7 @@ export function BulkImportModal({
       }
 
       rows.push({
-        rowNumber: i,
+        rowNumber: excelRowNumber,
         firstName,
         lastName,
         email,
@@ -330,24 +334,49 @@ export function BulkImportModal({
     setCurrentStep(2);
   };
 
+  const extractExcelCellText = (val: ExcelJS.CellValue): string => {
+    if (val === null || val === undefined) return "";
+    if (typeof val === "object") {
+      if ("text" in val && typeof val.text === "string") return val.text;
+      if ("richText" in val && Array.isArray(val.richText)) {
+        return val.richText.map((rt) => rt.text).join("");
+      }
+      if ("result" in val && val.result !== undefined) return String(val.result);
+    }
+    return String(val);
+  };
+
   const handleFileProcess = (file: File) => {
     const fileName = file.name.toLowerCase();
-    const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
+    const isXlsx = fileName.endsWith(".xlsx");
+    const isLegacyXls = fileName.endsWith(".xls");
+
+    if (isLegacyXls) {
+      toast.warning("El formato binario .xls antiguo no es compatible. Guarda el archivo como .xlsx o .csv.");
+      return;
+    }
 
     const reader = new FileReader();
 
-    if (isExcel) {
-      reader.onload = (event) => {
+    if (isXlsx) {
+      reader.onload = async (event) => {
         try {
           const buffer = event.target?.result as ArrayBuffer;
-          const workbook = XLSX.read(buffer, { type: "array" });
-          const firstSheetName = workbook.SheetNames[0];
-          if (!firstSheetName) {
+          const workbook = new ExcelJS.Workbook();
+          await workbook.xlsx.load(buffer);
+          const worksheet = workbook.worksheets[0];
+          if (!worksheet) {
             toast.warning("El archivo de Excel no contiene hojas de datos.");
             return;
           }
-          const worksheet = workbook.Sheets[firstSheetName];
-          const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          const rawRows: string[][] = [];
+          worksheet.eachRow({ includeEmpty: true }, (row, rowNum) => {
+            const values: string[] = [];
+            for (let c = 1; c <= row.cellCount; c++) {
+              values.push(extractExcelCellText(row.getCell(c).value));
+            }
+            rawRows[rowNum - 1] = values;
+          });
           processMatrixData(rawRows);
         } catch (err: any) {
           toast.error("Error al leer el archivo de Excel: " + err.message);
@@ -358,26 +387,17 @@ export function BulkImportModal({
       reader.onload = (event) => {
         try {
           const text = event.target?.result as string;
-          const lines = text
-            .split(/\r?\n/)
-            .map((l) => l.trim())
-            .filter((l) => l.length > 0);
-
-          if (lines.length < 2) {
+          const rawRows = parseCsvRFC4180(text);
+          if (rawRows.length < 2) {
             toast.warning("El archivo debe contener al menos dos líneas de datos.");
             return;
           }
-
-          const separator = lines[0].includes(";") ? ";" : ",";
-          const rawRows = lines.map((l) =>
-            l.split(separator).map((c) => c.trim().replace(/^["']|["']$/g, ""))
-          );
           processMatrixData(rawRows);
         } catch (err: any) {
           toast.error("Error al procesar el archivo CSV: " + err.message);
         }
       };
-      reader.readAsText(file);
+      reader.readAsText(file, "UTF-8");
     }
   };
 
@@ -693,7 +713,7 @@ export function BulkImportModal({
                 onChange={setDefaultLocationId}
                 options={locationOptions}
                 placeholder="Sin sede (asignar después)"
-                hasLeftIcon
+                leftIcon={Building}
               />
             </div>
             <div>
@@ -706,7 +726,7 @@ export function BulkImportModal({
                 onChange={setDefaultScheduleId}
                 options={scheduleOptions}
                 placeholder="Sin horario (asignar después)"
-                hasLeftIcon
+                leftIcon={Clock}
               />
             </div>
           </div>
@@ -806,8 +826,8 @@ export function BulkImportModal({
                 {importResult.errors.length} incidencias no pudieron ser importadas:
               </div>
               <ul className="text-[11px] text-danger-600 dark:text-danger-400 space-y-1 list-disc list-inside max-h-36 overflow-y-auto">
-                {importResult.errors.map((err, idx) => (
-                  <li key={idx}>
+                {importResult.errors.map((err) => (
+                  <li key={`${err.row}-${err.email}`}>
                     Fila {err.row} ({err.email}): {err.error}
                   </li>
                 ))}

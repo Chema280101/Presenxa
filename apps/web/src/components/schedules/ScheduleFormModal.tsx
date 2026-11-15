@@ -1,21 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Clock,
-  Sun,
-  Moon,
-  Layers,
-  Check,
-  Plus,
-  MapPin,
-  ChevronDown,
-  Loader2,
-  CalendarDays,
-  FileText
-} from "lucide-react";
+import { Clock, CalendarClock, Sun, Moon, Layers, Check, Plus, MapPin, Loader2, CalendarDays, FileText } from "lucide-react";
 import { clsx } from "clsx";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { FormField, getFormInputClass } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 
 export interface ScheduleFormData {
@@ -82,6 +72,7 @@ export function ScheduleFormModal({
   // Template flag
   const [isTemplate, setIsTemplate] = useState(false);
 
+  const [nameError, setNameError] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -139,6 +130,7 @@ export function ScheduleFormModal({
       setLocationId("");
       setIsTemplate(false);
     }
+    setNameError("");
     setError("");
   }, [initialData, isOpen]);
 
@@ -179,9 +171,11 @@ export function ScheduleFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNameError("");
     setError("");
 
     if (!name.trim()) {
+      setNameError("El nombre del turno o horario es obligatorio.");
       setError("El nombre del turno o horario es obligatorio.");
       return;
     }
@@ -189,7 +183,7 @@ export function ScheduleFormModal({
     const [eH, eM] = entryTime.split(":").map(Number);
     const [xH, xM] = exitTime.split(":").map(Number);
 
-    if (isNaN(eH) || isNaN(eM) || isNaN(xH) || isNaN(xM)) {
+    if (Number.isNaN(eH) || Number.isNaN(eM) || Number.isNaN(xH) || Number.isNaN(xM)) {
       setError("Por favor ingresa horas válidas para el Tramo 1.");
       return;
     }
@@ -203,7 +197,7 @@ export function ScheduleFormModal({
       const [parsedEH2, parsedEM2] = entryTime2.split(":").map(Number);
       const [parsedXH2, parsedXM2] = exitTime2.split(":").map(Number);
 
-      if (isNaN(parsedEH2) || isNaN(parsedEM2) || isNaN(parsedXH2) || isNaN(parsedXM2)) {
+      if (Number.isNaN(parsedEH2) || Number.isNaN(parsedEM2) || Number.isNaN(parsedXH2) || Number.isNaN(parsedXM2)) {
         setError("Por favor ingresa horas válidas para el Tramo 2 (turno partido).");
         return;
       }
@@ -244,80 +238,31 @@ export function ScheduleFormModal({
     }
   };
 
-  const premiumInputClass =
-    "w-full h-11 pl-10 pr-4 text-sm bg-white dark:bg-white/[0.05] dark:hover:bg-white/[0.08] text-surface-900 dark:text-white placeholder:text-surface-400 dark:placeholder:text-surface-500 font-medium rounded-xl border border-surface-200 dark:border-white/10 dark:hover:border-white/20 shadow-xs focus:border-primary-500 dark:focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20 dark:focus:ring-primary-400/20 outline-none transition-all";
-
-  const InputWrapper = ({
-    label,
-    icon: Icon,
-    required = false,
-    optional = false,
-    helperText,
-    children,
-  }: {
-    label: string;
-    icon: React.ElementType;
-    required?: boolean;
-    optional?: boolean;
-    helperText?: React.ReactNode;
-    children: React.ReactNode;
-  }) => (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-semibold text-surface-900 dark:text-surface-100 flex items-center gap-1">
-          {label}
-          {required && <span className="text-danger-500">*</span>}
-        </label>
-        {optional && (
-          <span className="text-[10px] text-surface-400 dark:text-surface-500 font-normal">(Opcional)</span>
-        )}
-      </div>
-      <div className="relative group">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors z-10">
-          <Icon className="w-4 h-4" />
-        </div>
-        {children}
-      </div>
-      {helperText && (
-        <div className="text-[11px] text-surface-500 dark:text-surface-400 mt-0.5 leading-tight">
-          {helperText}
-        </div>
-      )}
-    </div>
-  );
-
   const footer = (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="lg"
         onClick={onClose}
-        className="h-10 px-5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
+        disabled={isSubmitting}
       >
         Cancelar
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
         form="schedule-form"
-        disabled={isSubmitting}
-        className="h-10 px-5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white shadow-sm hover:shadow-md hover:shadow-primary-500/20 text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+        variant="primary"
+        size="lg"
+        isLoading={isSubmitting}
+        icon={isEditing ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
       >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Guardando horario...</span>
-          </>
-        ) : isEditing ? (
-          <>
-            <Check className="w-4 h-4" />
-            <span>Actualizar Horario</span>
-          </>
-        ) : (
-          <>
-            <Plus className="w-4 h-4" />
-            <span>Crear Horario</span>
-          </>
-        )}
-      </button>
+        {isSubmitting
+          ? "Guardando horario..."
+          : isEditing
+            ? "Actualizar Horario"
+            : "Crear Horario"}
+      </Button>
     </>
   );
 
@@ -325,14 +270,16 @@ export function ScheduleFormModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      preventClose={isSubmitting}
+      closeOnBackdropClick={false}
       title={isEditing ? "Editar Turno / Horario" : "Nuevo Turno / Horario"}
       description="Define las horas de entrada, salida, modalidad continua o partida y tolerancias"
-      icon={Clock}
+      icon={CalendarClock}
       iconVariant="primary"
       maxWidth="3xl"
       footer={footer}
     >
-      <form onSubmit={handleSubmit} id="schedule-form" className="space-y-6 py-2">
+      <form onSubmit={handleSubmit} id="schedule-form" className="space-y-6 py-2" noValidate>
         {error && (
           <div
             role="alert"
@@ -345,18 +292,32 @@ export function ScheduleFormModal({
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          <InputWrapper label="Nombre del Horario / Turno" icon={FileText} required>
+          <FormField
+            label="Nombre del Horario / Turno"
+            icon={FileText}
+            required
+            error={nameError}
+          >
             <input
               type="text"
               required
               placeholder="Ej: Turno Administrativo (8:00 AM - 5:00 PM)"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={premiumInputClass}
+              onChange={(e) => {
+                const val = e.target.value;
+                setName(val);
+                if (nameError) {
+                  setNameError(!val.trim() ? "El nombre del turno o horario es obligatorio." : "");
+                }
+              }}
+              onBlur={() =>
+                setNameError(!name.trim() ? "El nombre del turno o horario es obligatorio." : "")
+              }
+              className={getFormInputClass({ hasLeftIcon: true, hasError: !!nameError })}
             />
-          </InputWrapper>
+          </FormField>
 
-          <InputWrapper label="Sede (Opcional)" icon={MapPin}>
+          <FormField label="Sede" icon={MapPin} optional>
             <CustomSelect
               value={locationId}
               onChange={setLocationId}
@@ -366,7 +327,7 @@ export function ScheduleFormModal({
               ]}
               hasLeftIcon
             />
-          </InputWrapper>
+          </FormField>
 
           <div className="md:col-span-2 space-y-2">
             <label className="block text-xs font-semibold text-surface-900 dark:text-surface-100">
@@ -507,32 +468,29 @@ export function ScheduleFormModal({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                  Hora de Entrada <span className="text-danger-500">*</span>
-                </label>
+              <FormField label="Hora de Entrada" icon={Clock} required>
                 <input
                   type="time"
                   required
                   value={entryTime}
                   onChange={(e) => setEntryTime(e.target.value)}
-                  className={clsx(premiumInputClass, "font-mono !pl-4")}
+                  className={getFormInputClass({ hasLeftIcon: true, className: "font-mono [color-scheme:light] dark:[color-scheme:dark]" })}
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                  {isSplit ? "Hora de Salida (Inicio Receso)" : "Hora de Salida Oficial"}{" "}
-                  <span className="text-danger-500">*</span>
-                </label>
+              <FormField
+                label={isSplit ? "Hora de Salida (Inicio Receso)" : "Hora de Salida Oficial"}
+                icon={Clock}
+                required
+              >
                 <input
                   type="time"
                   required
                   value={exitTime}
                   onChange={(e) => setExitTime(e.target.value)}
-                  className={clsx(premiumInputClass, "font-mono !pl-4")}
+                  className={getFormInputClass({ hasLeftIcon: true, className: "font-mono [color-scheme:light] dark:[color-scheme:dark]" })}
                 />
-              </div>
+              </FormField>
             </div>
 
             <div className="flex items-center justify-between pt-1 border-t border-surface-200 dark:border-white/10 mt-2">
@@ -546,7 +504,7 @@ export function ScheduleFormModal({
                   max={60}
                   value={toleranceMinutes}
                   onChange={(e) =>
-                    setToleranceMinutes(Math.max(0, parseInt(e.target.value) || 0))
+                    setToleranceMinutes(Math.max(0, Number.parseInt(e.target.value) || 0))
                   }
                   className="w-16 px-2 py-1.5 rounded-lg bg-white dark:bg-[#1A2333] border border-surface-200 dark:border-white/10 text-surface-900 dark:text-white text-xs font-mono text-center outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                 />
@@ -570,31 +528,25 @@ export function ScheduleFormModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                    Hora de Retorno (Entrada Tarde) <span className="text-danger-500">*</span>
-                  </label>
+                <FormField label="Hora de Retorno (Entrada Tarde)" icon={Clock} required={isSplit}>
                   <input
                     type="time"
                     required={isSplit}
                     value={entryTime2}
                     onChange={(e) => setEntryTime2(e.target.value)}
-                    className={clsx(premiumInputClass, "font-mono !pl-4")}
+                    className={getFormInputClass({ hasLeftIcon: true, className: "font-mono [color-scheme:light] dark:[color-scheme:dark]" })}
                   />
-                </div>
+                </FormField>
 
-                <div>
-                  <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                    Hora de Salida Final <span className="text-danger-500">*</span>
-                  </label>
+                <FormField label="Hora de Salida Final" icon={Clock} required={isSplit}>
                   <input
                     type="time"
                     required={isSplit}
                     value={exitTime2}
                     onChange={(e) => setExitTime2(e.target.value)}
-                    className={clsx(premiumInputClass, "font-mono !pl-4")}
+                    className={getFormInputClass({ hasLeftIcon: true, className: "font-mono [color-scheme:light] dark:[color-scheme:dark]" })}
                   />
-                </div>
+                </FormField>
               </div>
 
               <div className="flex items-center justify-between pt-1 border-t border-info-200/50 dark:border-info-500/20 mt-2">
@@ -608,7 +560,7 @@ export function ScheduleFormModal({
                     max={60}
                     value={toleranceMinutes2}
                     onChange={(e) =>
-                      setToleranceMinutes2(Math.max(0, parseInt(e.target.value) || 0))
+                      setToleranceMinutes2(Math.max(0, Number.parseInt(e.target.value) || 0))
                     }
                     className="w-16 px-2 py-1.5 rounded-lg bg-white dark:bg-[#1A2333] border border-surface-200 dark:border-white/10 text-surface-900 dark:text-white text-xs font-mono text-center outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
                   />

@@ -1,19 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  Building, 
-  MapPin, 
-  Edit2, 
-  Trash2, 
-  Users, 
-  QrCode, 
-  Activity, 
-  Check, 
-  Copy,
-  Clock,
-  Radio
-} from "lucide-react";
+import { Building, MapPin, Edit2, Power, RotateCcw, Users, QrCode, Activity, Check, Copy, Clock } from "lucide-react";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 
@@ -120,7 +108,7 @@ export function LocationCard({ location, onEdit, onToggleStatus }: LocationCardP
           <ActionButton
             size="md"
             variant={location.isActive ? "danger" : "success"}
-            icon={<Trash2 className="w-4 h-4" />}
+            icon={location.isActive ? <Power className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
             title={location.isActive ? "Desactivar Sede" : "Reactivar Sede"}
             onClick={() => onToggleStatus(location)}
           />

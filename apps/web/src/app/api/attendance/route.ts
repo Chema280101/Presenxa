@@ -2,7 +2,6 @@ import { auth } from "@/auth";
 import { prisma } from "@asistencias/db";
 import { AttendanceStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { startOfDay, endOfDay, parseISO } from "date-fns";
 import { getLocalTodayDate } from "@/lib/dateUtils";
 
 // GET /api/attendance
@@ -86,56 +85,107 @@ export async function GET(req: Request) {
   }
 
   try {
-    const attendances = await prisma.attendance.findMany({
-      where,
-      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            photoUrl: true,
-            documentId: true,
-            role: true,
-            department: {
-              select: {
-                id: true,
-                name: true,
+    const hasPagination = searchParams.has("page");
+    const parsedPage = Number.parseInt(searchParams.get("page") || "1", 10);
+    const page = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+    const parsedPageSize = Number.parseInt(searchParams.get("pageSize") || "25", 10);
+    const pageSize = Number.isNaN(parsedPageSize)
+      ? 25
+      : Math.min(100, Math.max(10, parsedPageSize));
+
+    const [attendances, total, groupedCounts] = await Promise.all([
+      prisma.attendance.findMany({
+        where,
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        skip: hasPagination ? (page - 1) * pageSize : undefined,
+        take: hasPagination ? pageSize : undefined,
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              photoUrl: true,
+              documentId: true,
+              role: true,
+              department: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              userSchedules: {
+                where: {
+                  OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+                },
+                include: {
+                  schedule: true,
+                },
+                take: 1,
               },
             },
-            userSchedules: {
-              where: {
-                OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
-              },
-              include: {
-                schedule: true,
-              },
-              take: 1,
+          },
+          location: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+            },
+          },
+          kiosk: {
+            select: {
+              id: true,
+              name: true,
             },
           },
         },
-        location: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-          },
-        },
-        kiosk: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+      }),
+      hasPagination ? prisma.attendance.count({ where }) : Promise.resolve(0),
+      hasPagination
+        ? prisma.attendance.groupBy({
+            by: ["status"],
+            where,
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+    ]);
 
     const formattedAttendances = attendances;
 
-    // Summary statistics for the filtered date
-    const summary = {
+    let summary;
+    if (hasPagination) {
+      const countByStatus = new Map<AttendanceStatus, number>();
+      for (const row of groupedCounts) {
+        countByStatus.set(row.status, row._count._all);
+      }
+      summary = {
+        total,
+        present: countByStatus.get(AttendanceStatus.PRESENTE) || 0,
+        late: countByStatus.get(AttendanceStatus.TARDE) || 0,
+        absent: countByStatus.get(AttendanceStatus.AUSENTE) || 0,
+        abandoned: countByStatus.get(AttendanceStatus.ABANDONO_PUESTO) || 0,
+        incomplete: countByStatus.get(AttendanceStatus.INCOMPLETO) || 0,
+        pending: countByStatus.get(AttendanceStatus.PENDIENTE) || 0,
+        justified:
+          (countByStatus.get(AttendanceStatus.JUSTIFICADO) || 0) +
+          (countByStatus.get(AttendanceStatus.PERMISO) || 0),
+      };
+
+      return NextResponse.json({
+        attendances: formattedAttendances,
+        summary,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        },
+      });
+    }
+
+    // Summary statistics for the filtered date (legacy unpaginated)
+    summary = {
       total: attendances.length,
       present: attendances.filter(
         (a) => a.status === AttendanceStatus.PRESENTE

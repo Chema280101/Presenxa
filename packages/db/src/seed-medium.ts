@@ -296,12 +296,14 @@ async function main() {
         ? Math.round((exitTime.getTime() - entryTime.getTime()) / 60000)
         : null;
 
+      if (!locId) continue;
+
       await prisma.attendance.upsert({
         where: { userId_date: { userId: u.id, date: dateOnly } },
         update: {},
         create: {
           userId: u.id,
-          locationId: locId!,
+          locationId: locId,
           kioskId: kId,
           date: dateOnly,
           entryTime,

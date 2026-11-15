@@ -5,6 +5,7 @@ import { Download, ChevronDown, FileSpreadsheet, FileText, FileCode, Loader2 } f
 
 interface ExportReportDropdownProps {
   onExportExcel: () => void;
+  onExportPayroll?: () => void;
   onExportPdf?: () => void;
   onExportCsv: () => void;
   totalRecords?: number;
@@ -15,13 +16,14 @@ interface ExportReportDropdownProps {
 
 export function ExportReportDropdown({
   onExportExcel,
+  onExportPayroll,
   onExportPdf,
   onExportCsv,
-  totalRecords,
+  totalRecords: _totalRecords,
   periodLabel,
   variant = "secondary",
   isLoadingPdf = false,
-}: ExportReportDropdownProps) {
+}: Readonly<ExportReportDropdownProps>) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -115,6 +117,36 @@ export function ExportReportDropdown({
                 </p>
               </div>
             </button>
+
+            {/* Opción 1B: Tareo / Pre-Planilla Contable */}
+            {onExportPayroll && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsOpen(false);
+                  onExportPayroll();
+                }}
+                className="w-full flex items-start gap-3 p-2.5 rounded-xl hover:bg-indigo-50/70 dark:hover:bg-indigo-950/20 text-left transition-colors cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-bold text-surface-900 dark:text-white group-hover:text-indigo-700 dark:group-hover:text-indigo-400">
+                      Tareo / Pre-Planilla (.xlsx)
+                    </p>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                      Contabilidad
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-snug mt-0.5">
+                    Sábana resumen (1 fila por colaborador): días efectivos, faltas, tardanzas y horas extras.
+                  </p>
+                </div>
+              </button>
+            )}
 
             {/* Opción 2: Documento PDF Oficial (.pdf) */}
             {onExportPdf && (

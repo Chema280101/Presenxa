@@ -6,7 +6,7 @@
  * ═══════════════════════════════════════════════════════════════════════
  */
 import { describe, it, expect } from "vitest";
-import { getLocalTimeParts, getLocalTodayDate } from "@/lib/dateUtils";
+import { getLocalTimeParts } from "@/lib/dateUtils";
 
 // ─────────────────────────────────────────────────────────────────────
 //  Helpers — replican la lógica de cálculo del scan/route.ts
@@ -307,7 +307,7 @@ describe("Attendance Business Logic", () => {
 
       const r2 = calculateLateness(
         new Date("2026-08-17T20:00:00Z"), // 15:00 Lima
-        { ...SPLIT_SCHEDULE, entryHour: SPLIT_SCHEDULE.entryHour2!, entryMinute: SPLIT_SCHEDULE.entryMinute2! }
+        { ...SPLIT_SCHEDULE, entryHour: SPLIT_SCHEDULE.entryHour2 ?? 15, entryMinute: SPLIT_SCHEDULE.entryMinute2 ?? 0 }
       );
       expect(r2.isLate).toBe(false);
     });
@@ -321,7 +321,7 @@ describe("Attendance Business Logic", () => {
 
       const r2 = calculateLateness(
         new Date("2026-08-17T20:20:00Z"), // 15:20 Lima (20 min tarde)
-        { ...SPLIT_SCHEDULE, entryHour: SPLIT_SCHEDULE.entryHour2!, entryMinute: SPLIT_SCHEDULE.entryMinute2!, toleranceMinutes: SPLIT_SCHEDULE.toleranceMinutes2! }
+        { ...SPLIT_SCHEDULE, entryHour: SPLIT_SCHEDULE.entryHour2 ?? 15, entryMinute: SPLIT_SCHEDULE.entryMinute2 ?? 0, toleranceMinutes: SPLIT_SCHEDULE.toleranceMinutes2 ?? 10 }
       );
       expect(r2.isLate).toBe(true);
       expect(r2.lateMinutes).toBe(20);

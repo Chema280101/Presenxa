@@ -1,5 +1,5 @@
 import React from "react";
-import { LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { clsx } from "clsx";
 
 export interface StatCardProps {
@@ -101,74 +101,100 @@ export function StatCard({
 }: StatCardProps) {
   const v = VARIANT_MAP[variant] || VARIANT_MAP.default;
 
+  const handleKeyDown = onClick
+    ? (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }
+    : undefined;
+
   return (
     <div
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       className={clsx(
-        "command-card p-5 relative group overflow-hidden transition-all",
+        "command-card p-5 relative group overflow-hidden transition-colors flex flex-col justify-between h-full",
         v.hoverBorder,
-        onClick && "cursor-pointer",
+        onClick &&
+          "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-surface-950",
         className
       )}
     >
       {/* Ambient Orb */}
-      <div className={clsx("absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl transition-all", v.orb)}></div>
-      
-      {/* Top Header Section */}
-      <div className="flex justify-between items-start mb-4 relative z-10">
-        <div>
-          <p className="text-[11px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
-            {label}
-          </p>
-          <h4 className="text-3xl font-black text-surface-900 dark:text-white tracking-tighter font-sans">
-            {value}
-          </h4>
-        </div>
-        <div
-          className={clsx(
-            "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105",
-            v.iconBg,
-            v.iconBorder,
-            v.iconColor,
-            v.iconShadow
-          )}
-        >
-          <Icon className="w-5 h-5" strokeWidth={2} />
-        </div>
-      </div>
+      <div
+        aria-hidden="true"
+        className={clsx(
+          "absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl transition-colors pointer-events-none",
+          v.orb
+        )}
+      />
 
-      {/* Middle Trend Section */}
-      {trend ? (
-        <div className="flex items-center gap-2 text-xs relative z-10">
-          <span
+      {/* Top Header + Middle Trend */}
+      <div>
+        <div className="flex justify-between items-start gap-3 mb-4 relative z-10">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">
+              {label}
+            </p>
+            <p className="text-3xl font-black text-surface-900 dark:text-white tracking-tight font-sans font-tabular">
+              {value}
+            </p>
+          </div>
+          <div
+            aria-hidden="true"
             className={clsx(
-              "flex items-center font-bold px-1.5 py-0.5 rounded",
-              trend.isNeutral ? "text-surface-600 bg-surface-200 dark:text-surface-400 dark:bg-white/5" :
-              trend.isPositive ? "text-primary-600 bg-primary-50 dark:text-emerald-400 dark:bg-emerald-500/10" : "text-danger-600 bg-danger-50 dark:text-rose-400 dark:bg-rose-500/10"
+              "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105",
+              v.iconBg,
+              v.iconBorder,
+              v.iconColor,
+              v.iconShadow
             )}
           >
-            {trend.isPositive && !trend.isNeutral && (
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"></path></svg>
-            )}
-            {!trend.isPositive && !trend.isNeutral && (
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 14l-7 7m0 0l-7-7m7 7V3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5"></path></svg>
-            )}
-            {trend.value}
-          </span>
-          <span className="text-surface-500 dark:text-surface-400">{trend.label}</span>
+            <Icon className="w-5 h-5" strokeWidth={2} aria-hidden="true" />
+          </div>
         </div>
-      ) : (
-        <div className="flex items-center gap-2 text-xs relative z-10 opacity-0 select-none">
-          {/* Spacer if no trend to keep heights consistent */}
-          <span className="flex items-center font-bold px-1.5 py-0.5 rounded">0</span>
-        </div>
-      )}
+
+        {/* Middle Trend Section */}
+        {trend ? (
+          <div className="flex items-center flex-wrap gap-2 text-xs relative z-10">
+            <span
+              className={clsx(
+                "inline-flex items-center font-bold font-tabular px-1.5 py-0.5 rounded",
+                trend.isNeutral
+                  ? "text-surface-600 bg-surface-200 dark:text-surface-400 dark:bg-white/5"
+                  : trend.isPositive
+                    ? "text-emerald-700 bg-emerald-500/10 dark:text-emerald-400"
+                    : "text-rose-700 bg-rose-500/10 dark:text-rose-400"
+              )}
+            >
+              {trend.isPositive && !trend.isNeutral && (
+                <ArrowUp aria-hidden="true" className="w-3 h-3 mr-1 shrink-0" strokeWidth={2.5} />
+              )}
+              {!trend.isPositive && !trend.isNeutral && (
+                <ArrowDown aria-hidden="true" className="w-3 h-3 mr-1 shrink-0" strokeWidth={2.5} />
+              )}
+              {trend.value}
+            </span>
+            <span className="text-surface-500 dark:text-surface-400">{trend.label}</span>
+          </div>
+        ) : (
+          <div aria-hidden="true" className="flex items-center gap-2 text-xs relative z-10 opacity-0 select-none">
+            <span className="inline-flex items-center font-bold px-1.5 py-0.5 rounded">0</span>
+          </div>
+        )}
+      </div>
 
       {/* Bottom Sub-label Section */}
-      {(subLabel || subValue) && (
-        <div className="mt-4 pt-4 border-t border-surface-200 dark:border-white/5 flex items-center justify-between text-xs font-mono relative z-10">
-          <span className="text-surface-500 dark:text-surface-400">{subLabel}</span>
-          <span className={clsx("font-bold", v.subValueText)}>{subValue}</span>
+      {(subLabel || subValue !== undefined) && (
+        <div className="mt-4 pt-3.5 border-t border-surface-200 dark:border-white/5 flex items-center justify-between gap-2 text-xs relative z-10">
+          <span className="text-surface-500 dark:text-surface-400 font-sans truncate">{subLabel}</span>
+          {subValue !== undefined && (
+            <span className={clsx("font-bold font-mono font-tabular shrink-0", v.subValueText)}>{subValue}</span>
+          )}
         </div>
       )}
     </div>

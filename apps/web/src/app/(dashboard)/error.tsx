@@ -16,17 +16,17 @@ export default function DashboardError({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] p-6 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-4">
+      <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-4">
         <AlertCircle className="w-7 h-7" />
       </div>
-      <h2 className="text-xl font-bold text-white mb-2">
+      <h2 className="text-xl font-bold text-surface-900 dark:text-white mb-2">
         Error al cargar los datos del panel
       </h2>
-      <p className="text-sm text-slate-400 max-w-md mb-6">
+      <p className="text-sm text-surface-600 dark:text-slate-400 max-w-md mb-6">
         No se pudieron obtener las métricas en tiempo real. Esto puede deberse a una intermitencia de conexión o de sesión.
       </p>
       {error?.digest && (
-        <p className="text-xs text-slate-500 font-mono mb-4">
+        <p className="text-xs text-surface-500 dark:text-slate-400 font-mono mb-4">
           ID: {error.digest}
         </p>
       )}

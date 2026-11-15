@@ -51,9 +51,9 @@ export default function DashboardLoading() {
               <Skeleton className="h-8 w-28 rounded-xl" />
             </div>
             <div className="space-y-3 pt-2">
-              {Array.from({ length: 5 }).map((_, idx) => (
+              {["feed-1", "feed-2", "feed-3", "feed-4", "feed-5"].map((itemKey) => (
                 <div
-                  key={idx}
+                  key={itemKey}
                   className="flex items-center justify-between p-3 rounded-2xl bg-surface-50 dark:bg-surface-800/40 border border-surface-200 dark:border-surface-800"
                 >
                   <div className="flex items-center gap-3">

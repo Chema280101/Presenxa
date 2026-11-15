@@ -1,24 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import {
-  Clock,
-  Plus,
-  Search,
-  Calendar,
-  Users,
-  Sliders,
-  Edit2,
-  Trash2,
-  CheckCircle2,
-  RefreshCw,
-  ClockAlert,
-  Sun,
-  Moon,
-  Sparkles,
-  MapPin,
-  ChevronDown,
-} from "lucide-react";
+import { CalendarClock, Clock, Plus, Calendar, Users, Sliders, Edit2, Trash2, CheckCircle2, RefreshCw, ClockAlert, Sun, Moon, Sparkles, MapPin, ChevronDown } from "lucide-react";
 import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import {
   ScheduleFormModal,
@@ -31,17 +14,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton, SkeletonTable } from "@/components/ui/Skeleton";
-import {
-  DataTableContainer,
-  DataTableHeader,
-  DataTableHead,
-  DataTableBody,
-  DataTableRow,
-  DataTableCell,
-  DataTableEmptyState,
-} from "@/components/ui/DataTable";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { DataTableContainer, DataTableHeader, DataTableHead, DataTableBody, DataTableRow, DataTableCell } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import Link from "next/link";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
@@ -91,6 +66,8 @@ export default function SchedulesPage() {
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -151,6 +128,8 @@ export default function SchedulesPage() {
   const stats = useMemo(() => {
     const total = schedules.length;
     const active = schedules.filter((s) => s.isActive).length;
+    const splitCount = schedules.filter((s) => s.isSplit).length;
+    const withTolerance = schedules.filter((s) => s.toleranceMinutes > 0).length;
     const avgTolerance = total
       ? Math.round(
           schedules.reduce((acc, s) => acc + s.toleranceMinutes, 0) / total
@@ -160,7 +139,7 @@ export default function SchedulesPage() {
       (acc, s) => acc + (s._count?.userSchedules || 0),
       0
     );
-    return { total, active, avgTolerance, totalAssigned };
+    return { total, active, splitCount, withTolerance, avgTolerance, totalAssigned };
   }, [schedules]);
 
   const handleSaveSchedule = async (
@@ -258,7 +237,7 @@ export default function SchedulesPage() {
       <PageHeader
         title="Gestión de Turnos y Horarios"
         subtitle="Administra jornadas laborales continuas y rotativas, turnos partidos, y tolerancias."
-        icon={Clock}
+        icon={CalendarClock}
         iconVariant="emerald"
         actionButtons={
           <>
@@ -414,7 +393,6 @@ export default function SchedulesPage() {
               filteredSchedules.map((sch) => {
                 const isNightShift = sch.exitHour < sch.entryHour || sch.entryHour >= 18;
                 let accentColor = sch.isSplit ? "cyan" : isNightShift ? "indigo" : "emerald";
-                let IconComp = sch.isSplit ? Sun : isNightShift ? Moon : Sun;
 
                 const entryStr = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")}`;
                 const exitStr = `${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
@@ -582,7 +560,7 @@ export default function SchedulesPage() {
           </div>
 
           <div className="lg:col-span-5 space-y-6 sticky top-24">
-            <div className="glass-panel p-6 rounded-3xl border border-primary-200 dark:border-emerald-500/20 shadow-primary-500/5 dark:shadow-[0_0_20px_rgba(16,185,129,0.05)] bg-surface-50 dark:bg-surface-900/90 backdrop-blur-2xl space-y-6">
+            <div className="glass-panel p-6 rounded-3xl border border-primary-200 dark:border-emerald-500/20 shadow-primary-500/5 dark:shadow-[0_0_20px_rgba(16,185,129,0.05)] bg-surface-50 dark:bg-surface-900/90 backdrop-blur-2xl space-y-5">
               <div className="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-white/5">
                 <div className="flex items-center space-x-3">
                   <div className="w-3 h-3 rounded-full bg-primary-500 dark:bg-emerald-400 animate-pulse"></div>
@@ -591,38 +569,85 @@ export default function SchedulesPage() {
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-primary-50 dark:bg-emerald-500/10 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/30">EN VIVO</span>
               </div>
 
-              <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-2xl bg-surface-100/80 dark:bg-white/[0.03] border border-surface-200 dark:border-white/5 text-center">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-slate-400">Activos</span>
+                  <span className="mt-1 block text-base font-extrabold tabular-nums text-surface-900 dark:text-white">
+                    {stats.active}<span className="text-xs font-semibold text-surface-400 dark:text-slate-500">/{stats.total}</span>
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-surface-100/80 dark:bg-white/[0.03] border border-surface-200 dark:border-white/5 text-center">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-slate-400">Turno Partido</span>
+                  <span className="mt-1 block text-base font-extrabold tabular-nums text-info-600 dark:text-cyan-400">
+                    {stats.splitCount}
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-surface-100/80 dark:bg-white/[0.03] border border-surface-200 dark:border-white/5 text-center">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-surface-500 dark:text-slate-400">Tol. Prom.</span>
+                  <span className="mt-1 block text-base font-extrabold tabular-nums text-warning-600 dark:text-amber-400">
+                    {stats.avgTolerance}m
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-1">
                 <h4 className="text-xs font-bold uppercase text-surface-500 dark:text-slate-400 tracking-wider">Reglas de Control &amp; Tolerancia</h4>
                 
-                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
+                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-3.5">
                   <div className="w-8 h-8 rounded-xl bg-warning-50 dark:bg-amber-500/10 text-warning-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
                     <ClockAlert className="w-4 h-4" />
                   </div>
-                  <div className="text-xs">
-                    <span className="font-bold text-surface-900 dark:text-white block text-sm">Cálculo de Tardanza Automático</span>
-                    <p className="text-surface-500 dark:text-slate-400 mt-1">El Totem Kiosk marca tardanza inmediatamente post-tolerancia y registra los minutos acumulados para cálculo automático de reportes.</p>
+                  <div className="text-xs flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-surface-900 dark:text-white text-sm">Cálculo de Tardanza Automático</span>
+                      <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warning-50 dark:bg-amber-500/10 text-warning-700 dark:text-amber-300 border border-warning-200/70 dark:border-amber-500/20 tabular-nums">
+                        {stats.withTolerance} con tol.
+                      </span>
+                    </div>
+                    <p className="text-surface-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      El Totem Kiosk marca tardanza <strong className="font-semibold text-surface-700 dark:text-slate-200">inmediatamente post-tolerancia</strong> y registra los minutos acumulados para cálculo automático de reportes.
+                    </p>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
+                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-3.5">
                   <div className="w-8 h-8 rounded-xl bg-info-50 dark:bg-cyan-500/10 text-info-600 dark:text-cyan-400 flex items-center justify-center shrink-0 mt-0.5">
                     <Calendar className="w-4 h-4" />
                   </div>
-                  <div className="text-xs">
-                    <span className="font-bold text-surface-900 dark:text-white block text-sm">Validación de Turno Partido</span>
-                    <p className="text-surface-500 dark:text-slate-400 mt-1">Exige 4 marcaciones obligatorias. Si falta 1 registro, el cierre nocturno SOD lo categoriza como "JORNADA INCOMPLETA".</p>
+                  <div className="text-xs flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-surface-900 dark:text-white text-sm">Validación de Turno Partido</span>
+                      <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-info-50 dark:bg-cyan-500/10 text-info-700 dark:text-cyan-300 border border-info-200/70 dark:border-cyan-500/20 tabular-nums">
+                        {stats.splitCount} {stats.splitCount === 1 ? "turno" : "turnos"}
+                      </span>
+                    </div>
+                    <p className="text-surface-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Exige <strong className="font-semibold text-surface-700 dark:text-slate-200">4 marcaciones obligatorias</strong>. Si falta 1 registro, el cierre nocturno SOD lo categoriza como <strong className="font-semibold text-surface-700 dark:text-slate-200">&quot;JORNADA INCOMPLETA&quot;</strong>.
+                    </p>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-4">
+                <div className="p-4 rounded-2xl bg-surface-100 dark:bg-command-bg border border-surface-200 dark:border-white/5 flex items-start space-x-3.5">
                   <div className="w-8 h-8 rounded-xl bg-primary-50 dark:bg-emerald-500/10 text-primary-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <div className="text-xs">
-                    <span className="font-bold text-surface-900 dark:text-white block text-sm">Validación Antifraude Activa</span>
-                    <p className="text-surface-500 dark:text-slate-400 mt-1">Marcación validada con sello de tiempo criptográfico del hardware, independiente de la hora local del dispositivo del usuario.</p>
+                  <div className="text-xs flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-surface-900 dark:text-white text-sm">Validación Antifraude Activa</span>
+                      <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary-50 dark:bg-emerald-500/10 text-primary-700 dark:text-emerald-300 border border-primary-200/70 dark:border-emerald-500/20">
+                        Activa
+                      </span>
+                    </div>
+                    <p className="text-surface-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Marcación validada con <strong className="font-semibold text-surface-700 dark:text-slate-200">sello de tiempo criptográfico del hardware</strong>, independiente de la hora local del dispositivo del usuario.
+                    </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-transparent border border-dashed border-surface-200 dark:border-white/10 flex items-start space-x-3 text-xs text-surface-500 dark:text-slate-400">
+                <Sliders className="w-4 h-4 text-primary-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong className="text-surface-700 dark:text-slate-300">Control de Asistencia:</strong> Las tolerancias configuradas determinan el cálculo automático de tardanzas y los minutos efectivos trabajados en cada jornada.</span>
               </div>
 
               <button 
@@ -630,13 +655,8 @@ export default function SchedulesPage() {
                 className="w-full py-3.5 px-4 rounded-xl bg-primary-600 hover:bg-primary-500 text-white font-bold text-sm shadow-md shadow-primary-500/20 dark:shadow-[0_0_20px_rgba(16,185,129,0.2)] transition duration-200 flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <Users className="w-5 h-5" />
-                <span>Asignar Masivamente a Colaboradores</span>
+                <span>Asignar Horarios a Colaboradores</span>
               </button>
-
-              <div className="p-4 rounded-2xl bg-surface-200 dark:bg-slate-900/50 border border-surface-300 dark:border-slate-800 flex items-start space-x-3 text-xs text-surface-600 dark:text-slate-400">
-                <Sliders className="w-4 h-4 text-primary-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong className="text-surface-800 dark:text-slate-300">Control de Asistencia:</strong> Las tolerancias configuradas determinan el cálculo automático de tardanzas y los minutos efectivos trabajados en cada jornada.</span>
-              </div>
             </div>
           </div>
         </section>
@@ -650,7 +670,23 @@ export default function SchedulesPage() {
               <p className="text-surface-500 dark:text-slate-400 text-lg font-semibold">Sin horarios encontrados</p>
             </div>
           ) : (
-            <DataTableContainer>
+            <DataTableContainer
+              footer={
+                <DataTablePagination
+                  currentPage={Math.min(page, Math.max(1, Math.ceil(filteredSchedules.length / pageSize)))}
+                  totalPages={Math.max(1, Math.ceil(filteredSchedules.length / pageSize))}
+                  totalItems={filteredSchedules.length}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={(newSize) => {
+                    setPageSize(newSize);
+                    setPage(1);
+                  }}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  itemLabel="horarios"
+                />
+              }
+            >
               <DataTableHeader>
                 <DataTableHead>Horario / Turno</DataTableHead>
                 <DataTableHead>Modalidad / Sede</DataTableHead>
@@ -662,7 +698,12 @@ export default function SchedulesPage() {
                 <DataTableHead align="right">Acciones</DataTableHead>
               </DataTableHeader>
               <DataTableBody>
-                  {filteredSchedules.map((sch) => {
+                  {filteredSchedules
+                    .slice(
+                      (Math.min(page, Math.max(1, Math.ceil(filteredSchedules.length / pageSize))) - 1) * pageSize,
+                      Math.min(page, Math.max(1, Math.ceil(filteredSchedules.length / pageSize))) * pageSize
+                    )
+                    .map((sch) => {
                     const isNightShift = sch.exitHour < sch.entryHour || sch.entryHour >= 18;
                     const accentColor = sch.isSplit ? "cyan" : isNightShift ? "indigo" : "emerald";
                     const IconComp = sch.isSplit ? Sun : isNightShift ? Moon : Sun;

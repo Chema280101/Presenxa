@@ -7,27 +7,24 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { PresenxaIcon } from "@/components/ui/PresenxaLogo";
 
+export interface ShellOrganizationData {
+  name: string;
+  logoUrl?: string | null;
+  subtitle?: string | null;
+  locationName?: string | null;
+  locationCode?: string | null;
+}
+
 interface DashboardShellProps {
   session: Session;
+  organization?: ShellOrganizationData | null;
   children: React.ReactNode;
 }
 
-export function DashboardShell({ session, children }: DashboardShellProps) {
+export function DashboardShell({ session, organization, children }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const pathname = usePathname();
-
-  // Obtener el logo de la organización para la marca de agua
-  useEffect(() => {
-    fetch("/api/organization")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.organization?.logoUrl) {
-          setLogoUrl(data.organization.logoUrl);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const logoUrl = organization?.logoUrl ?? null;
 
   // Cerrar menú móvil automáticamente al cambiar de ruta
   useEffect(() => {
@@ -79,14 +76,23 @@ export function DashboardShell({ session, children }: DashboardShellProps) {
           background: rgba(0, 166, 80, 0.4);
         }
       `}} />
+      {/* Skip Link para navegación por teclado */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-primary-600 focus:text-white focus:text-xs focus:font-bold focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary-400"
+      >
+        Saltar al contenido principal
+      </a>
+
       {/* Ambient Background Glow */}
-      <div className="fixed inset-0 pointer-events-none radial-glow-brand z-0 transition-opacity"></div>
+      <div className="fixed inset-0 pointer-events-none radial-glow-brand z-0 transition-opacity" aria-hidden="true"></div>
 
       {/* Sidebar Desktop (fijo) + Sidebar Mobile (drawer deslizable) */}
       <Sidebar
         isMobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
-        userRole={(session.user as any)?.role}
+        userRole={(session.user as { role?: string } | undefined)?.role}
+        organization={organization}
       />
 
       {/* Área principal */}
@@ -107,12 +113,17 @@ export function DashboardShell({ session, children }: DashboardShellProps) {
 
         <Topbar
           session={session}
+          organization={organization}
           onMenuToggle={() => setMobileNavOpen((prev) => !prev)}
           isMenuOpen={mobileNavOpen}
         />
 
         {/* Contenido con scroll dinámico */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 xl:p-8 scrollbar-subtle relative z-0">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6 xl:p-8 scrollbar-subtle relative z-0 focus:outline-none"
+        >
           <div className="mx-auto w-full max-w-[1920px]">
             {children}
           </div>

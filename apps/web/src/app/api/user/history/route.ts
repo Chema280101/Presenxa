@@ -69,6 +69,9 @@ export async function GET() {
         workedMinutes: a.workedMinutes,
         locationName: a.location?.name || "Sin sede",
         notes: a.notes,
+        statusChangedBy: a.statusChangedBy,
+        statusChangedAt: a.statusChangedAt ? a.statusChangedAt.toISOString() : null,
+        attachmentUrl: a.attachmentUrl,
       })),
     });
   } catch (error) {

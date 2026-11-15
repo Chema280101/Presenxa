@@ -2,23 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import {
-  MapPin,
-  Plus,
-  Search,
-  Building,
-  Users,
-  QrCode,
-  Globe,
-  Edit2,
-  Trash2,
-  CheckCircle2,
-  RefreshCw,
-  MapPinOff,
-  Activity,
-  ArrowRight,
-  Power,
-} from "lucide-react";
+import { MapPin, Plus, Building, Users, QrCode, Globe, Edit2, RefreshCw, MapPinOff, Power, SearchX } from "lucide-react";
 import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import {
   LocationFormModal,
@@ -29,8 +13,6 @@ import { LocationSidebar } from "@/components/locations/LocationSidebar";
 import { StatCard } from "@/components/ui/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import {
   DataTableContainer,
@@ -41,6 +23,7 @@ import {
   DataTableCell,
   DataTableEmptyState,
 } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { useToast } from "@/providers/ToastProvider";
@@ -65,6 +48,8 @@ export default function LocationsPage() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -197,7 +182,7 @@ export default function LocationsPage() {
           </span>
         }
         subtitle="Administra las sedes, terminales kiosk y puntos físicos de marcación de la organización."
-        icon={Building}
+        icon={MapPin}
         iconVariant="emerald"
         actionButtons={
           <>
@@ -356,7 +341,23 @@ export default function LocationsPage() {
         isLoading ? (
           <SkeletonTable rows={5} cols={6} />
         ) : (
-          <DataTableContainer>
+          <DataTableContainer
+            footer={
+              <DataTablePagination
+                currentPage={Math.min(page, Math.max(1, Math.ceil(filteredLocations.length / pageSize)))}
+                totalPages={Math.max(1, Math.ceil(filteredLocations.length / pageSize))}
+                totalItems={filteredLocations.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemLabel="sedes"
+              />
+            }
+          >
             <DataTableHeader>
               <DataTableHead>Sede Operativa</DataTableHead>
               <DataTableHead>Dirección & Ciudad</DataTableHead>
@@ -370,10 +371,16 @@ export default function LocationsPage() {
               {filteredLocations.length === 0 ? (
                 <DataTableEmptyState
                   colSpan={7}
+                  icon={search ? SearchX : MapPin}
                   message={search ? "Prueba cambiando los términos de búsqueda." : "No hay sedes registradas todavía."}
                 />
               ) : (
-                filteredLocations.map((loc) => {
+                filteredLocations
+                  .slice(
+                    (Math.min(page, Math.max(1, Math.ceil(filteredLocations.length / pageSize))) - 1) * pageSize,
+                    Math.min(page, Math.max(1, Math.ceil(filteredLocations.length / pageSize))) * pageSize
+                  )
+                  .map((loc) => {
                   return (
                     <DataTableRow key={loc.id}>
                       <DataTableCell>
@@ -428,10 +435,12 @@ export default function LocationsPage() {
                           </span>
                         )}
                       </DataTableCell>
-                      <DataTableCell className="text-right">
-                        <ActionButtonGroup>
+                      <DataTableCell align="right">
+                        <ActionButtonGroup align="right">
                           <ActionButton
+                            size="sm"
                             variant="warning"
+                            icon={<Edit2 className="w-3.5 h-3.5" />}
                             onClick={() => {
                               setEditingLocation({
                                 id: loc.id,
@@ -443,16 +452,14 @@ export default function LocationsPage() {
                               setIsModalOpen(true);
                             }}
                             title="Editar sede"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                           <ActionButton
-                            variant={loc.isActive ? "danger" : "primary"}
+                            size="sm"
+                            variant={loc.isActive ? "danger" : "success"}
+                            icon={<Power className="w-3.5 h-3.5" />}
                             onClick={() => handleToggleStatus(loc)}
                             title={loc.isActive ? "Desactivar sede" : "Activar sede"}
-                          >
-                            <Power className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                         </ActionButtonGroup>
                       </DataTableCell>
                     </DataTableRow>

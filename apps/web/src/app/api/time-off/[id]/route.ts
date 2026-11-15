@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@asistencias/db";
+import { notifyUserWithPush } from "@/lib/notifications";
 
 export async function PATCH(
   req: Request,
@@ -100,23 +101,23 @@ export async function PATCH(
       console.warn("[TimeOff API] Could not create audit log:", auditErr);
     }
 
-    // Notificar al colaborador
-    try {
-      const typeLabel = existing.type.replace(/_/g, " ").toLowerCase();
-      await prisma.notification.create({
-        data: {
-          userId: existing.userId,
-          type: "CAMBIO_SEDE_HORARIO",
-          title: action === "APPROVE" ? "Solicitud de ausencia aprobada" : "Solicitud de ausencia rechazada",
-          body: action === "APPROVE"
-            ? `Tu solicitud de ${typeLabel} ha sido aprobada.`
-            : `Tu solicitud de ${typeLabel} fue rechazada. Motivo: ${updated.rejectionReason || "Revisión administrativa"}.`,
-          data: { timeOffRequestId: id, status: newStatus },
-        },
-      });
-    } catch (notifErr) {
-      console.warn("Could not create notification for user:", notifErr);
-    }
+    // Notificar al colaborador en BD + Web Push
+    const typeLabel = existing.type.replace(/_/g, " ").toLowerCase();
+    await notifyUserWithPush({
+      userId: existing.userId,
+      type: "CAMBIO_SEDE_HORARIO",
+      title: action === "APPROVE" ? "Solicitud de ausencia aprobada" : "Solicitud de ausencia rechazada",
+      body: action === "APPROVE"
+        ? `Tu solicitud de ${typeLabel} ha sido aprobada.`
+        : `Tu solicitud de ${typeLabel} fue rechazada. Motivo: ${updated.rejectionReason || "Revisión administrativa"}.`,
+      url: "/app",
+      tag: `timeoff-res-${id}`,
+      data: {
+        category: "TIME_OFF_RESOLVED",
+        timeOffRequestId: id,
+        status: newStatus,
+      },
+    });
 
     return NextResponse.json({ success: true, request: updated });
   } catch (error: any) {
@@ -126,7 +127,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

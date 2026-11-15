@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@asistencias/db";
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 
 export async function PUT(
   req: Request, 
@@ -25,12 +26,30 @@ export async function PUT(
       return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
     }
 
+    const existing = await prisma.department.findFirst({
+      where: {
+        id,
+        organizationId: session.user.organizationId,
+      },
+    });
+
     const updated = await prisma.department.update({
       where: { 
         id,
         organizationId: session.user.organizationId,
       },
       data: { name: name.trim() },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_UPDATED",
+      entityType: "DEPARTMENT",
+      entityId: updated.id,
+      oldData: existing ? { name: existing.name } : undefined,
+      newData: { name: updated.name },
+      req,
     });
 
     return NextResponse.json({ department: updated });
@@ -57,11 +76,21 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.department.delete({
+    const deleted = await prisma.department.delete({
       where: { 
         id,
         organizationId: session.user.organizationId,
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_DELETED",
+      entityType: "DEPARTMENT",
+      entityId: deleted.id,
+      oldData: { name: deleted.name },
+      req,
     });
 
     return NextResponse.json({ success: true });

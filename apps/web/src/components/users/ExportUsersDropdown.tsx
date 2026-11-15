@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Download, ChevronDown, FileSpreadsheet, FileText, FileCode, CheckCircle2 } from "lucide-react";
+import { Download, ChevronDown, FileSpreadsheet, FileText, FileCode } from "lucide-react";
 
 interface ExportUsersDropdownProps {
   onExportExcel: () => void;

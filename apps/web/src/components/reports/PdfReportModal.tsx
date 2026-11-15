@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Printer } from "lucide-react";
 import { format } from "date-fns";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { formatAttendanceStatus } from "@/lib/attendanceFormatters";
 
 interface PdfReportModalProps {
   isOpen: boolean;
@@ -50,8 +51,11 @@ interface PdfReportModalProps {
       date: string;
       entryTime: string | null;
       exitTime: string | null;
+      entryTime2?: string | null;
+      exitTime2?: string | null;
       workedMinutes: number | null;
       lateMinutes: number | null;
+      lateMinutes2?: number | null;
       status: string;
       notes: string | null;
       statusChangedBy: string | null;
@@ -100,31 +104,44 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
         return "bg-red-100 text-red-900 border-red-400";
       case "JUSTIFICADO":
       case "PERMISO":
+      case "DESCANSO_MEDICO":
         return "bg-sky-100 text-sky-800 border-sky-300";
+      case "INCOMPLETO":
+        return "bg-orange-100 text-orange-800 border-orange-300";
+      case "FERIADO":
+      case "VACACIONES":
+        return "bg-violet-100 text-violet-800 border-violet-300";
+      case "DIA_LIBRE":
+      case "PENDIENTE":
       default:
         return "bg-slate-100 text-slate-800 border-slate-300";
     }
   };
 
-  const getStatusLabel = (status: string, exitTime: string | null, lateMinutes: number | null) => {
+  const getStatusLabel = (
+    status: string,
+    exitTime: string | null,
+    exitTime2: string | null | undefined,
+    totalLateMinutes: number
+  ) => {
+    const hasCompletedExit = Boolean(exitTime2 || exitTime);
     if (status === "PRESENTE") {
-      return exitTime ? "Completado" : "En Turno";
+      return hasCompletedExit ? "Completado" : "En Turno";
     }
     if (status === "TARDE") {
-      return exitTime ? `Completado (+${lateMinutes || 0}m)` : `En Turno (+${lateMinutes || 0}m)`;
+      return hasCompletedExit
+        ? `Completado (+${totalLateMinutes}m)`
+        : `En Turno (+${totalLateMinutes}m)`;
     }
-    if (status === "ABANDONO_PUESTO") return "Abandono";
-    if (status === "AUSENTE") return "Ausente";
-    if (status === "JUSTIFICADO") return "Justificado";
-    if (status === "PERMISO") return "Permiso";
-    return status;
+    return formatAttendanceStatus(status);
   };
 
   const footer = (
     <div className="flex items-center justify-end w-full gap-3">
       <button
+        type="button"
         onClick={onClose}
-        className="h-10 px-6 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-xs font-semibold transition-colors cursor-pointer"
+        className="h-10 px-6 rounded-xl bg-surface-100 hover:bg-surface-200 text-surface-700 hover:text-surface-900 border border-surface-200/90 hover:border-surface-300 dark:bg-surface-850 dark:hover:bg-surface-800 dark:text-slate-300 dark:hover:text-white dark:border-surface-700/70 dark:hover:border-surface-600 text-xs font-semibold transition-colors cursor-pointer"
       >
         Cancelar
       </button>
@@ -312,6 +329,13 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
                 const exitFormatted = a.exitTime
                   ? format(new Date(a.exitTime), "HH:mm")
                   : "--:--";
+                const entry2Formatted = a.entryTime2
+                  ? format(new Date(a.entryTime2), "HH:mm")
+                  : null;
+                const exit2Formatted = a.exitTime2
+                  ? format(new Date(a.exitTime2), "HH:mm")
+                  : null;
+                const totalLate = (a.lateMinutes || 0) + (a.lateMinutes2 || 0);
                 const workedHoursStr = a.workedMinutes
                   ? `${(a.workedMinutes / 60).toFixed(1)}h`
                   : "--";
@@ -337,10 +361,16 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
                       {a.location?.name || "—"}
                     </td>
                     <td className="py-1.5 px-2 text-center font-mono font-medium text-slate-900 whitespace-nowrap">
-                      {entryFormatted}
+                      <div>{entryFormatted}</div>
+                      {entry2Formatted && (
+                        <div className="text-[9px] text-slate-500">T2: {entry2Formatted}</div>
+                      )}
                     </td>
                     <td className="py-1.5 px-2 text-center font-mono font-medium text-slate-900 whitespace-nowrap">
-                      {exitFormatted}
+                      <div>{exitFormatted}</div>
+                      {exit2Formatted && (
+                        <div className="text-[9px] text-slate-500">T2: {exit2Formatted}</div>
+                      )}
                     </td>
                     <td className="py-1.5 px-2 text-center font-mono text-slate-600 whitespace-nowrap">
                       {workedHoursStr}
@@ -351,7 +381,7 @@ export function PdfReportModal({ isOpen, onClose, reportData }: PdfReportModalPr
                           a.status
                         )}`}
                       >
-                        {getStatusLabel(a.status, a.exitTime, a.lateMinutes)}
+                        {getStatusLabel(a.status, a.exitTime, a.exitTime2, totalLate)}
                       </span>
                     </td>
                     <td className="py-1.5 px-2.5 text-[10px] text-slate-500 max-w-[140px] truncate">

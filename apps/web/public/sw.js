@@ -9,7 +9,7 @@ const STATIC_ASSETS = [
 ];
 
 // Install Event — pre-cache core shell
-self.addEventListener("install", (event) => {
+globalThis.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
@@ -17,11 +17,11 @@ self.addEventListener("install", (event) => {
       });
     })
   );
-  self.skipWaiting();
+  globalThis.skipWaiting();
 });
 
 // Activate Event — clean up old caches
-self.addEventListener("activate", (event) => {
+globalThis.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
@@ -29,11 +29,11 @@ self.addEventListener("activate", (event) => {
       );
     })
   );
-  self.clients.claim();
+  globalThis.clients.claim();
 });
 
 // Fetch Event — Network-first for dynamic navigation, Cache-first for icons/static
-self.addEventListener("fetch", (event) => {
+globalThis.addEventListener("fetch", (event) => {
   // Only handle HTTP/HTTPS GET requests
   if (event.request.method !== "GET") return;
 
@@ -43,9 +43,9 @@ self.addEventListener("fetch", (event) => {
   // Skip Next.js internals, hot-reload, chunks & background APIs
   if (
     url.pathname.startsWith("/_next/") ||
-    url.pathname.startsWith("/api/geo") ||
     url.pathname.startsWith("/api/auth") ||
-    url.pathname.startsWith("/api/attendance/scan")
+    url.pathname.startsWith("/api/attendance/scan") ||
+    url.pathname.startsWith("/api/attendance/sync")
   ) {
     return;
   }
@@ -87,7 +87,7 @@ self.addEventListener("fetch", (event) => {
 // Push Notifications (Web Push API / VAPID)
 // ─────────────────────────────────────────────────────────────
 
-self.addEventListener("push", (event) => {
+globalThis.addEventListener("push", (event) => {
   let data = {
     title: "Presenxa",
     body: "Nueva actualización de control de asistencia",
@@ -100,7 +100,7 @@ self.addEventListener("push", (event) => {
   if (event.data) {
     try {
       data = { ...data, ...event.data.json() };
-    } catch (e) {
+    } catch {
       data.body = event.data.text();
     }
   }
@@ -121,10 +121,10 @@ self.addEventListener("push", (event) => {
     ],
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(globalThis.registration.showNotification(data.title, options));
 });
 
-self.addEventListener("notificationclick", (event) => {
+globalThis.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
   if (event.action === "close") return;
@@ -133,7 +133,7 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      for (let client of windowClients) {
+      for (const client of windowClients) {
         if (client.url.includes(targetUrl) && "focus" in client) {
           return client.focus();
         }

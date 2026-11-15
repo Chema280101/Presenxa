@@ -30,7 +30,7 @@ const UpdateUserSchema = z.object({
 
 // GET /api/users/[id]
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -73,7 +73,9 @@ export async function GET(
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json({ user });
+    const { passwordHash: _, ...safeUser } = user;
+
+    return NextResponse.json({ user: safeUser });
   } catch (error: any) {
     console.error("Error al obtener detalle de usuario:", error);
     return NextResponse.json({ error: "Error al obtener usuario" }, { status: 500 });
@@ -251,7 +253,8 @@ export async function PUT(
       req,
     });
 
-    return NextResponse.json({ user: updatedUser });
+    const { passwordHash: _p, ...safeUpdatedUser } = updatedUser;
+    return NextResponse.json({ user: safeUpdatedUser });
   } catch (error: any) {
     console.error("Error al actualizar usuario:", error);
     return NextResponse.json({ error: "Error al actualizar usuario" }, { status: 500 });
@@ -308,7 +311,8 @@ export async function DELETE(
       req,
     });
 
-    return NextResponse.json({ message: "Usuario desactivado correctamente", user });
+    const { passwordHash: _d, ...safeDeletedUser } = user;
+    return NextResponse.json({ message: "Usuario desactivado correctamente", user: safeDeletedUser });
   } catch (error: any) {
     console.error("Error al desactivar usuario:", error);
     return NextResponse.json({ error: "Error al desactivar usuario" }, { status: 500 });

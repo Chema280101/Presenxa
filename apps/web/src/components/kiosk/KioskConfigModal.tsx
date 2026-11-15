@@ -1,17 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import {
-  X,
-  Key,
-  QrCode,
-  Keyboard,
-  Camera,
-  SwitchCamera,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
+import { X, Key, Keyboard, Camera, SwitchCamera, Loader2, AlertCircle } from "lucide-react";
 
 interface KioskConfigModalProps {
   isOpen: boolean;
@@ -246,8 +236,8 @@ export function KioskConfigModal({
         {/* Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
           {error && (
-            <div className="px-4 py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2.5 animate-shake">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+            <div className="px-4 py-3 rounded-2xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2.5 animate-shake">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600 dark:text-rose-400" />
               <span>{error}</span>
             </div>
           )}
@@ -322,7 +312,7 @@ export function KioskConfigModal({
               stopScanner();
               onClose();
             }}
-            className="px-5 py-2.5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold transition-colors cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-slate-300 dark:bg-surface-850 dark:hover:bg-surface-800 dark:text-slate-300 dark:hover:text-white dark:border-surface-700/70 dark:hover:border-surface-600 text-sm font-semibold transition-colors cursor-pointer"
           >
             {currentKey ? "Cancelar" : "Cerrar"}
           </button>

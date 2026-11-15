@@ -226,7 +226,7 @@ export function BulkEditModal({
                 onChange={(val) => setLocationId(val)}
                 options={locationOptions}
                 placeholder="Seleccionar nueva sede..."
-                hasLeftIcon
+                leftIcon={Building}
               />
             </div>
           )}
@@ -265,7 +265,7 @@ export function BulkEditModal({
                 value={role}
                 onChange={(val) => setRole(val as UserRole)}
                 options={ROLE_OPTIONS}
-                hasLeftIcon
+                leftIcon={ShieldCheck}
               />
             </div>
           )}
@@ -305,7 +305,7 @@ export function BulkEditModal({
                 onChange={(val) => setScheduleId(val)}
                 options={scheduleOptions}
                 placeholder="Seleccionar nuevo turno..."
-                hasLeftIcon
+                leftIcon={Clock}
               />
               <p className="text-[10px] text-surface-500 dark:text-slate-400 mt-1.5">
                 Cerrará automáticamente la vigencia del horario previo y activará el nuevo a partir de hoy.

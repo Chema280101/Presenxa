@@ -3,42 +3,15 @@
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import Image from "next/image";
 import QRCode from "qrcode";
-import {
-  Users,
-  UserPlus,
-  Search,
-  Filter,
-  QrCode,
-  Edit2,
-  Trash2,
-  CheckCircle2,
-  XCircle,
-  Building,
-  FolderTree,
-  Shield,
-  Clock,
-  RefreshCw,
-  MoreVertical,
-  ChevronDown,
-  UserCheck,
-  UserX,
-  Sparkles,
-  CreditCard,
-  Download,
-  Calendar,
-  MapPin,
-  Printer,
-} from "lucide-react";
+import { Users, UserPlus, QrCode, Edit2, CheckCircle2, Building, FolderTree, Shield, Clock, RefreshCw, UserCheck, UserX, Calendar, MapPin, Printer, KeyRound, Copy, FileSpreadsheet, SearchX } from "lucide-react";
 import { UserRole } from "@asistencias/db";
+import { ModalShell } from "@/components/ui/ModalShell";
 import { QrModal } from "@/components/users/QrModal";
 import { UserFormModal, UserFormData } from "@/components/users/UserFormModal";
 import { OverrideModal } from "@/components/users/OverrideModal";
 import { StatCard } from "@/components/ui/StatCard";
 import { RoleBadge, StatusBadge } from "@/components/ui/StatusBadge";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { SkeletonTable } from "@/components/ui/Skeleton";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FilterToolbar } from "@/components/ui/FilterToolbar";
 import { 
@@ -51,6 +24,7 @@ import {
   DataTableEmptyState,
   DataTableCheckbox
 } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 import { Button } from "@/components/ui/Button";
 import { BulkActionBar } from "@/components/users/BulkActionBar";
@@ -62,7 +36,6 @@ import { BulkOverrideModal } from "@/components/users/BulkOverrideModal";
 import { ExportUsersDropdown } from "@/components/users/ExportUsersDropdown";
 import { UsersPdfModal } from "@/components/users/UsersPdfModal";
 import { exportUsersToExcel, exportUsersToCsv } from "@/lib/exportUsersExcel";
-import { FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
 
@@ -105,23 +78,55 @@ function UsersPageContent() {
   const searchParams = useSearchParams();
   const urlSearch = searchParams?.get("search") || "";
 
-  const fetcher = (url: string) => fetch(url).then((res) => res.json());
-  const { data: usersData, isLoading, mutate: mutateUsers } = useSWR('/api/users', fetcher, {
-    revalidateOnFocus: true,
-  });
-  const { data: orgData } = useSWR('/api/organization', fetcher);
-  const users: UserItem[] = usersData?.users || [];
-
-  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
-  const [schedules, setSchedules] = useState<Array<any>>([]);
-  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
-
-  // Filters
+  // Filters & Pagination
   const [search, setSearch] = useState(urlSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(urlSearch);
   const [selectedRole, setSelectedRole] = useState<string>("ALL");
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const usersQueryUrl = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+    if (selectedRole !== "ALL") params.set("role", selectedRole);
+    if (selectedLocation !== "ALL") params.set("locationId", selectedLocation);
+    if (selectedDepartment !== "ALL") params.set("departmentId", selectedDepartment);
+    if (selectedStatus === "ACTIVE") params.set("isActive", "true");
+    if (selectedStatus === "INACTIVE") params.set("isActive", "false");
+    return `/api/users?${params.toString()}`;
+  }, [page, pageSize, debouncedSearch, selectedRole, selectedLocation, selectedDepartment, selectedStatus]);
+
+  const fetcher = (url: string) => fetch(url).then((res) => res.json());
+  const { data: usersData, isLoading, mutate: mutateUsers } = useSWR(usersQueryUrl, fetcher, {
+    revalidateOnFocus: true,
+    keepPreviousData: true,
+  });
+  const { data: orgData } = useSWR('/api/organization', fetcher);
+  const users: UserItem[] = usersData?.users || [];
+  const pagination = usersData?.pagination || {
+    page,
+    pageSize,
+    total: users.length,
+    totalPages: 1,
+  };
+
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [schedules, setSchedules] = useState<Array<any>>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
     if (urlSearch) {
@@ -146,11 +151,17 @@ function UsersPageContent() {
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [resetPasswordResult, setResetPasswordResult] = useState<{
+    userName: string;
+    email: string;
+    tempPass: string;
+  } | null>(null);
   const [selectedUserForQr, setSelectedUserForQr] = useState<any | null>(null);
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [selectedUserForOverride, setSelectedUserForOverride] = useState<any | null>(null);
   const [editingUserData, setEditingUserData] = useState<UserFormData | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [copiedToken, setCopiedToken] = useState(false);
 
   // Bulk actions state
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -211,28 +222,8 @@ function UsersPageContent() {
     fetchLocationsAndSchedules();
   }, []);
 
-  // Filtered users calculation
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
-      const matchesSearch =
-        !search ||
-        fullName.includes(search.toLowerCase()) ||
-        (u.phone && u.phone.toLowerCase().includes(search.toLowerCase())) ||
-        (u.documentId && u.documentId.toLowerCase().includes(search.toLowerCase())) ||
-        (u.nfcCardUid && u.nfcCardUid.toLowerCase().includes(search.toLowerCase()));
-
-      const matchesRole = selectedRole === "ALL" || u.role === selectedRole;
-      const matchesLoc = selectedLocation === "ALL" || u.location?.id === selectedLocation;
-      const matchesDept = selectedDepartment === "ALL" || u.department?.id === selectedDepartment;
-      const matchesStatus =
-        selectedStatus === "ALL" ||
-        (selectedStatus === "ACTIVE" && u.isActive) ||
-        (selectedStatus === "INACTIVE" && !u.isActive);
-
-      return matchesSearch && matchesRole && matchesLoc && matchesDept && matchesStatus;
-    });
-  }, [users, search, selectedRole, selectedLocation, selectedDepartment, selectedStatus]);
+  // Filtered users (paginados y filtrados en servidor)
+  const filteredUsers = users;
 
   // Colaboradores preparados para el estudio de credenciales
   const selectedUsersForPrint = useMemo(() => {
@@ -305,14 +296,13 @@ function UsersPageContent() {
     }
   };
 
-  // Statistics
-  const stats = useMemo(() => {
-    const total = users.length;
-    const active = users.filter((u) => u.isActive).length;
-    const employees = users.filter((u) => u.role === UserRole.EMPLEADO).length;
-    const supervisors = users.filter((u) => u.role === UserRole.ADMIN || u.role === UserRole.SUPERVISOR || u.role === UserRole.SUPER_ADMIN).length;
-    return { total, active, employees, supervisors };
-  }, [users]);
+  // Statistics (globales desde servidor)
+  const stats = usersData?.metrics || {
+    total: users.length,
+    active: users.filter((u) => u.isActive).length,
+    employees: users.filter((u) => u.role === UserRole.EMPLEADO).length,
+    supervisors: users.filter((u) => u.role === UserRole.ADMIN || u.role === UserRole.SUPERVISOR || u.role === UserRole.SUPER_ADMIN).length,
+  };
 
   // Handle Save (Create / Update)
   const handleSaveUser = async (data: UserFormData): Promise<boolean> => {
@@ -348,21 +338,54 @@ function UsersPageContent() {
     }
   };
 
+  const handleResetPassword = async (user: UserItem) => {
+    const confirmed = await confirm({
+      title: "Restablecer Contraseña",
+      description: `Se generará una nueva contraseña temporal para ${user.firstName} ${user.lastName} (${user.email}). ¿Deseas continuar?`,
+      confirmText: "Generar Clave Temporal",
+      cancelText: "Cancelar",
+      variant: "warning",
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/users/${user.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al restablecer contraseña");
+
+      setResetPasswordResult({
+        userName: `${user.firstName} ${user.lastName}`.trim(),
+        email: user.email,
+        tempPass: data.temporaryPassword,
+      });
+      toast.success("Contraseña restablecida correctamente");
+    } catch (err: any) {
+      toast.error(err.message || "Error al restablecer contraseña");
+    }
+  };
+
+  const buildSelectedUserForQr = (user: UserItem) => ({
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: user.role,
+    documentId: user.documentId,
+    qrToken: user.qrToken,
+    qrGeneratedAt: user.qrGeneratedAt,
+    signedQrPayload: user.signedQrPayload,
+    locationName: user.location?.name,
+    nfcCardUid: user.nfcCardUid,
+    department: user.department?.name,
+  });
+
   // Handle QR Modal Open
   const handleOpenQr = (user: UserItem) => {
-    setSelectedUserForQr({
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role,
-      documentId: user.documentId,
-      qrToken: user.qrToken,
-      signedQrPayload: user.signedQrPayload,
-      locationName: user.location?.name,
-      nfcCardUid: user.nfcCardUid,
-      department: user.department?.name,
-    });
+    setSelectedUserForQr(buildSelectedUserForQr(user));
     setIsQrModalOpen(true);
   };
 
@@ -402,6 +425,7 @@ function UsersPageContent() {
         setSelectedUserForQr((prev: any) => ({
           ...prev,
           qrToken: data.user.qrToken,
+          qrGeneratedAt: data.user.qrGeneratedAt,
           signedQrPayload: data.user.signedQrPayload,
         }));
       }
@@ -409,6 +433,29 @@ function UsersPageContent() {
     } catch (err: any) {
       toast.error(err.message || "Error al regenerar código QR");
       return null;
+    }
+  };
+
+  const handleInspectorRegenerateQr = async (user: any) => {
+    const ok = await confirm({
+      title: "¿Regenerar QR criptográfico?",
+      description: `Se generará un nuevo token para ${user.firstName} ${user.lastName} y el código QR anterior dejará de funcionar de inmediato (incluso en credenciales ya impresas).`,
+      confirmText: "Regenerar QR",
+      variant: "danger",
+    });
+    if (!ok) return;
+    await handleRegenerateQr(user.id);
+  };
+
+  const handleCopyToken = async (token?: string | null) => {
+    if (!token) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopiedToken(true);
+      toast.success("Token copiado al portapapeles");
+      setTimeout(() => setCopiedToken(false), 2000);
+    } catch {
+      toast.error("No se pudo copiar el token");
     }
   };
 
@@ -514,11 +561,10 @@ function UsersPageContent() {
         <StatCard
           label="Usuarios Activos"
           value={stats.active}
-          subLabel="100% de operatividad en turno"
+          subLabel="Operatividad en turno"
           subValue={`${Math.round((stats.active / (stats.total || 1)) * 100)}%`}
           icon={UserCheck}
           variant="emerald"
-          trend={{ value: "", label: "Activos", isPositive: true }}
         />
         <StatCard
           label="Supervisores / Admins"
@@ -543,16 +589,18 @@ function UsersPageContent() {
         searchPlaceholder="Buscar por nombre, email, DNI o UID NFC..."
         onReset={() => {
           setSearch("");
+          setDebouncedSearch("");
           setSelectedRole("ALL");
           setSelectedLocation("ALL");
           setSelectedDepartment("ALL");
           setSelectedStatus("ALL");
+          setPage(1);
         }}
         filters={[
           {
             id: "role",
             value: selectedRole,
-            onChange: setSelectedRole,
+            onChange: (val) => { setSelectedRole(val); setPage(1); },
             options: [
               { value: "ALL", label: "Todos los roles" },
               { value: UserRole.EMPLEADO, label: "Empleados" },
@@ -564,7 +612,7 @@ function UsersPageContent() {
             id: "location",
             icon: Building,
             value: selectedLocation,
-            onChange: setSelectedLocation,
+            onChange: (val) => { setSelectedLocation(val); setPage(1); },
             options: [
               { value: "ALL", label: "Todas las sedes" },
               ...locations.map(l => ({ value: l.id, label: l.name }))
@@ -574,7 +622,7 @@ function UsersPageContent() {
             id: "department",
             icon: FolderTree,
             value: selectedDepartment,
-            onChange: setSelectedDepartment,
+            onChange: (val) => { setSelectedDepartment(val); setPage(1); },
             options: [
               { value: "ALL", label: "Todos los departamentos" },
               ...departments.map(d => ({ value: d.id, label: d.name }))
@@ -584,7 +632,7 @@ function UsersPageContent() {
             id: "status",
             icon: CheckCircle2,
             value: selectedStatus,
-            onChange: setSelectedStatus,
+            onChange: (val) => { setSelectedStatus(val); setPage(1); },
             options: [
               { value: "ALL", label: "Todos los estados" },
               { value: "ACTIVE", label: "Solo Activos" },
@@ -598,11 +646,26 @@ function UsersPageContent() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start mt-6">
         <DataTableContainer 
           className="xl:col-span-8 2xl:col-span-9"
+          footer={
+            <DataTablePagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              totalItems={pagination.total}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              pageSizeOptions={[10, 25, 50, 100]}
+              itemLabel="usuarios"
+            />
+          }
           mobileContent={
             isLoading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="p-4 rounded-2xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 animate-pulse space-y-3">
+                {[1, 2, 3].map((skeletonId) => (
+                  <div key={`user-skeleton-${skeletonId}`} className="p-4 rounded-2xl border border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900 animate-pulse space-y-3">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-surface-200 dark:bg-surface-800"></div>
                       <div className="space-y-1.5 flex-1">
@@ -627,21 +690,7 @@ function UsersPageContent() {
                   return (
                     <div
                       key={`mobile-${user.id}`}
-                      onClick={() => {
-                        setSelectedUserForQr({
-                          id: user.id,
-                          firstName: user.firstName,
-                          lastName: user.lastName,
-                          email: user.email,
-                          role: user.role,
-                          documentId: user.documentId,
-                          qrToken: user.qrToken,
-                          signedQrPayload: user.signedQrPayload,
-                          locationName: user.location?.name,
-                          nfcCardUid: user.nfcCardUid,
-                          department: user.department?.name,
-                        });
-                      }}
+                      onClick={() => setSelectedUserForQr(buildSelectedUserForQr(user))}
                       className={`p-4 rounded-2xl border bg-white dark:bg-surface-900 shadow-xs transition-all space-y-3 cursor-pointer ${
                         isSelected || isChecked
                           ? "border-primary-500/60 bg-primary-50/20 dark:bg-primary-950/20 ring-1 ring-primary-500/30"
@@ -800,9 +849,9 @@ function UsersPageContent() {
           </DataTableHeader>
           <DataTableBody>
             {isLoading ? (
-              <DataTableEmptyState colSpan={8} message="Cargando usuarios..." />
+              <DataTableEmptyState colSpan={8} icon={RefreshCw} message="Cargando usuarios..." />
             ) : filteredUsers.length === 0 ? (
-              <DataTableEmptyState colSpan={8} message="No hay colaboradores que coincidan con los filtros." />
+              <DataTableEmptyState colSpan={8} icon={SearchX} message="No hay colaboradores que coincidan con los filtros." />
             ) : (
               filteredUsers.map((user) => {
                 const schedule = user.userSchedules?.[0]?.schedule;
@@ -812,21 +861,7 @@ function UsersPageContent() {
                   <DataTableRow
                     key={user.id}
                     isSelected={isSelected || isChecked}
-                    onClick={() => {
-                      setSelectedUserForQr({
-                        id: user.id,
-                        firstName: user.firstName,
-                        lastName: user.lastName,
-                        email: user.email,
-                        role: user.role,
-                        documentId: user.documentId,
-                        qrToken: user.qrToken,
-                        signedQrPayload: user.signedQrPayload,
-                        locationName: user.location?.name,
-                        nfcCardUid: user.nfcCardUid,
-                        department: user.department?.name,
-                      });
-                    }}
+                    onClick={() => setSelectedUserForQr(buildSelectedUserForQr(user))}
                   >
                     <DataTableCell className="w-10 px-3" onClick={(e) => e?.stopPropagation()}>
                       <DataTableCheckbox
@@ -955,6 +990,16 @@ function UsersPageContent() {
                         />
                         <ActionButton
                           size="sm"
+                          variant="neutral"
+                          icon={<KeyRound className="w-3.5 h-3.5" />}
+                          title="Restablecer Contraseña"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleResetPassword(user);
+                          }}
+                        />
+                        <ActionButton
+                          size="sm"
                           variant={user.isActive ? "danger" : "success"}
                           icon={user.isActive ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
                           title={user.isActive ? "Desactivar Credencial" : "Reactivar Credencial"}
@@ -973,105 +1018,142 @@ function UsersPageContent() {
         </DataTableContainer>
 
             {/* BEGIN: LiveCredentialSideInspector */}
-            <section className="xl:col-span-4 2xl:col-span-3 rounded-2xl p-5 border border-surface-200 dark:border-surface-800 shadow-xl space-y-4 bg-surface-50 dark:bg-surface-900 transition-colors">
+            <section className="xl:col-span-4 2xl:col-span-3 rounded-2xl p-5 border border-surface-200 dark:border-surface-800 shadow-sm space-y-4 bg-white dark:bg-surface-900 transition-colors">
               {selectedUserForQr ? (
                 <>
                   <div className="flex items-center justify-between pb-3 border-b border-surface-200 dark:border-surface-800">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-primary-500 dark:bg-primary-400 animate-pulse"></span>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-surface-700 dark:text-surface-300">Credencial Seleccionada</h3>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-surface-800 dark:text-surface-200">Credencial Seleccionada</h3>
                     </div>
-                    <span className="text-[10px] font-mono font-bold bg-primary-100 dark:bg-emerald-500/10 text-primary-700 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/20 px-2 py-0.5 rounded">QR NIVEL H</span>
+                    <span className="text-[11px] font-mono font-bold bg-primary-100 dark:bg-emerald-500/10 text-primary-800 dark:text-emerald-400 border border-primary-200 dark:border-emerald-500/20 px-2 py-0.5 rounded">QR NIVEL H</span>
                   </div>
 
                   {/* Virtual Fotocheck / Badge Preview */}
-                  <div className="p-4 rounded-xl bg-gradient-to-b from-surface-100 dark:from-surface-950 via-surface-50 dark:via-surface-900 to-surface-200 dark:to-surface-800 border border-primary-300 dark:border-primary-500/30 relative overflow-hidden" >
+                  <div className="p-4 rounded-xl bg-gradient-to-b from-surface-50 dark:from-surface-950 via-white dark:via-surface-900 to-surface-100 dark:to-surface-800 border border-primary-300 dark:border-primary-500/30 relative overflow-hidden">
                     {/* Background Chip Pattern */}
                     <div className="absolute -right-8 -top-8 w-28 h-28 bg-primary-500/10 rounded-full blur-xl pointer-events-none"></div>
-                    
+
                     {/* Top Hotel Badge Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-surface-200 dark:border-surface-700/80">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded bg-primary-500 flex items-center justify-center text-white font-black text-xs">
+                    <div className="flex items-center justify-between gap-2 pb-3 border-b border-surface-200 dark:border-surface-700/80">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="w-5 h-5 rounded bg-primary-600 flex items-center justify-center text-white font-black text-xs">
                           P
                         </div>
                         <span className="font-extrabold text-[11px] tracking-wider text-surface-900 dark:text-white">PRESENXA PASS</span>
                       </div>
-                      <span className="text-[9px] font-mono text-info-600 dark:text-info-400 tracking-widest font-semibold uppercase">{selectedUserForQr.locationName?.substring(0, 10) || "ORG-01"}</span>
+                      <span
+                        className="text-[11px] font-mono text-info-700 dark:text-info-400 tracking-wide font-semibold uppercase truncate max-w-[140px]"
+                        title={selectedUserForQr.locationName || "ORG-01"}
+                      >
+                        {selectedUserForQr.locationName || "ORG-01"}
+                      </span>
                     </div>
 
-                    {/* Center: High-Resolution Cryptographic QR Code */}
-                    <div className="my-4 flex flex-col items-center justify-center p-3 rounded-2xl bg-white shadow-lg border-2 border-surface-200">
+                    {/* Center: High-Resolution Cryptographic QR Code (clickable to inspect) */}
+                    <button
+                      type="button"
+                      onClick={() => setIsQrModalOpen(true)}
+                      aria-label="Ampliar y validar credencial QR"
+                      className="my-4 w-full flex flex-col items-center justify-center p-3 rounded-2xl bg-white shadow-md border-2 border-surface-200 hover:border-primary-400 dark:hover:border-primary-500 transition cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
                       <div className="w-40 h-40 relative flex items-center justify-center">
                         {/* Frame Corners */}
-                        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary-500 rounded-tl"></div>
-                        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary-500 rounded-tr"></div>
-                        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary-500 rounded-bl"></div>
-                        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary-500 rounded-br"></div>
-                        
+                        <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-primary-500 rounded-tl transition-transform group-hover:scale-110"></div>
+                        <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-primary-500 rounded-tr transition-transform group-hover:scale-110"></div>
+                        <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-primary-500 rounded-bl transition-transform group-hover:scale-110"></div>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-primary-500 rounded-br transition-transform group-hover:scale-110"></div>
+
                         {qrDataUrl ? (
                           <img src={qrDataUrl} alt="QR de Credencial" className="w-[140px] h-[140px] object-contain rounded-lg" />
                         ) : (
                           <div className="w-10 h-10 border-4 border-surface-200 border-t-primary-500 rounded-full animate-spin"></div>
                         )}
                       </div>
-                    </div>
+                    </button>
 
                     {/* Colaborador Detail in Card */}
                     <div className="text-center space-y-1">
                       <div className="text-sm font-extrabold text-surface-900 dark:text-white">{selectedUserForQr.firstName} {selectedUserForQr.lastName}</div>
-                      <div className="text-[11px] text-info-600 dark:text-cyan-400 font-medium">{selectedUserForQr.role} · {selectedUserForQr.locationName || "Sin sede"}</div>
-                      <div className="font-mono text-[10px] text-surface-500 dark:text-slate-400 pt-1">
+                      <div className="text-xs text-info-700 dark:text-cyan-400 font-semibold">{selectedUserForQr.role} · {selectedUserForQr.locationName || "Sin sede"}</div>
+                      <div className="font-mono text-[11px] text-surface-600 dark:text-slate-400 pt-1">
                         DNI: {selectedUserForQr.documentId || "—"} • NFC: {selectedUserForQr.nfcCardUid || "—"}
                       </div>
                     </div>
 
                     {/* Cryptographic Token Stamp */}
-                    <div className="mt-3 pt-2.5 border-t border-surface-200 dark:border-slate-800 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-surface-500 dark:text-slate-400">TOKEN OFICIAL:</span>
-                      <span 
-                        className="text-primary-700 dark:text-emerald-400 font-bold bg-primary-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded border border-primary-200 dark:border-emerald-900/60 truncate max-w-[170px]"
-                        title={selectedUserForQr.qrToken}
-                      >
-                        {selectedUserForQr.qrToken || "No asignado"}
-                      </span>
+                    <div className="mt-3 pt-2.5 border-t border-surface-200 dark:border-slate-800 flex items-center justify-between gap-2 text-[11px] font-mono">
+                      <span className="text-surface-600 dark:text-slate-400 shrink-0">TOKEN OFICIAL:</span>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span
+                          className="text-primary-800 dark:text-emerald-400 font-bold bg-primary-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded border border-primary-200 dark:border-emerald-900/60 truncate max-w-[145px]"
+                          title={selectedUserForQr.qrToken}
+                        >
+                          {selectedUserForQr.qrToken || "No asignado"}
+                        </span>
+                        {selectedUserForQr.qrToken && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyToken(selectedUserForQr.qrToken)}
+                            aria-label="Copiar token oficial"
+                            title="Copiar token oficial"
+                            className="p-1.5 rounded-md text-surface-600 dark:text-surface-400 hover:text-primary-700 dark:hover:text-emerald-400 hover:bg-primary-50 dark:hover:bg-emerald-950/60 transition cursor-pointer shrink-0"
+                          >
+                            {copiedToken ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-primary-600 dark:text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Credential Action Buttons */}
                   <div className="space-y-2 pt-1">
                     <button
+                      type="button"
                       onClick={() => setIsQrModalOpen(true)}
-                      className="w-full py-2.5 px-3 rounded-xl bg-surface-200 dark:bg-surface-800 hover:bg-surface-300 dark:hover:bg-surface-700 border border-surface-300 dark:border-surface-700 text-xs font-bold text-surface-900 dark:text-white flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
                     >
-                      <QrCode className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                      <QrCode className="w-4 h-4" />
                       <span>Ver y Validar Credencial QR</span>
                     </button>
                     <button
+                      type="button"
                       onClick={() => handlePrintSingleUser(selectedUserForQr)}
-                      className="w-full py-2 px-3 rounded-xl bg-surface-100 dark:bg-surface-800/80 hover:bg-surface-200 dark:hover:bg-surface-700 border border-surface-200 dark:border-surface-700 text-xs font-bold text-surface-800 dark:text-slate-200 flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-white dark:bg-surface-800 hover:bg-surface-100 dark:hover:bg-surface-700 border border-surface-300 dark:border-surface-700 text-xs font-bold text-surface-800 dark:text-slate-200 flex items-center justify-center gap-2 transition shadow-xs cursor-pointer"
                     >
-                      <Printer className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                      <Printer className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                       <span>Imprimir Credencial Oficial</span>
                     </button>
-                    <button
-                      onClick={() => handleRegenerateQr(selectedUserForQr.id)}
-                      className="w-full py-2 px-3 rounded-xl bg-warning-50 dark:bg-amber-500/10 hover:bg-warning-100 dark:hover:bg-amber-500/20 border border-warning-200 dark:border-amber-500/30 text-xs font-bold text-warning-700 dark:text-amber-300 flex items-center justify-center gap-2 transition cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-warning-600 dark:text-amber-400" />
-                      <span>Regenerar QR Criptográfico</span>
-                    </button>
+
+                    <div className="pt-2 mt-2 border-t border-surface-200 dark:border-surface-800">
+                      <button
+                        type="button"
+                        onClick={() => handleInspectorRegenerateQr(selectedUserForQr)}
+                        className="w-full py-2 px-3 rounded-xl bg-warning-50/70 dark:bg-amber-500/10 hover:bg-warning-100 dark:hover:bg-amber-500/20 border border-warning-200 dark:border-amber-500/30 text-xs font-semibold text-warning-800 dark:text-amber-300 flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-warning-700 dark:text-amber-400" />
+                        <span>Regenerar QR Criptográfico</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Security Audit Stamp Info */}
-                  <div className="p-3 rounded-xl bg-surface-100 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-[10px] text-surface-500 dark:text-surface-400 space-y-1">
-                    <div className="flex items-center justify-between text-surface-700 dark:text-surface-300 font-medium">
+                  <div className="p-3 rounded-xl bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-[11px] text-surface-600 dark:text-surface-400 space-y-1.5">
+                    <div className="flex items-center justify-between text-surface-800 dark:text-surface-200 font-medium">
                       <span>Algoritmo de Firma:</span>
-                      <span className="font-mono text-primary-600 dark:text-emerald-400">HMAC-SHA256</span>
+                      <span className="font-mono font-bold text-primary-700 dark:text-emerald-400">HMAC-SHA256</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Última emisión:</span>
-                      <span className="font-mono">{new Date().toLocaleDateString('es-PE')}</span>
+                      <span className="font-mono text-surface-700 dark:text-surface-300">
+                        {selectedUserForQr.qrGeneratedAt
+                          ? new Date(selectedUserForQr.qrGeneratedAt).toLocaleDateString("es-PE")
+                          : "Sin registro"}
+                      </span>
                     </div>
                   </div>
                 </>
@@ -1206,6 +1288,50 @@ function UsersPageContent() {
         users={usersToExport}
         organization={orgData?.organization || null}
       />
+
+      {/* Modal de Contraseña Temporal Generada */}
+      <ModalShell
+        isOpen={Boolean(resetPasswordResult)}
+        onClose={() => setResetPasswordResult(null)}
+        title="Contraseña Temporal Generada"
+        description={resetPasswordResult ? `Colaborador: ${resetPasswordResult.userName}` : ""}
+        icon={KeyRound}
+        iconVariant="warning"
+        maxWidth="sm"
+        footer={
+          <Button variant="primary" onClick={() => setResetPasswordResult(null)}>
+            Entendido
+          </Button>
+        }
+      >
+        {resetPasswordResult && (
+          <div className="space-y-4">
+            <p className="text-xs text-surface-600 dark:text-surface-300 leading-relaxed">
+              Comparte esta contraseña temporal con <strong>{resetPasswordResult.userName}</strong> para que pueda iniciar sesión en su portal y luego cambiarla desde su perfil.
+            </p>
+            <div className="p-3.5 rounded-xl bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 flex items-center justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-surface-500 block">Clave Temporal</span>
+                <span className="text-lg font-mono font-black text-surface-900 dark:text-white tracking-wider">
+                  {resetPasswordResult.tempPass}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<Copy className="w-3.5 h-3.5" />}
+                onClick={() => {
+                  navigator.clipboard.writeText(resetPasswordResult.tempPass);
+                  toast.success("Contraseña copiada al portapapeles");
+                }}
+              >
+                Copiar
+              </Button>
+            </div>
+          </div>
+        )}
+      </ModalShell>
     </div>
   );
 }

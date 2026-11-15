@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { FolderTree, Plus, Users, RefreshCw, Layers, Edit2, Trash2 } from "lucide-react";
+import { Building2, SearchX, Plus, Users, RefreshCw, Layers, Edit2, Trash2 } from "lucide-react";
 import { ViewModeToggle } from "@/components/ui/ViewModeToggle";
 import { DepartmentFormModal, DepartmentFormData } from "@/components/departments/DepartmentFormModal";
 import { DepartmentCard, DepartmentData } from "@/components/departments/DepartmentCard";
@@ -19,6 +19,7 @@ import {
   DataTableCell,
   DataTableEmptyState,
 } from "@/components/ui/DataTable";
+import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { useToast } from "@/providers/ToastProvider";
 import { useConfirm } from "@/providers/ConfirmDialogProvider";
@@ -27,7 +28,11 @@ export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<DepartmentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -35,13 +40,29 @@ export default function DepartmentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<DepartmentFormData | null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchDepartments = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/departments");
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+      const res = await fetch(`/api/departments?${params.toString()}`);
       const data = await res.json();
       if (data.departments) {
         setDepartments(data.departments);
+      }
+      if (data.pagination) {
+        setPagination(data.pagination);
       }
     } catch (err) {
       console.error("Error fetching departments:", err);
@@ -52,13 +73,9 @@ export default function DepartmentsPage() {
 
   useEffect(() => {
     fetchDepartments();
-  }, []);
+  }, [page, pageSize, debouncedSearch]);
 
-  const filteredDepartments = useMemo(() => {
-    return departments.filter((dept) => {
-      return !search || dept.name.toLowerCase().includes(search.toLowerCase());
-    });
-  }, [departments, search]);
+  const filteredDepartments = departments;
 
   const stats = useMemo(() => {
     const total = departments.length;
@@ -133,7 +150,7 @@ export default function DepartmentsPage() {
           </span>
         }
         subtitle="Estructura y organiza las áreas de trabajo de la empresa."
-        icon={FolderTree}
+        icon={Building2}
         iconVariant="emerald"
         actionButtons={
           <>
@@ -194,7 +211,7 @@ export default function DepartmentsPage() {
             </div>
           ) : filteredDepartments.length === 0 ? (
             <div className="col-span-full text-center py-16 bg-white dark:bg-surface-900 rounded-3xl border border-dashed border-surface-200 dark:border-surface-800 p-8">
-              <FolderTree className="w-12 h-12 text-surface-400 dark:text-surface-500 mx-auto mb-4" />
+              <Building2 className="w-12 h-12 text-surface-400 dark:text-surface-500 mx-auto mb-4" aria-hidden="true" />
               <p className="text-surface-900 dark:text-surface-100 text-base font-bold">No hay departamentos</p>
               <p className="text-surface-500 dark:text-surface-400 text-xs mt-1">Crea tu primer departamento para estructurar la organización.</p>
             </div>
@@ -216,7 +233,23 @@ export default function DepartmentsPage() {
         isLoading ? (
           <SkeletonTable rows={5} cols={4} />
         ) : (
-          <DataTableContainer>
+          <DataTableContainer
+            footer={
+              <DataTablePagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+                pageSizeOptions={[10, 25, 50, 100]}
+                itemLabel="departamentos"
+              />
+            }
+          >
             <DataTableHeader>
               <DataTableHead>Área / Departamento</DataTableHead>
               <DataTableHead>Colaboradores Asignados</DataTableHead>
@@ -227,6 +260,7 @@ export default function DepartmentsPage() {
               {filteredDepartments.length === 0 ? (
                 <DataTableEmptyState
                   colSpan={4}
+                  icon={search ? SearchX : Building2}
                   message={search ? "No se encontraron departamentos con el criterio de búsqueda." : "Aún no se han configurado áreas de trabajo."}
                 />
               ) : (
@@ -237,7 +271,7 @@ export default function DepartmentsPage() {
                       <DataTableCell>
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 border border-primary-200/80 dark:border-primary-500/20 flex items-center justify-center shrink-0">
-                            <FolderTree className="w-4 h-4" />
+                            <Building2 className="w-4 h-4" aria-hidden="true" />
                           </div>
                           <div>
                             <span className="font-bold text-sm text-surface-900 dark:text-white">
@@ -264,26 +298,26 @@ export default function DepartmentsPage() {
                           {dept.id.slice(0, 8)}
                         </span>
                       </DataTableCell>
-                      <DataTableCell className="text-right">
-                        <ActionButtonGroup>
+                      <DataTableCell align="right">
+                        <ActionButtonGroup align="right">
                           <ActionButton
+                            size="sm"
                             variant="warning"
+                            icon={<Edit2 className="w-3.5 h-3.5" />}
                             onClick={() => {
                               setEditingDepartment({ id: dept.id, name: dept.name });
                               setIsModalOpen(true);
                             }}
                             title="Editar departamento"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                           <ActionButton
+                            size="sm"
                             variant="danger"
+                            icon={<Trash2 className="w-3.5 h-3.5" />}
                             onClick={() => handleDelete(dept)}
                             title={userCount > 0 ? "No se puede eliminar (tiene colaboradores)" : "Eliminar departamento"}
                             disabled={userCount > 0}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </ActionButton>
+                          />
                         </ActionButtonGroup>
                       </DataTableCell>
                     </DataTableRow>

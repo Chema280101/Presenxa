@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { MessageSquare, ExternalLink, Headphones, PhoneCall } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { clsx } from "clsx";
 
 export interface AdminWhatsAppSupportButtonProps {
@@ -14,7 +14,7 @@ export interface AdminWhatsAppSupportButtonProps {
   className?: string;
 }
 
-const ADMIN_ROLES = [
+const ADMIN_ROLES = new Set([
   "ADMIN",
   "SUPER_ADMIN",
   "SUPERADMIN",
@@ -23,18 +23,18 @@ const ADMIN_ROLES = [
   "Super Administrador",
   "ADMINISTRADOR",
   "SUPER ADMIN",
-];
+]);
 
-// Icono oficial de WhatsApp vectorizado
-export function WhatsAppIcon({ className = "w-4 h-4" }: { className?: string }) {
+// Icono oficial de WhatsApp (Simple Icons con margen seguro en viewBox)
+export function WhatsAppIcon({ className = "w-4 h-4" }: Readonly<{ className?: string }>) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="-1 -1 26 26"
       fill="currentColor"
       className={className}
       aria-hidden="true"
     >
-      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19.01L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.81 13.47 3.81 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.03C9.36 7.03 9.08 7.1 8.84 7.36C8.6 7.62 7.92 8.26 7.92 9.55C7.92 10.84 8.86 12.08 9 12.26C9.13 12.44 10.88 15.13 13.56 16.29C14.2 16.57 14.69 16.73 15.08 16.85C15.73 17.06 16.31 17.03 16.77 16.96C17.29 16.88 18.36 16.31 18.59 15.68C18.81 15.05 18.81 14.51 18.75 14.39C18.69 14.27 18.52 14.2 18.26 14.07C18 13.94 16.73 13.31 16.5 13.22C16.26 13.14 16.09 13.1 15.92 13.35C15.76 13.61 15.28 14.17 15.14 14.34C14.99 14.51 14.85 14.53 14.59 14.4C14.33 14.27 13.49 14 12.5 13.11C11.73 12.42 11.21 11.57 11.06 11.31C10.91 11.05 11.04 10.92 11.17 10.79C11.29 10.67 11.43 10.49 11.56 10.34C11.69 10.19 11.73 10.08 11.82 9.91C11.91 9.74 11.86 9.59 11.8 9.46C11.73 9.33 11.21 8.05 11 7.53C10.79 7.03 10.58 7.1 10.42 7.09C10.27 7.08 10.1 7.08 9.93 7.08C9.76 7.08 9.53 7.03 9.53 7.03Z" />
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
     </svg>
   );
 }
@@ -43,13 +43,13 @@ export function AdminWhatsAppSupportButton({
   variant = "button",
   userRole,
   userName,
-  organizationName = "Hotel Italia",
+  organizationName: _organizationName = "Hotel Italia",
   phone = "51951171534",
   customMessage,
   className,
-}: AdminWhatsAppSupportButtonProps) {
+}: Readonly<AdminWhatsAppSupportButtonProps>) {
   // Verificación de rol opcional: si se suministra userRole y no es admin, no renderizar
-  if (userRole && !ADMIN_ROLES.includes(userRole)) {
+  if (userRole && !ADMIN_ROLES.has(userRole)) {
     return null;
   }
 
@@ -62,8 +62,10 @@ export function AdminWhatsAppSupportButton({
     if (userName) {
       parts.push(`👤 Administrador: ${userName}`);
     }
-    parts.push("🏨 Empresa: Hotel Italia");
-    parts.push("¿Podrías asistirme por favor? Muchas gracias.");
+    parts.push(
+      "🏨 Empresa: Hotel Italia",
+      "¿Podrías asistirme por favor? Muchas gracias."
+    );
     return parts.join("\n");
   };
 
@@ -107,6 +109,7 @@ export function AdminWhatsAppSupportButton({
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
+        role="menuitem"
         className={clsx(
           "flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-surface-700 dark:text-surface-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-all duration-150 group cursor-pointer text-left",
           className

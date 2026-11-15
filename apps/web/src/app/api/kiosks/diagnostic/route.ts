@@ -15,6 +15,11 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const role = (session.user as any)?.role;
+    if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+      return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
+    }
+
     const organizationId = session.user.organizationId;
 
     // ── 1. Prueba de Base de Datos PostgreSQL ─────────────────────────────────

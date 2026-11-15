@@ -58,9 +58,9 @@ export function getLocalTimeParts(
   });
 
   const parts = formatter.formatToParts(d);
-  const hour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
-  const minute = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
-  const second = parseInt(parts.find((p) => p.type === "second")?.value || "0", 10);
+  const hour = Number.parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+  const minute = Number.parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  const second = Number.parseInt(parts.find((p) => p.type === "second")?.value || "0", 10);
 
   return { hour: hour === 24 ? 0 : hour, minute, second };
 }
@@ -100,4 +100,47 @@ export function formatLocalTime(
     default:
       return `${hh}:${mm}:${ss}`;
   }
+}
+
+export interface OvertimeScheduleInfo {
+  exitHour: number;
+  exitMinute: number;
+  isSplit?: boolean;
+  exitHour2?: number | null;
+  exitMinute2?: number | null;
+}
+
+/**
+ * Calcula los minutos de sobretiempo (horas extras) a partir de la hora real de salida
+ * comparada contra el horario programado. Umbral mínimo: 15 minutos.
+ */
+export function computeOvertime(
+  exitDate: Date,
+  schedule: OvertimeScheduleInfo | null | undefined,
+  timeZone: string = DEFAULT_TIMEZONE,
+  minThresholdMinutes = 15
+): { overtimeMinutes: number; overtimeStatus: "NONE" | "PENDING" } {
+  if (!schedule) {
+    return { overtimeMinutes: 0, overtimeStatus: "NONE" };
+  }
+
+  const targetHour =
+    schedule.isSplit && schedule.exitHour2 !== null && schedule.exitHour2 !== undefined
+      ? schedule.exitHour2
+      : schedule.exitHour;
+  const targetMinute =
+    schedule.isSplit && schedule.exitHour2 !== null && schedule.exitHour2 !== undefined
+      ? (schedule.exitMinute2 ?? 0)
+      : schedule.exitMinute;
+
+  const scheduledExitMins = targetHour * 60 + targetMinute;
+  const { hour, minute } = getLocalTimeParts(exitDate, timeZone);
+  const actualExitMins = hour * 60 + minute;
+
+  const diff = actualExitMins - scheduledExitMins;
+  if (diff >= minThresholdMinutes) {
+    return { overtimeMinutes: diff, overtimeStatus: "PENDING" };
+  }
+
+  return { overtimeMinutes: 0, overtimeStatus: "NONE" };
 }

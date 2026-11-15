@@ -25,13 +25,13 @@ export function LateSeverityChart({ data, totalLates }: LateSeverityChartProps) 
   ];
 
   return (
-    <div className="card-surface p-6 flex flex-col justify-between space-y-4 border-t border-white/5">
+    <div className="card-surface p-6 flex flex-col justify-between space-y-4 border-t border-surface-200 dark:border-white/5">
       <div>
-        <h3 className="text-base font-bold text-white mb-1 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-amber-400" />
+        <h3 className="text-base font-bold text-surface-900 dark:text-white mb-1 flex items-center gap-2">
+          <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           Severidad de Tardanzas
         </h3>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-surface-600 dark:text-slate-400">
           Distribución de los {totalLates} retrasos por rangos de tiempo
         </p>
       </div>
@@ -42,9 +42,9 @@ export function LateSeverityChart({ data, totalLates }: LateSeverityChartProps) 
           return (
             <div key={item.label} className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium">
-                <span className="text-slate-300">{item.label}</span>
-                <span className="font-bold text-white font-mono">
-                  {item.value} <span className="text-slate-500 text-[10px] ml-1">({Math.round(percent)}%)</span>
+                <span className="text-surface-700 dark:text-slate-300">{item.label}</span>
+                <span className="font-bold text-surface-900 dark:text-white font-mono">
+                  {item.value} <span className="text-surface-500 dark:text-slate-400 text-[10px] ml-1">({Math.round(percent)}%)</span>
                 </span>
               </div>
               <div className={`w-full ${item.bg} rounded-full h-2 overflow-hidden`}>
@@ -59,10 +59,10 @@ export function LateSeverityChart({ data, totalLates }: LateSeverityChartProps) 
       </div>
       
       {data.critical > 0 && (
-        <div className="mt-2 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-rose-300/90 leading-relaxed">
-            Se han detectado <strong className="text-rose-400">{data.critical} tardanzas críticas</strong>. Se recomienda revisar políticas disciplinarias para casos superiores a 30 minutos.
+        <div className="mt-2 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-rose-800 dark:text-rose-300/90 leading-relaxed">
+            Se han detectado <strong className="text-rose-700 dark:text-rose-400">{data.critical} tardanzas críticas</strong>. Se recomienda revisar políticas disciplinarias para casos superiores a 30 minutos.
           </p>
         </div>
       )}

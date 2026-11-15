@@ -10,12 +10,12 @@ function parseTimeString(timeVal: string | null | undefined, baseDate: Date): Da
   if (!timeVal) return null;
   if (timeVal.includes("T") || timeVal.includes("-")) {
     const d = new Date(timeVal);
-    return isNaN(d.getTime()) ? null : d;
+    return Number.isNaN(d.getTime()) ? null : d;
   }
   const [hStr, mStr] = timeVal.split(":");
-  const h = parseInt(hStr, 10);
-  const m = parseInt(mStr, 10);
-  if (isNaN(h) || isNaN(m)) return null;
+  const h = Number.parseInt(hStr, 10);
+  const m = Number.parseInt(mStr, 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
   const d = new Date(baseDate);
   d.setHours(h, m, 0, 0);
   return d;
@@ -35,7 +35,7 @@ const PatchAttendanceSchema = z.object({
 
 // GET /api/attendance/[id]
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();

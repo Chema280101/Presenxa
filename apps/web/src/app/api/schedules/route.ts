@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
+import { parsePaginationParams, buildPaginationMeta } from "@/lib/pagination";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,30 +33,56 @@ export async function GET(req: Request) {
 
   try {
     const isTemplate = url.searchParams.get("templates") === "true";
-    const schedules = await prisma.schedule.findMany({
-      where: {
-        organizationId: session.user.organizationId,
-        isTemplate,
-      },
-      orderBy: [{ isActive: "desc" }, { name: "asc" }],
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
+    const search = url.searchParams.get("search")?.trim() || "";
+    const statusFilter = url.searchParams.get("status");
+    const { hasPagination, page, pageSize, skip, take } = parsePaginationParams(
+      url.searchParams,
+      25
+    );
+
+    const where: any = {
+      organizationId: session.user.organizationId,
+      isTemplate,
+    };
+    if (statusFilter === "ACTIVE") where.isActive = true;
+    if (statusFilter === "INACTIVE") where.isActive = false;
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+
+    const [schedules, total] = await Promise.all([
+      prisma.schedule.findMany({
+        where,
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+        skip,
+        take,
+        include: {
+          location: {
+            select: {
+              id: true,
+              name: true,
+            },
           },
-        },
-        _count: {
-          select: {
-            userSchedules: {
-              where: {
-                OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+          _count: {
+            select: {
+              userSchedules: {
+                where: {
+                  OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+                },
               },
             },
           },
         },
-      },
-    });
+      }),
+      hasPagination ? prisma.schedule.count({ where }) : Promise.resolve(0),
+    ]);
+
+    if (hasPagination) {
+      return NextResponse.json({
+        schedules,
+        pagination: buildPaginationMeta(page, pageSize, total),
+      });
+    }
 
     return NextResponse.json({ schedules });
   } catch (error: any) {
@@ -103,6 +131,23 @@ export async function POST(req: Request) {
         isTemplate: data.isTemplate,
         isActive: true,
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_CREATED",
+      entityType: "SCHEDULE",
+      entityId: schedule.id,
+      newData: {
+        name: schedule.name,
+        entryHour: schedule.entryHour,
+        entryMinute: schedule.entryMinute,
+        exitHour: schedule.exitHour,
+        exitMinute: schedule.exitMinute,
+        isSplit: schedule.isSplit,
+      },
+      req,
     });
 
     return NextResponse.json({ schedule }, { status: 201 });

@@ -1,12 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Clock, Edit3, ShieldAlert, Loader2, Sun, Moon, Check } from "lucide-react";
+import {
+  Clock,
+  Edit3,
+  ShieldAlert,
+  Loader2,
+  Sun,
+  Moon,
+  Check,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  FileCheck,
+  FileText,
+  Calendar,
+} from "lucide-react";
 import { AttendanceStatus } from "@asistencias/db";
 import { format } from "date-fns";
 import { clsx } from "clsx";
 import { ModalShell } from "@/components/ui/ModalShell";
-import { CustomSelect, CustomSelectOption } from "@/components/ui/CustomSelect";
+import { FormField, formTextareaBaseClass, getFormInputClass } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
+import { CustomSelect } from "@/components/ui/CustomSelect";
 
 interface EditAttendanceModalProps {
   isOpen: boolean;
@@ -130,36 +146,29 @@ export function EditAttendanceModal({
     }
   };
 
-  const premiumInputClass =
-    "w-full h-11 px-4 text-sm bg-white dark:bg-white text-surface-900 placeholder:text-surface-400 font-medium rounded-xl border border-surface-200 dark:border-transparent shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all";
+  const inputClass = getFormInputClass({ hasLeftIcon: true, className: "font-mono" });
 
   const footer = (
     <>
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="lg"
         onClick={onClose}
-        className="h-10 px-5 rounded-xl bg-danger-50 hover:bg-danger-100 text-danger-700 hover:text-danger-800 border border-danger-200 hover:border-danger-300 dark:bg-danger-500/10 dark:hover:bg-danger-500/20 dark:text-danger-300 dark:hover:text-danger-200 dark:border-danger-500/30 dark:hover:border-danger-500/50 text-sm font-semibold flex items-center justify-center transition cursor-pointer disabled:opacity-50"
+        disabled={isSubmitting}
       >
         Cancelar
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
         form="edit-attendance-form"
-        disabled={isSubmitting}
-        className="h-10 px-5 rounded-xl bg-primary-500 hover:bg-primary-600 text-white shadow-sm hover:shadow-md hover:shadow-primary-500/20 text-sm font-bold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+        variant="primary"
+        size="lg"
+        isLoading={isSubmitting}
+        icon={<Check className="w-4 h-4" />}
       >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Guardando...</span>
-          </>
-        ) : (
-          <>
-            <Check className="w-4 h-4" />
-            <span>Guardar Ajuste</span>
-          </>
-        )}
-      </button>
+        {isSubmitting ? "Guardando..." : "Guardar Ajuste"}
+      </Button>
     </>
   );
 
@@ -167,6 +176,8 @@ export function EditAttendanceModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      preventClose={isSubmitting}
+      closeOnBackdropClick={!isSubmitting}
       title="Editar Registro de Asistencia"
       description={
         isLoadingData
@@ -195,32 +206,30 @@ export function EditAttendanceModal({
             </h4>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-              Estado Calculado / Manual
-            </label>
+          <FormField label="Estado Calculado / Manual" icon={CheckCircle2}>
             <CustomSelect
               value={status}
               onChange={(val) => setStatus(val as AttendanceStatus)}
+              hasLeftIcon
               options={[
-                { value: AttendanceStatus.PRESENTE, label: "Presente (Completado)", badge: "OK" },
-                { value: AttendanceStatus.TARDE, label: "Tardanza", badge: "Tarde" },
-                { value: AttendanceStatus.AUSENTE, label: "Ausente (Falta)", badge: "Falta" },
-                { value: AttendanceStatus.ABANDONO_PUESTO, label: "Abandono de Puesto" },
-                { value: AttendanceStatus.INCOMPLETO, label: "Incompleto (Sin salida)" },
-                { value: AttendanceStatus.PENDIENTE, label: "Pendiente (En curso)" },
-                { value: AttendanceStatus.JUSTIFICADO, label: "Justificado" },
-                { value: AttendanceStatus.PERMISO, label: "Permiso" },
+                { value: AttendanceStatus.PRESENTE, label: "Presente (Completado)", badge: "OK", icon: CheckCircle2 },
+                { value: AttendanceStatus.TARDE, label: "Tardanza", badge: "Tarde", icon: AlertTriangle },
+                { value: AttendanceStatus.AUSENTE, label: "Ausente (Falta)", badge: "Falta", icon: XCircle },
+                { value: AttendanceStatus.ABANDONO_PUESTO, label: "Abandono de Puesto", icon: ShieldAlert },
+                { value: AttendanceStatus.INCOMPLETO, label: "Incompleto (Sin salida)", icon: Clock },
+                { value: AttendanceStatus.PENDIENTE, label: "Pendiente (En curso)", icon: Clock },
+                { value: AttendanceStatus.JUSTIFICADO, label: "Justificado", icon: FileCheck },
+                { value: AttendanceStatus.PERMISO, label: "Permiso", icon: Calendar },
               ]}
             />
-          </div>
+          </FormField>
         </div>
 
         {/* Section 2: Tramo 1 */}
         <div className="rounded-2xl p-5 bg-warning-50 dark:bg-warning-500/5 border border-warning-200 dark:border-warning-500/20 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-warning-200/50 dark:border-warning-500/10">
             <div className="flex items-center gap-2">
-              <Sun className="w-4 h-4 text-warning-500" />
+              <Sun className="w-4 h-4 text-warning-500" aria-hidden="true" />
               <h4 className="text-xs font-bold text-warning-800 dark:text-warning-300 uppercase tracking-wider">
                 2. Tramo 1 (Turno Mañana / Jornada Continua)
               </h4>
@@ -228,49 +237,40 @@ export function EditAttendanceModal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                Hora de Entrada (T1)
-              </label>
+            <FormField label="Hora de Entrada (T1)" icon={Clock}>
               <input
                 type="time"
                 value={entryTime}
                 onChange={(e) => setEntryTime(e.target.value)}
-                className={clsx(premiumInputClass, "font-mono")}
+                className={clsx(inputClass, "[color-scheme:light] dark:[color-scheme:dark]")}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                Hora de Salida (T1 / Salida Continua)
-              </label>
+            </FormField>
+            <FormField label="Hora de Salida (T1 / Salida Continua)" icon={Clock}>
               <input
                 type="time"
                 value={exitTime}
                 onChange={(e) => setExitTime(e.target.value)}
-                className={clsx(premiumInputClass, "font-mono")}
+                className={clsx(inputClass, "[color-scheme:light] dark:[color-scheme:dark]")}
               />
-            </div>
+            </FormField>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-              Minutos de Tardanza en Tramo 1
-            </label>
+          <FormField label="Minutos de Tardanza en Tramo 1" icon={AlertTriangle}>
             <input
               type="number"
               min={0}
               value={lateMinutes}
-              onChange={(e) => setLateMinutes(Math.max(0, parseInt(e.target.value) || 0))}
-              className={clsx(premiumInputClass, "font-mono")}
+              onChange={(e) => setLateMinutes(Math.max(0, Number.parseInt(e.target.value) || 0))}
+              className={inputClass}
             />
-          </div>
+          </FormField>
         </div>
 
         {/* Section 3: Tramo 2 (Horario Partido) */}
         <div className="rounded-2xl p-5 bg-info-50 dark:bg-info-500/5 border border-info-200 dark:border-info-500/20 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-info-200/50 dark:border-info-500/10">
             <div className="flex items-center gap-2">
-              <Moon className="w-4 h-4 text-info-500" />
+              <Moon className="w-4 h-4 text-info-500" aria-hidden="true" />
               <h4 className="text-xs font-bold text-info-800 dark:text-info-300 uppercase tracking-wider">
                 3. Tramo 2 (Turno Tarde / Retorno de Receso)
               </h4>
@@ -279,65 +279,53 @@ export function EditAttendanceModal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                Hora de Entrada (T2)
-              </label>
+            <FormField label="Hora de Entrada (T2)" icon={Clock}>
               <input
                 type="time"
                 value={entryTime2}
                 onChange={(e) => setEntryTime2(e.target.value)}
-                className={clsx(premiumInputClass, "font-mono")}
+                className={clsx(inputClass, "[color-scheme:light] dark:[color-scheme:dark]")}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-                Hora de Salida Final (T2)
-              </label>
+            </FormField>
+            <FormField label="Hora de Salida Final (T2)" icon={Clock}>
               <input
                 type="time"
                 value={exitTime2}
                 onChange={(e) => setExitTime2(e.target.value)}
-                className={clsx(premiumInputClass, "font-mono")}
+                className={clsx(inputClass, "[color-scheme:light] dark:[color-scheme:dark]")}
               />
-            </div>
+            </FormField>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-              Minutos de Tardanza en Tramo 2
-            </label>
+          <FormField label="Minutos de Tardanza en Tramo 2" icon={AlertTriangle}>
             <input
               type="number"
               min={0}
               value={lateMinutes2}
-              onChange={(e) => setLateMinutes2(Math.max(0, parseInt(e.target.value) || 0))}
-              className={clsx(premiumInputClass, "font-mono")}
+              onChange={(e) => setLateMinutes2(Math.max(0, Number.parseInt(e.target.value) || 0))}
+              className={inputClass}
             />
-          </div>
+          </FormField>
         </div>
 
         {/* Section 4: Auditoría y Justificación */}
         <div className="rounded-2xl p-5 bg-surface-50 dark:bg-surface-900/40 border border-surface-200 dark:border-white/10 space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-surface-200 dark:border-white/5">
-            <ShieldAlert className="w-4 h-4 text-warning-500" />
+            <ShieldAlert className="w-4 h-4 text-warning-500" aria-hidden="true" />
             <h4 className="text-xs font-bold text-surface-900 dark:text-slate-200 uppercase tracking-wider">
               4. Notas de Auditoría y Justificación
             </h4>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-surface-700 dark:text-slate-300 mb-1.5">
-              Motivo del Ajuste Manual
-            </label>
+          <FormField label="Motivo del Ajuste Manual" icon={FileText} optional>
             <textarea
               rows={3}
               placeholder="Indica la justificación o motivo del ajuste manual realizado por el administrador..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className={clsx(premiumInputClass, "py-3 h-auto resize-none")}
+              className={clsx(formTextareaBaseClass, "pl-10")}
             />
-          </div>
+          </FormField>
         </div>
       </form>
     </ModalShell>

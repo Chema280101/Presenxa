@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { format, addDays, startOfWeek, endOfWeek, parseISO, isSameDay, getDay } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, isSameDay, getDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Calendar as CalendarIcon, Clock, X, Building, FolderTree } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Calendar as CalendarIcon, X, Building, FolderTree, Search, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/providers/ToastProvider";
 import { CustomSelect } from "@/components/ui/CustomSelect";
@@ -28,14 +28,12 @@ interface UserMatrix {
   location?: { id: string; name: string } | null;
   department?: { id: string; name: string } | null;
   userSchedules: { schedule: ScheduleInfo; validUntil: string | null }[];
-  shiftOverrides: { date: string; schedule: ScheduleInfo }[];
+  shiftOverrides: { date: string; isDayOff?: boolean; schedule: ScheduleInfo | null }[];
 }
 
 export default function MatrizRotacionPage() {
   const { toast } = useToast();
-  
-  const [currentDate, setCurrentDate] = useState(new Date());
-  
+
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 })); // Monday
   const [weekEnd, setWeekEnd] = useState<Date>(endOfWeek(new Date(), { weekStartsOn: 1 }));
   
@@ -45,6 +43,7 @@ export default function MatrizRotacionPage() {
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("ALL");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   
   const [editingCell, setEditingCell] = useState<{ userId: string; date: Date } | null>(null);
@@ -55,6 +54,20 @@ export default function MatrizRotacionPage() {
   const days = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
   }, [weekStart]);
+
+  const isCurrentWeek = useMemo(() => {
+    const currentMonday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    return isSameDay(weekStart, currentMonday);
+  }, [weekStart]);
+
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) => {
+      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+      return fullName.includes(q) || u.email.toLowerCase().includes(q);
+    });
+  }, [users, searchQuery]);
 
   useEffect(() => {
     Promise.all([
@@ -113,11 +126,23 @@ export default function MatrizRotacionPage() {
     setWeekStart(addDays(weekStart, 7));
     setWeekEnd(addDays(weekEnd, 7));
   };
+
+  const handleCurrentWeek = () => {
+    const today = new Date();
+    setWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
+    setWeekEnd(endOfWeek(today, { weekStartsOn: 1 }));
+  };
   
   const getScheduleForDay = (user: UserMatrix, date: Date) => {
-    // Check overrides first
-    const override = user.shiftOverrides.find(o => isSameDay(parseISO(o.date), date));
-    if (override) return { schedule: override.schedule, isOverride: true };
+    const dateKey = format(date, "yyyy-MM-dd");
+    // Check overrides first (compare calendar date YYYY-MM-DD to avoid UTC->local day shift)
+    const override = user.shiftOverrides.find((o) => o.date.slice(0, 10) === dateKey);
+    if (override) {
+      if (override.isDayOff || !override.schedule) {
+        return { schedule: null, isOverride: true, isRestDay: true };
+      }
+      return { schedule: override.schedule, isOverride: true };
+    }
     
     // Check base schedule
     if (user.userSchedules.length > 0) {
@@ -137,29 +162,37 @@ export default function MatrizRotacionPage() {
     return { schedule: null, isOverride: false };
   };
 
-  const updateShift = async (userId: string, date: Date, scheduleId: string | null) => {
+  const updateShift = async (
+    userId: string,
+    date: Date,
+    scheduleId: string | null,
+    isDayOff = false
+  ) => {
     try {
       const dateStr = format(date, 'yyyy-MM-dd');
-      if (scheduleId === null) {
+      if (scheduleId === null && !isDayOff) {
         // Reset (delete override)
-        await fetch(`/api/schedules/matrix?userId=${userId}&date=${dateStr}`, {
+        const res = await fetch(`/api/schedules/matrix?userId=${userId}&date=${dateStr}`, {
           method: "DELETE"
         });
+        if (!res.ok) throw new Error("DELETE failed");
       } else {
-        // Create/Update override
-        await fetch("/api/schedules/matrix", {
+        // Create/Update override (shift or rest day)
+        const res = await fetch("/api/schedules/matrix", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             userId,
             date: dateStr,
-            scheduleId
+            scheduleId: isDayOff ? null : scheduleId,
+            isDayOff,
           })
         });
+        if (!res.ok) throw new Error("POST failed");
       }
       setEditingCell(null);
       fetchData(); // Reload data
-      toast.success("Turno actualizado");
+      toast.success(isDayOff ? "Descanso asignado" : "Turno actualizado");
     } catch (error) {
       toast.error("Error al actualizar turno");
     }
@@ -187,39 +220,74 @@ export default function MatrizRotacionPage() {
         </div>
 
         {/* Week Navigator & Filters Card */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl shadow-sm">
-          <div className="flex items-center justify-between sm:justify-start gap-2">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
             <button
+              type="button"
               onClick={handlePrevWeek}
-              className="p-2 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white rounded-xl border border-surface-200 dark:border-surface-700 transition cursor-pointer shadow-xs active:scale-95"
+              aria-label="Semana anterior"
+              className="p-2 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white rounded-xl border border-surface-200 dark:border-surface-700 transition cursor-pointer shadow-xs active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               title="Semana anterior"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5" aria-hidden="true" />
             </button>
 
             <div className="flex items-center gap-2.5 sm:gap-3 px-2">
               <div className="p-2 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 border border-primary-200/60 dark:border-primary-800/40">
-                <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
               </div>
-              <h3 className="text-xs sm:text-base font-bold text-surface-900 dark:text-white capitalize tracking-tight whitespace-nowrap">
-                {format(weekStart, "dd 'de' MMM", { locale: es })} - {format(weekEnd, "dd 'de' MMM yyyy", { locale: es })}
+              <h3 className="text-xs sm:text-base font-bold text-surface-900 dark:text-white tracking-tight whitespace-nowrap">
+                {format(weekStart, "d 'de' MMM", { locale: es })} – {format(weekEnd, "d 'de' MMM, yyyy", { locale: es })}
               </h3>
-              <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40">
-                Semana Activa
-              </span>
+              {isCurrentWeek ? (
+                <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40">
+                  Semana Activa
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCurrentWeek}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-primary-50 dark:bg-primary-950/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                >
+                  Hoy
+                </button>
+              )}
             </div>
 
             <button
+              type="button"
               onClick={handleNextWeek}
-              className="p-2 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white rounded-xl border border-surface-200 dark:border-surface-700 transition cursor-pointer shadow-xs active:scale-95"
+              aria-label="Semana siguiente"
+              className="p-2 bg-surface-100 dark:bg-surface-800 hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-700 dark:text-surface-300 hover:text-surface-900 dark:hover:text-white rounded-xl border border-surface-200 dark:border-surface-700 transition cursor-pointer shadow-xs active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
               title="Semana siguiente"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 
-          {/* Sede and Department Selectors */}
+          {/* Search, Sede and Department Selectors */}
           <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative min-w-[190px] flex-1 sm:flex-initial">
+              <Search className="w-4 h-4 text-surface-500 dark:text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar colaborador…"
+                aria-label="Buscar colaborador"
+                className="w-full h-10 pl-9 pr-8 rounded-xl bg-surface-50 dark:bg-surface-950 border border-surface-200 dark:border-surface-700 text-xs text-surface-900 dark:text-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Limpiar búsqueda"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </div>
             <div className="min-w-[170px] flex-1 sm:flex-initial">
               <CustomSelect
                 value={selectedLocation}
@@ -265,7 +333,7 @@ export default function MatrizRotacionPage() {
                 className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
                   mobileViewMode === "day"
                     ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-xs font-bold"
-                    : "text-surface-500 hover:text-surface-900 dark:hover:text-white"
+                    : "text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white"
                 }`}
               >
                 Vista Día
@@ -275,7 +343,7 @@ export default function MatrizRotacionPage() {
                 className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
                   mobileViewMode === "table"
                     ? "bg-white dark:bg-surface-700 text-surface-900 dark:text-white shadow-xs font-bold"
-                    : "text-surface-500 hover:text-surface-900 dark:hover:text-white"
+                    : "text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white"
                 }`}
               >
                 Tabla 7 Días
@@ -291,7 +359,7 @@ export default function MatrizRotacionPage() {
                 const isToday = isSameDay(day, new Date());
                 return (
                   <button
-                    key={idx}
+                    key={day.toISOString()}
                     type="button"
                     onClick={() => setSelectedDayIdx(idx)}
                     className={`flex flex-col items-center py-2 px-3 min-w-[56px] rounded-xl border shrink-0 transition-all cursor-pointer ${
@@ -320,16 +388,18 @@ export default function MatrizRotacionPage() {
         {mobileViewMode === "day" && (
           <div className="lg:hidden space-y-3">
             {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-2 text-surface-500 text-xs">
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-surface-500 dark:text-surface-400 text-xs">
                 <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
                 <span>Cargando turnos del día...</span>
               </div>
-            ) : users.length === 0 ? (
-              <div className="text-center py-12 text-surface-500 text-xs">
-                No hay colaboradores registrados para esta semana.
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-12 text-surface-500 dark:text-surface-400 text-xs">
+                {searchQuery.trim()
+                  ? "No se encontraron colaboradores con esa búsqueda."
+                  : "No hay colaboradores registrados para esta semana."}
               </div>
             ) : (
-              users.map((user) => {
+              filteredUsers.map((user) => {
                 const activeDay = days[selectedDayIdx] || days[0];
                 const shiftData = getScheduleForDay(user, activeDay);
                 const isEditing = editingCell?.userId === user.id && isSameDay(editingCell.date, activeDay);
@@ -364,10 +434,10 @@ export default function MatrizRotacionPage() {
                     {/* Shift details & action */}
                     <div className="pt-2 border-t border-surface-100 dark:border-surface-800 flex items-center justify-between gap-3">
                       <div>
-                        <span className="text-[10px] font-bold uppercase text-surface-400">Turno asignado</span>
+                        <span className="text-[10px] font-bold uppercase text-surface-500 dark:text-surface-400">Turno asignado</span>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="font-semibold text-xs text-surface-900 dark:text-white">
-                            {shiftData.schedule?.name || "Sin turno"}
+                            {shiftData.schedule?.name || (shiftData.isRestDay ? "Descanso" : "Sin turno")}
                           </span>
                           {shiftData.schedule && (
                             <span className="font-mono text-[11px] text-surface-500 dark:text-surface-400">
@@ -396,7 +466,7 @@ export default function MatrizRotacionPage() {
                           <button
                             type="button"
                             onClick={() => setEditingCell(null)}
-                            className="p-1 text-surface-400 hover:text-surface-700 dark:hover:text-white"
+                            className="p-1 text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-white"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -404,12 +474,24 @@ export default function MatrizRotacionPage() {
                         <select
                           className="w-full text-xs bg-white dark:bg-surface-900 text-surface-900 dark:text-white border border-surface-200 dark:border-surface-700 rounded-lg p-2 outline-none focus:ring-2 focus:ring-primary-500/30 cursor-pointer"
                           onChange={(e) => {
-                            updateShift(user.id, activeDay, e.target.value);
+                            const val = e.target.value;
+                            if (val === "__DAY_OFF__") {
+                              updateShift(user.id, activeDay, null, true);
+                            } else {
+                              updateShift(user.id, activeDay, val, false);
+                            }
                             setEditingCell(null);
                           }}
-                          defaultValue={shiftData.isOverride ? shiftData.schedule?.id : ""}
+                          defaultValue={
+                            shiftData.isOverride
+                              ? shiftData.isRestDay
+                                ? "__DAY_OFF__"
+                                : shiftData.schedule?.id || ""
+                              : ""
+                          }
                         >
                           <option value="" disabled>Seleccione turno...</option>
+                          <option value="__DAY_OFF__">Designar Descanso (Día libre)</option>
                           {schedules.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name} ({String(s.entryHour).padStart(2, "0")}:{String(s.entryMinute).padStart(2, "0")} - {String(s.exitHour).padStart(2, "0")}:{String(s.exitMinute).padStart(2, "0")})
@@ -438,181 +520,243 @@ export default function MatrizRotacionPage() {
         )}
 
         {/* Full 7-Day Table (Always visible on desktop lg+, or toggled on mobile) */}
-        <div className={`bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm min-w-[860px] ${mobileViewMode === "day" ? "hidden lg:block" : "block"}`}>
-          {/* Header Row */}
-          <div className="grid grid-cols-[260px_repeat(7,1fr)] border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950/60">
-            <div className="p-4 font-bold text-xs uppercase tracking-wider text-surface-600 dark:text-surface-400 border-r border-surface-200 dark:border-surface-800 flex items-center">
-              Colaborador
-            </div>
-            {days.map((day, idx) => {
-              const isToday = isSameDay(day, new Date());
-              return (
-                <div
-                  key={idx}
-                  className={`p-3 text-center border-r border-surface-200 dark:border-surface-800 last:border-0 ${
-                    isToday ? "bg-primary-50/60 dark:bg-primary-950/40" : ""
-                  }`}
-                >
-                  <p
-                    className={`text-[11px] font-semibold uppercase tracking-wider ${
-                      isToday
-                        ? "text-primary-600 dark:text-primary-400 font-bold"
-                        : "text-surface-500 dark:text-surface-400"
+        <div
+          className={`bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-2xl sm:rounded-3xl shadow-sm overflow-auto max-h-full ${
+            mobileViewMode === "day" ? "hidden lg:block" : "block"
+          }`}
+        >
+          <div className="min-w-[920px]">
+            {/* Sticky Header Row */}
+            <div className="sticky top-0 z-20 grid grid-cols-[260px_repeat(7,minmax(108px,1fr))] border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950">
+              <div className="sticky left-0 z-30 p-4 font-bold text-xs uppercase tracking-wider text-surface-600 dark:text-surface-400 border-r border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-950 flex items-center">
+                Colaborador
+              </div>
+              {days.map((day) => {
+                const isToday = isSameDay(day, new Date());
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`p-3 text-center border-r border-surface-200 dark:border-surface-800 last:border-0 ${
+                      isToday ? "bg-primary-50/90 dark:bg-primary-950/60" : ""
                     }`}
                   >
-                    {format(day, "EEEE", { locale: es })}
-                  </p>
-                  <p
-                    className={`text-lg font-extrabold mt-0.5 ${
-                      isToday
-                        ? "text-primary-600 dark:text-primary-400"
-                        : "text-surface-900 dark:text-white"
-                    }`}
-                  >
-                    {format(day, "d")}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Body Rows */}
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-primary-600 dark:text-primary-400" />
-              <p className="text-xs text-surface-500 dark:text-surface-400 font-medium">
-                Cargando matriz semanal...
-              </p>
-            </div>
-          ) : users.length === 0 ? (
-            <div className="text-center py-16 text-surface-400 dark:text-surface-500 text-xs font-medium">
-              No hay colaboradores registrados o activos para esta semana.
-            </div>
-          ) : (
-            <div className="divide-y divide-surface-200 dark:divide-surface-800">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  className="grid grid-cols-[260px_repeat(7,1fr)] hover:bg-surface-50/70 dark:hover:bg-surface-800/40 transition-colors group"
-                >
-                  {/* Collaborator column */}
-                  <div className="p-4 border-r border-surface-200 dark:border-surface-800 flex items-center gap-3 bg-white dark:bg-surface-900">
-                    <div className="w-9 h-9 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 flex items-center justify-center font-bold text-xs shrink-0">
-                      {user.firstName.charAt(0)}{user.lastName.charAt(0)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-sm text-surface-900 dark:text-white truncate">
-                        {user.firstName} {user.lastName}
-                      </p>
-                      <div className="flex items-center gap-1.5 text-xs text-surface-500 dark:text-surface-400 truncate">
-                        <span>{user.email}</span>
-                        {user.department?.name && (
-                          <>
-                            <span>•</span>
-                            <span className="text-primary-600 dark:text-emerald-400 font-medium">{user.department.name}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                    <p
+                      className={`text-[11px] font-semibold uppercase tracking-wider ${
+                        isToday
+                          ? "text-primary-700 dark:text-primary-400 font-bold"
+                          : "text-surface-600 dark:text-surface-400"
+                      }`}
+                    >
+                      {format(day, "EEEE", { locale: es })}
+                    </p>
+                    <p
+                      className={`text-lg font-extrabold mt-0.5 ${
+                        isToday
+                          ? "text-primary-700 dark:text-primary-400"
+                          : "text-surface-900 dark:text-white"
+                      }`}
+                    >
+                      {format(day, "d")}
+                    </p>
                   </div>
-
-                  {/* 7 Days columns */}
-                  {days.map((day, idx) => {
-                    const shiftData = getScheduleForDay(user, day);
-                    const isEditing = editingCell?.userId === user.id && isSameDay(editingCell.date, day);
-
-                    return (
-                      <div
-                        key={idx}
-                        className={`p-2.5 border-r border-surface-200 dark:border-surface-800 last:border-0 relative flex items-center justify-center min-h-[88px] ${
-                          isEditing
-                            ? "bg-primary-50/60 dark:bg-primary-950/40 ring-2 ring-primary-500/30"
-                            : "cursor-pointer hover:bg-surface-100/70 dark:hover:bg-surface-800/50 transition-colors"
-                        }`}
-                        onClick={() => !isEditing && setEditingCell({ userId: user.id, date: day })}
-                      >
-                        {isEditing ? (
-                          <div className="absolute inset-1 z-20 bg-white dark:bg-surface-900 border border-primary-400/50 dark:border-primary-500/50 rounded-xl p-2.5 shadow-2xl flex flex-col gap-2">
-                            <div className="flex justify-between items-center mb-0.5">
-                              <span className="text-[11px] font-bold text-primary-600 dark:text-primary-400">
-                                Asignar Turno
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingCell(null);
-                                }}
-                                className="text-surface-400 hover:text-surface-900 dark:hover:text-white p-0.5 rounded cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            <select
-                              className="w-full text-xs bg-surface-50 dark:bg-surface-950 text-surface-900 dark:text-white border border-surface-200 dark:border-surface-700 rounded-lg p-1.5 outline-none focus:ring-2 focus:ring-primary-500/20 cursor-pointer"
-                              onChange={(e) => updateShift(user.id, day, e.target.value)}
-                              defaultValue={shiftData.isOverride ? shiftData.schedule?.id : ""}
-                              autoFocus
-                            >
-                              <option value="" disabled>Seleccione turno...</option>
-                              {schedules.map((s) => (
-                                <option key={s.id} value={s.id}>{s.name}</option>
-                              ))}
-                            </select>
-                            {shiftData.isOverride && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateShift(user.id, day, null);
-                                }}
-                                className="w-full text-[10px] font-medium bg-danger-50 dark:bg-danger-500/15 hover:bg-danger-100 dark:hover:bg-danger-500/25 text-danger-700 dark:text-danger-300 p-1.5 rounded-lg transition cursor-pointer border border-danger-200/60 dark:border-danger-500/30"
-                              >
-                                Restablecer Original
-                              </button>
-                            )}
-                          </div>
-                        ) : shiftData.schedule ? (
-                          <div className="w-full flex flex-col items-center gap-1.5 p-1">
-                            <span
-                              className={`text-[11px] font-bold truncate max-w-full px-1 text-center ${
-                                shiftData.isOverride
-                                  ? "text-amber-700 dark:text-amber-300"
-                                  : "text-surface-800 dark:text-surface-200"
-                              }`}
-                              title={shiftData.schedule.name}
-                            >
-                              {shiftData.schedule.name}
-                            </span>
-                            <span
-                              className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md border ${
-                                shiftData.isOverride
-                                  ? "bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50 shadow-xs"
-                                  : "bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300 border-surface-200 dark:border-surface-700"
-                              }`}
-                            >
-                              {String(shiftData.schedule.entryHour).padStart(2, "0")}:
-                              {String(shiftData.schedule.entryMinute).padStart(2, "0")} -{" "}
-                              {String(shiftData.schedule.exitHour).padStart(2, "0")}:
-                              {String(shiftData.schedule.exitMinute).padStart(2, "0")}
-                            </span>
-                          </div>
-                        ) : (
-                          <span
-                            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border ${
-                              shiftData.isRestDay
-                                ? "text-surface-600 dark:text-surface-400 bg-surface-100 dark:bg-surface-800 border-surface-200 dark:border-surface-700"
-                                : "text-surface-400 dark:text-surface-500 bg-surface-50 dark:bg-surface-950/60 border-surface-200/60 dark:border-surface-800 border-dashed"
-                            }`}
-                          >
-                            {shiftData.isRestDay ? "DESCANSO" : "SIN TURNO"}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                );
+              })}
             </div>
-          )}
+
+            {/* Body Rows */}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary-600 dark:text-primary-400" aria-hidden="true" />
+                <p className="text-xs text-surface-600 dark:text-surface-400 font-medium">
+                  Cargando matriz semanal...
+                </p>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="text-center py-16 text-surface-500 dark:text-surface-400 text-xs font-medium">
+                {searchQuery.trim()
+                  ? "No se encontraron colaboradores con esa búsqueda."
+                  : "No hay colaboradores registrados o activos para esta semana."}
+              </div>
+            ) : (
+              <div className="divide-y divide-surface-200 dark:divide-surface-800">
+                {filteredUsers.map((user, userIdx) => {
+                  const isLastRow = userIdx === filteredUsers.length - 1 && filteredUsers.length > 1;
+                  return (
+                  <div
+                    key={user.id}
+                    className="grid grid-cols-[260px_repeat(7,minmax(108px,1fr))] hover:bg-surface-50/70 dark:hover:bg-surface-800/40 transition-colors group"
+                  >
+                    {/* Sticky Collaborator column */}
+                    <div className="sticky left-0 z-10 p-4 border-r border-surface-200 dark:border-surface-800 flex items-center gap-3 bg-white dark:bg-surface-900 group-hover:bg-surface-50 dark:group-hover:bg-surface-800/80 transition-colors">
+                      <div className="w-9 h-9 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 flex items-center justify-center font-bold text-xs shrink-0">
+                        {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-sm text-surface-900 dark:text-white truncate">
+                          {user.firstName} {user.lastName}
+                        </p>
+                        <div className="flex items-center gap-1.5 text-xs text-surface-600 dark:text-surface-400 truncate">
+                          <span className="truncate">{user.email}</span>
+                          {user.department?.name && (
+                            <>
+                              <span aria-hidden="true">•</span>
+                              <span className="text-primary-700 dark:text-emerald-400 font-medium shrink-0">
+                                {user.department.name}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 7 Days columns */}
+                    {days.map((day, dayIdx) => {
+                      const shiftData = getScheduleForDay(user, day);
+                      const isEditing = editingCell?.userId === user.id && isSameDay(editingCell.date, day);
+                      const dayLabel = format(day, "EEEE d 'de' MMMM", { locale: es });
+
+                      return (
+                        <div
+                          key={day.toISOString()}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Editar turno de ${user.firstName} ${user.lastName} para el ${dayLabel}`}
+                          onClick={() => !isEditing && setEditingCell({ userId: user.id, date: day })}
+                          onKeyDown={(e) => {
+                            if (isEditing && e.key === "Escape") {
+                              e.stopPropagation();
+                              setEditingCell(null);
+                              return;
+                            }
+                            if (!isEditing && (e.key === "Enter" || e.key === " ")) {
+                              e.preventDefault();
+                              setEditingCell({ userId: user.id, date: day });
+                            }
+                          }}
+                          className={`group/cell p-2.5 border-r border-surface-200 dark:border-surface-800 last:border-0 relative flex items-center justify-center min-h-[88px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-inset ${
+                            isEditing
+                              ? "bg-primary-50/70 dark:bg-primary-950/40 ring-2 ring-primary-500/40 z-30"
+                              : "cursor-pointer hover:bg-surface-100/70 dark:hover:bg-surface-800/50 transition-colors"
+                          }`}
+                        >
+                          {!isEditing && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute top-1.5 right-1.5 opacity-0 group-hover/cell:opacity-100 group-focus-visible/cell:opacity-100 transition-opacity text-surface-400 dark:text-surface-500"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </span>
+                          )}
+
+                          {isEditing ? (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className={`absolute z-40 w-56 bg-white dark:bg-surface-900 border border-primary-400/60 dark:border-primary-500/50 rounded-xl p-3 shadow-2xl flex flex-col gap-2 ${
+                                isLastRow ? "bottom-1.5" : "top-1.5"
+                              } ${dayIdx >= 5 ? "right-1.5" : "left-1.5"}`}
+                            >
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs font-bold text-primary-700 dark:text-primary-400">
+                                  Asignar Turno
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label="Cerrar editor de turno"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCell(null);
+                                  }}
+                                  className="text-surface-500 dark:text-surface-400 hover:text-surface-900 dark:hover:text-white p-1 rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                >
+                                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                                </button>
+                              </div>
+                              <select
+                                aria-label={`Seleccionar turno para ${user.firstName} ${user.lastName}`}
+                                className="w-full text-xs bg-surface-50 dark:bg-surface-950 text-surface-900 dark:text-white border border-surface-200 dark:border-surface-700 rounded-lg p-2 outline-none focus:ring-2 focus:ring-primary-500/30 cursor-pointer"
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === "__DAY_OFF__") {
+                                    updateShift(user.id, day, null, true);
+                                  } else {
+                                    updateShift(user.id, day, val, false);
+                                  }
+                                }}
+                                defaultValue={
+                                  shiftData.isOverride
+                                    ? shiftData.isRestDay
+                                      ? "__DAY_OFF__"
+                                      : shiftData.schedule?.id || ""
+                                    : ""
+                                }
+                                autoFocus
+                              >
+                                <option value="" disabled>Seleccione turno...</option>
+                                <option value="__DAY_OFF__">Designar Descanso (Día libre)</option>
+                                {schedules.map((s) => (
+                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                              </select>
+                              {shiftData.isOverride && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateShift(user.id, day, null);
+                                  }}
+                                  className="w-full text-[11px] font-semibold bg-danger-50 dark:bg-danger-500/15 hover:bg-danger-100 dark:hover:bg-danger-500/25 text-danger-700 dark:text-danger-300 p-1.5 rounded-lg transition cursor-pointer border border-danger-200/60 dark:border-danger-500/30"
+                                >
+                                  Restablecer Original
+                                </button>
+                              )}
+                            </div>
+                          ) : shiftData.schedule ? (
+                            <div className="w-full flex flex-col items-center gap-1.5 p-1">
+                              <span
+                                className={`text-xs font-mono font-bold px-2.5 py-1 rounded-md border ${
+                                  shiftData.isOverride
+                                    ? "bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50 shadow-xs"
+                                    : "bg-surface-100 dark:bg-surface-800 text-surface-800 dark:text-surface-200 border-surface-200 dark:border-surface-700"
+                                }`}
+                              >
+                                {String(shiftData.schedule.entryHour).padStart(2, "0")}:
+                                {String(shiftData.schedule.entryMinute).padStart(2, "0")} -{" "}
+                                {String(shiftData.schedule.exitHour).padStart(2, "0")}:
+                                {String(shiftData.schedule.exitMinute).padStart(2, "0")}
+                              </span>
+                              <span
+                                className={`text-[11px] font-medium truncate max-w-full px-1 text-center ${
+                                  shiftData.isOverride
+                                    ? "text-amber-700 dark:text-amber-300 font-semibold"
+                                    : "text-surface-600 dark:text-surface-400"
+                                }`}
+                                title={shiftData.schedule.name}
+                              >
+                                {shiftData.schedule.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <span
+                              className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+                                shiftData.isRestDay && shiftData.isOverride
+                                  ? "bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50 shadow-xs"
+                                  : shiftData.isRestDay
+                                    ? "text-surface-600 dark:text-surface-400 bg-surface-100 dark:bg-surface-800 border-surface-200 dark:border-surface-700"
+                                    : "text-surface-500 dark:text-surface-400 bg-surface-50 dark:bg-surface-950/60 border-surface-200/60 dark:border-surface-800 border-dashed"
+                              }`}
+                            >
+                              {shiftData.isRestDay ? "DESCANSO" : "SIN TURNO"}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

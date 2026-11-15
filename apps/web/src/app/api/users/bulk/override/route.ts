@@ -19,6 +19,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const parsed = BulkOverrideSchema.safeParse(body);
@@ -77,7 +82,8 @@ export async function POST(req: Request) {
 
     // Upsert exceptions in a transaction
     await prisma.$transaction(async (tx) => {
-      for (const user of users) {
+      await users.reduce<Promise<void>>(async (prevPromise, user) => {
+        await prevPromise;
         await tx.shiftOverride.upsert({
           where: {
             userId_date: {
@@ -95,11 +101,10 @@ export async function POST(req: Request) {
           },
         });
 
-        // Auditar cada usuario
         await logAuditEvent({
-          organizationId: session.user.organizationId!,
+          organizationId: session.user.organizationId || user.organizationId,
           userId: session.user.id,
-          action: AuditAction.USER_UPDATED, 
+          action: AuditAction.USER_UPDATED,
           entityType: "USER",
           entityId: user.id,
           oldData: null,
@@ -111,29 +116,29 @@ export async function POST(req: Request) {
             actionBy: session.user.email,
             isBulk: true,
           },
-          req, // Nota: el req no se puede usar fácilmente dentro de transaction con logAuditEvent en algunos casos, pero aquí funciona si no hace llamadas asíncronas bloqueantes no permitidas
+          req,
         });
-      }
+      }, Promise.resolve());
     });
 
     // Programar notificaciones (fuera de la transacción para evitar delays en DB)
     const [year, month, day] = dateString.split("-").map(Number);
-    const shiftDate = new Date(year, month - 1, day); 
+    const shiftDate = new Date(year, month - 1, day);
 
-    for (const user of users) {
-      try {
-        await scheduleSedeNotification(
+    await Promise.allSettled(
+      users.map((user) =>
+        scheduleSedeNotification(
           user.id,
           sedeName,
           schedule.entryHour,
           schedule.entryMinute,
           shiftDate,
-          30 // minutos antes
-        );
-      } catch (err) {
-        console.error(`No se pudo programar QStash para el usuario ${user.id}:`, err);
-      }
-    }
+          30
+        ).catch((err) => {
+          console.error(`No se pudo programar QStash para el usuario ${user.id}:`, err);
+        })
+      )
+    );
 
     return NextResponse.json({ 
       success: true, 

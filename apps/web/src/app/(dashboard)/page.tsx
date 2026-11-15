@@ -1,19 +1,35 @@
 import Link from "next/link";
 import { prisma } from "@asistencias/db";
 import { auth } from "@/auth";
-import { startOfDay, endOfDay, subDays } from "date-fns";
-import { Activity, Clock, ShieldCheck, MapPin, ChevronRight, Fingerprint, ScanFace, FileSignature, ArrowRight, UserCheck, Smartphone, Watch, Users, AlertTriangle, Cpu } from "lucide-react";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { startOfDay, subDays } from "date-fns";
+import { Clock, UserCheck, AlertTriangle, MonitorSmartphone, Cake } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 
 // Componentes del nuevo Command Center Pro
 import { DashboardGreetingHeader } from "@/components/dashboard/DashboardGreetingHeader";
-import { PendingApprovalBanner } from "@/components/dashboard/PendingApprovalBanner";
-import { KpiCardsSection } from "@/components/dashboard/KpiCardsSection";
-import { KioskTrafficChart } from "@/components/dashboard/KioskTrafficChart";
-import { OperationalCompliance } from "@/components/dashboard/OperationalCompliance";
-import { LiveAttendanceStream } from "@/components/dashboard/LiveAttendanceStream";
+
+const ACCENT_STYLES: Record<string, { badge: string; bar: string }> = {
+  emerald: {
+    badge: "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400",
+    bar: "bg-emerald-500 dark:bg-emerald-400",
+  },
+  cyan: {
+    badge: "bg-cyan-500/10 border-cyan-500/20 text-cyan-700 dark:text-cyan-400",
+    bar: "bg-cyan-500 dark:bg-cyan-400",
+  },
+  amber: {
+    badge: "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400",
+    bar: "bg-amber-500 dark:bg-amber-400",
+  },
+  rose: {
+    badge: "bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400",
+    bar: "bg-rose-500 dark:bg-rose-400",
+  },
+  slate: {
+    badge: "bg-surface-200/70 border-surface-300 text-surface-700 dark:bg-surface-800 dark:border-surface-700 dark:text-surface-300",
+    bar: "bg-surface-500 dark:bg-surface-400",
+  },
+};
 
 // ─────────────────────────────────────────────────────────────
 // Server Component — consulta la BD en tiempo real
@@ -31,7 +47,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
   }
   
   const todayStart = startOfDay(targetDate);
-  const todayEnd = endOfDay(targetDate);
   const lastWeekStart = startOfDay(subDays(targetDate, 7));
 
   let userDb: any = null;
@@ -55,11 +70,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
   let rawAttendances: any[] = [];
   let pendingException: any = null;
   let trafficSlots: any[] = [];
-  let peakCount = 0;
   let methodsDist = { qr: 0, nfc: 0, pin: 0 };
   let departmentData: any[] = [];
   let totalKiosksCount = 0;
   let onlineKiosksCount = 0;
+  let monthBirthdays: Array<{
+    id: string;
+    fullName: string;
+    day: number;
+    isToday: boolean;
+    departmentName: string;
+  }> = [];
 
   try {
     const [
@@ -72,6 +93,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
       methodsCount,
       depts,
       kiosks,
+      birthdayUsers,
       lastWeekStats
     ] = await Promise.all([
       prisma.attendance.groupBy({
@@ -125,6 +147,17 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
         where: { location: { organizationId } },
         select: { lastSeenAt: true }
       }),
+      // Cumpleaños activos
+      prisma.user.findMany({
+        where: { isActive: true, birthDate: { not: null }, ...(organizationId ? { organizationId } : {}) },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          birthDate: true,
+          department: { select: { name: true } },
+        },
+      }),
       // Asistencia hace 7 días
       prisma.attendance.groupBy({
         by: ["status"],
@@ -166,8 +199,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
     // Traffic Chart (Histograma)
     const validTraffic = (trafficRaw as any[]).filter(t => t.interval);
     const maxPico = Math.max(...validTraffic.map(t => t.count), 1);
-    peakCount = maxPico;
-    
+
     trafficSlots = validTraffic.map(t => {
       const d = new Date(t.interval);
       const time = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
@@ -223,7 +255,24 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
     const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
     totalKiosksCount = kiosks.length;
     onlineKiosksCount = kiosks.filter(k => k.lastSeenAt && k.lastSeenAt > fiveMinsAgo).length;
-    
+
+    const nowLocal = new Date();
+    const currentMonth = nowLocal.getMonth();
+    const currentDay = nowLocal.getDate();
+    monthBirthdays = (birthdayUsers || [])
+      .filter((u: any) => u.birthDate && new Date(u.birthDate).getUTCMonth() === currentMonth)
+      .map((u: any) => {
+        const day = new Date(u.birthDate).getUTCDate();
+        return {
+          id: u.id,
+          fullName: `${u.firstName} ${u.lastName}`.trim(),
+          day,
+          isToday: day === currentDay,
+          departmentName: u.department?.name || "General",
+        };
+      })
+      .sort((a, b) => a.day - b.day);
+
     statusCountsLastWeek = lastWeekStats;
 
   } catch (error) {
@@ -252,8 +301,6 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
     : "Administrador";
   const orgName = userDb?.organization?.name || "Hotel Italia";
   const locName = userDb?.location?.name || "Sede Central";
-
-  const totalMarcacionesHoy = totalAsistieron + ausentes + abandonos + justificados; // Estimado
 
   return (
     <div className="space-y-6 lg:space-y-8 animate-fade-in-up pb-10 text-surface-900 dark:text-surface-100 font-sans transition-colors">
@@ -302,7 +349,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
           value={`${tasaAsistencia}%`}
           subLabel="Población Activa"
           subValue={`${totalAsistieron} / ${totalEmpleados}`}
-          icon={Users}
+          icon={UserCheck}
           variant="emerald"
           trend={totalAsistieronLastWeek > 0 || diffAsistencia !== 0 ? {
             value: `${Math.abs(diffAsistencia)}%`,
@@ -334,7 +381,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
           value={`${onlineKiosksCount}/${totalKiosksCount}`}
           subLabel="Kioscos Inactivos"
           subValue={totalKiosksCount - onlineKiosksCount}
-          icon={Cpu}
+          icon={MonitorSmartphone}
           variant="indigo"
           trend={{ value: "Online", label: "Monitoreo Activo", isPositive: true }}
         />
@@ -367,8 +414,8 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
 
             {/* Histogram Mock/Dynamic */}
             <div className="h-56 flex items-end justify-between gap-1 mt-6 border-b border-surface-200 dark:border-surface-700 pb-2 relative z-10">
-               {trafficSlots.length > 0 ? trafficSlots.map((slot, i) => (
-                 <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+               {trafficSlots.length > 0 ? trafficSlots.map((slot) => (
+                 <div key={slot.time} className="flex-1 flex flex-col items-center justify-end h-full group relative">
                     {slot.isPeak && (
                        <div className="absolute -top-8 bg-surface-100 dark:bg-surface-800 border border-info-500/30 text-info-600 dark:text-info-400 text-[10px] font-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-20 whitespace-nowrap shadow-xl">
                          Pico: {slot.count} accesos
@@ -382,11 +429,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                     </div>
                  </div>
                )) : (
-                 <div className="w-full flex items-center justify-center text-surface-500 text-sm font-mono pb-10">Sin datos para graficar</div>
+                 <div className="w-full flex items-center justify-center text-surface-500 dark:text-surface-400 text-sm font-mono pb-10">Sin datos para graficar</div>
                )}
             </div>
             
-            <div className="flex justify-between mt-3 text-[10px] font-mono text-surface-500 px-1">
+            <div className="flex justify-between mt-3 text-[10px] font-mono text-surface-500 dark:text-surface-400 px-1">
                <span>06:00</span>
                <span>09:00</span>
                <span>12:00</span>
@@ -412,11 +459,13 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                    </tr>
                  </thead>
                  <tbody className="text-sm">
-                   {departmentData.map((d, i) => (
-                     <tr key={i} className="border-b border-surface-200 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                   {departmentData.map((d) => {
+                     const accent = ACCENT_STYLES[d.accentColor] || ACCENT_STYLES.slate;
+                     return (
+                     <tr key={d.id} className="border-b border-surface-200 dark:border-surface-800 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
                        <td className="py-3 px-2">
                          <div className="flex items-center gap-3">
-                           <div className={`w-8 h-8 rounded-lg bg-${d.accentColor}-500/10 border border-${d.accentColor}-500/20 flex items-center justify-center text-${d.accentColor}-600 dark:text-${d.accentColor}-400 font-bold text-xs`}>
+                           <div className={`w-8 h-8 rounded-lg border flex items-center justify-center font-bold text-xs ${accent.badge}`}>
                              {d.code}
                            </div>
                            <span className="font-semibold text-surface-800 dark:text-surface-200">{d.name}</span>
@@ -426,7 +475,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                          <div className="flex items-center gap-3 justify-end">
                            <span className="font-mono text-surface-600 dark:text-surface-300 text-xs">{d.current} / {d.required}</span>
                            <div className="w-24 h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
-                             <div className={`h-full bg-${d.accentColor}-500 dark:bg-${d.accentColor}-400 rounded-full`} style={{ width: `${d.percentage}%` }}></div>
+                             <div className={`h-full rounded-full ${accent.bar}`} style={{ width: `${d.percentage}%` }}></div>
                            </div>
                          </div>
                        </td>
@@ -436,10 +485,11 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                          </span>
                        </td>
                      </tr>
-                   ))}
+                     );
+                   })}
                    {departmentData.length === 0 && (
                      <tr>
-                       <td colSpan={3} className="py-8 text-center text-surface-500 text-xs font-mono">Sin departamentos configurados</td>
+                       <td colSpan={3} className="py-8 text-center text-surface-500 dark:text-surface-400 text-xs font-mono">Sin departamentos configurados</td>
                      </tr>
                    )}
                  </tbody>
@@ -464,7 +514,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                </div>
                <div className="text-right">
                  <p className="text-xl font-black text-surface-900 dark:text-white">{totalAsistieron + ausentes + tardes}</p>
-                 <p className="text-[10px] uppercase font-bold text-surface-500">Transacciones</p>
+                 <p className="text-[10px] uppercase font-bold text-surface-500 dark:text-surface-400">Transacciones</p>
                </div>
             </div>
             
@@ -472,7 +522,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-surface-50 dark:from-surface-900 to-transparent pointer-events-none z-10"></div>
                
                {rawAttendances.map((att: any, i: number) => (
-                 <div key={i} className="group flex items-start gap-3 p-3 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.03] transition-colors relative">
+                 <div key={att.id || `${att.name}-${att.timeStr}-${att.status}`} className="group flex items-start gap-3 p-3 rounded-xl hover:bg-surface-100 dark:hover:bg-white/[0.03] transition-colors relative">
                     {i === 0 && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary-500 dark:bg-primary-400 rounded-r-full"></div>}
                     <div className="w-9 h-9 rounded-full bg-surface-200 dark:bg-surface-800 border border-surface-300 dark:border-white/10 flex items-center justify-center shrink-0">
                        <span className="text-xs font-bold text-surface-600 dark:text-surface-300">{att.initials}</span>
@@ -480,14 +530,14 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                     <div className="flex-1 min-w-0">
                        <div className="flex items-center justify-between mb-0.5">
                           <p className="text-sm font-semibold text-surface-900 dark:text-white truncate pr-2">{att.name}</p>
-                          <span className="text-[10px] font-mono text-surface-500 whitespace-nowrap">{att.timeStr}</span>
+                          <span className="text-[10px] font-mono text-surface-500 dark:text-surface-400 whitespace-nowrap">{att.timeStr}</span>
                        </div>
                        <div className="flex items-center gap-2 mt-1">
                           <span className={`badge-${att.status.toLowerCase()}`}>
                             {att.status}
                           </span>
                           {att.lateDetail && <span className="text-[10px] font-mono text-warning-600 dark:text-warning-400 font-medium">{att.lateDetail}</span>}
-                          <span className="text-[10px] text-surface-500 flex items-center gap-1 ml-auto">
+                          <span className="text-[10px] text-surface-500 dark:text-surface-400 flex items-center gap-1 ml-auto">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                             {att.kiosk}
                           </span>
@@ -497,7 +547,7 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
                ))}
                
                {rawAttendances.length === 0 && (
-                 <div className="text-center py-10 text-sm font-mono text-surface-500">
+                 <div className="text-center py-10 text-sm font-mono text-surface-500 dark:text-surface-400">
                    A la espera de marcaciones...
                  </div>
                )}
@@ -509,6 +559,65 @@ export default async function DashboardPage(props: { searchParams?: Promise<{ ra
           </div>
         </div>
 
+      </div>
+
+      {/* 4. Cumpleaños del Mes */}
+      <div className="rounded-2xl border border-surface-200 dark:border-white/10 bg-white dark:bg-surface-900 p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-surface-100 dark:border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Cake className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-surface-900 dark:text-white">
+                Cumpleaños del Mes
+              </h3>
+              <p className="text-xs text-surface-500 dark:text-surface-400">
+                Celebraciones programadas del equipo activo
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            {monthBirthdays.length} {monthBirthdays.length === 1 ? "cumpleaños" : "cumpleaños"}
+          </span>
+        </div>
+
+        {monthBirthdays.length === 0 ? (
+          <p className="text-xs text-surface-500 dark:text-surface-400 py-2">
+            No hay cumpleaños registrados en el mes actual.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {monthBirthdays.slice(0, 8).map((b) => (
+              <div
+                key={b.id}
+                className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                  b.isToday
+                    ? "bg-amber-50/80 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/40"
+                    : "bg-surface-50 dark:bg-surface-950/60 border-surface-200 dark:border-white/5"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-surface-900 dark:text-white truncate">
+                    {b.fullName}
+                  </p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 truncate">
+                    {b.departmentName}
+                  </p>
+                </div>
+                <span
+                  className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold shrink-0 ${
+                    b.isToday
+                      ? "bg-amber-500 text-white animate-pulse"
+                      : "bg-surface-200/70 dark:bg-white/10 text-surface-700 dark:text-surface-300"
+                  }`}
+                >
+                  {b.isToday ? "¡HOY!" : `Día ${b.day}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

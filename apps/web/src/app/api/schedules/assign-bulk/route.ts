@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -77,6 +78,20 @@ export async function POST(req: Request) {
           validFrom: new Date(),
         })),
       });
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_UPDATED",
+      entityType: "SCHEDULE",
+      entityId: schedule.id,
+      newData: {
+        scheduleName: schedule.name,
+        assignedUsersCount: validUserIds.length,
+        userIds: validUserIds,
+      },
+      req,
     });
 
     return NextResponse.json({

@@ -9,12 +9,12 @@ function parseTimeString(timeVal: string | null | undefined, baseDate: Date): Da
   if (!timeVal) return null;
   if (timeVal.includes("T") || timeVal.includes("-")) {
     const d = new Date(timeVal);
-    return isNaN(d.getTime()) ? null : d;
+    return Number.isNaN(d.getTime()) ? null : d;
   }
   const [hStr, mStr] = timeVal.split(":");
-  const h = parseInt(hStr, 10);
-  const m = parseInt(mStr, 10);
-  if (isNaN(h) || isNaN(m)) return null;
+  const h = Number.parseInt(hStr, 10);
+  const m = Number.parseInt(mStr, 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
   const d = new Date(baseDate);
   d.setHours(h, m, 0, 0);
   return d;
@@ -25,6 +25,7 @@ const JustifySchema = z.object({
   category: z.string().optional().nullable(),
   categoryLabel: z.string().optional().nullable(),
   exitTime: z.string().optional().nullable(),
+  attachmentUrl: z.string().optional().nullable(),
   status: z
     .enum([AttendanceStatus.JUSTIFICADO, AttendanceStatus.PERMISO])
     .default(AttendanceStatus.JUSTIFICADO),
@@ -40,6 +41,11 @@ export async function POST(
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes para justificar asistencias" }, { status: 403 });
+  }
+
   const { id } = await params;
 
   try {
@@ -53,7 +59,7 @@ export async function POST(
       );
     }
 
-    const { reason, status, categoryLabel, exitTime } = parsed.data;
+    const { reason, status, categoryLabel, exitTime, attachmentUrl } = parsed.data;
 
     const existing = await prisma.attendance.findFirst({
       where: {
@@ -92,6 +98,7 @@ export async function POST(
       notes: updatedNotes,
       statusChangedAt: new Date(),
       statusChangedBy: session.user.name || session.user.email || "ADMIN",
+      ...(attachmentUrl !== undefined ? { attachmentUrl: attachmentUrl || null } : {}),
     };
 
     // Si se envía regularización de hora de salida (útil para INCOMPLETO / sin salida)

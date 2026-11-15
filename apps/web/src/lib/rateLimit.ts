@@ -38,12 +38,12 @@ function getRedisClient(): Redis | null {
       if (redisClient) {
         try {
           redisClient.disconnect(false);
-        } catch (_) {}
+        } catch { /* Ignorado intencionalmente */ }
       }
       redisClient = null;
     });
     return redisClient;
-  } catch (err) {
+  } catch {
     return null;
   }
 }

@@ -13,23 +13,23 @@ export interface PageHeaderProps {
 
 const ICON_VARIANT_MAP = {
   emerald: {
-    wrapper: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+    wrapper: "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400",
     shadow: "0 0 25px -5px rgba(16, 185, 129, 0.3)",
   },
   cyan: {
-    wrapper: "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
+    wrapper: "bg-cyan-500/10 border-cyan-500/30 text-cyan-600 dark:text-cyan-400",
     shadow: "0 0 25px -5px rgba(6, 182, 212, 0.3)",
   },
   indigo: {
-    wrapper: "bg-indigo-500/10 border-indigo-500/30 text-indigo-400",
+    wrapper: "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400",
     shadow: "0 0 25px -5px rgba(99, 102, 241, 0.3)",
   },
   amber: {
-    wrapper: "bg-amber-500/10 border-amber-500/30 text-amber-400",
+    wrapper: "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400",
     shadow: "0 0 25px -5px rgba(245, 158, 11, 0.3)",
   },
   rose: {
-    wrapper: "bg-rose-500/10 border-rose-500/30 text-rose-400",
+    wrapper: "bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400",
     shadow: "0 0 25px -5px rgba(244, 63, 94, 0.3)",
   },
 };
@@ -50,13 +50,14 @@ export function PageHeader({
       <div className="space-y-1 min-w-0 flex-1">
         <div className="flex items-center gap-3 min-w-0">
           <div
+            aria-hidden="true"
             className={clsx(
               "w-10 h-10 rounded-xl border flex items-center justify-center shrink-0",
               v.wrapper,
             )}
             style={{ boxShadow: v.shadow }}
           >
-            <Icon className="w-5 h-5" strokeWidth={2} />
+            <Icon className="w-5 h-5" strokeWidth={2} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl sm:text-2xl font-extrabold text-surface-900 dark:text-white tracking-tight flex flex-wrap items-center gap-2">

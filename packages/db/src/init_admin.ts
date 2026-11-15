@@ -103,9 +103,9 @@ async function main() {
       organizationId: org.id,
       name: `Turno Estándar (${entryHourStr}:00 - ${exitHourStr}:00)`,
       workdaysMask: 31, // Lun a Vie
-      entryHour: parseInt(entryHourStr, 10) || 8,
+      entryHour: Number.parseInt(entryHourStr, 10) || 8,
       entryMinute: 0,
-      exitHour: parseInt(exitHourStr, 10) || 17,
+      exitHour: Number.parseInt(exitHourStr, 10) || 17,
       exitMinute: 0,
       toleranceMinutes: 10,
     },

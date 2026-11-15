@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Calendar, Sparkles } from "lucide-react";
+import { Calendar, CalendarDays, Sparkles, MapPin, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ModalShell } from "@/components/ui/ModalShell";
+import { FormField, getFormInputClass } from "@/components/ui/FormField";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { useToast } from "@/providers/ToastProvider";
 
@@ -31,24 +32,38 @@ export function HolidayModal({
   const [date, setDate] = useState("");
   const [locationId, setLocationId] = useState<string>("GLOBAL");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; date?: string }>({});
+  const [serverError, setServerError] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
-      if (initialDate) {
-        setDate(initialDate);
-      } else {
-        setDate("");
-      }
+      setDate(initialDate || "");
       setName("");
       setLocationId("GLOBAL");
+      setFieldErrors({});
+      setServerError("");
     }
   }, [isOpen, initialDate]);
 
+  const validateName = (value: string) => {
+    if (!value.trim()) return "El nombre del feriado es obligatorio.";
+    return undefined;
+  };
+
+  const validateDate = (value: string) => {
+    if (!value) return "Selecciona la fecha no laborable.";
+    return undefined;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !date) {
-      toast.warning("Completa el nombre y la fecha del feriado");
+    setServerError("");
+
+    const nameErr = validateName(name);
+    const dateErr = validateDate(date);
+    if (nameErr || dateErr) {
+      setFieldErrors({ name: nameErr, date: dateErr });
       return;
     }
 
@@ -77,7 +92,7 @@ export function HolidayModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Error al guardar");
+      setServerError(err.message || "Error al guardar el feriado.");
     } finally {
       setIsSubmitting(false);
     }
@@ -88,6 +103,7 @@ export function HolidayModal({
       <Button
         type="button"
         variant="secondary"
+        size="lg"
         onClick={onClose}
         disabled={isSubmitting}
       >
@@ -97,6 +113,7 @@ export function HolidayModal({
         type="submit"
         form="holiday-form"
         variant="primary"
+        size="lg"
         isLoading={isSubmitting}
         icon={<Calendar className="w-4 h-4" />}
       >
@@ -109,63 +126,95 @@ export function HolidayModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      preventClose={isSubmitting}
+      closeOnBackdropClick={!isSubmitting}
       title="Registrar Feriado Oficial"
       description="Los colaboradores no serán penalizados por faltas en este día."
-      icon={Calendar}
+      icon={CalendarDays}
       iconVariant="success"
       maxWidth="lg"
       footer={footer}
     >
-      <form id="holiday-form" onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-surface-700 dark:text-surface-300 uppercase tracking-wider">
-            Motivo o Nombre del Feriado *
-          </label>
+      <form id="holiday-form" onSubmit={handleSubmit} className="space-y-5 py-1" noValidate>
+        {serverError && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="px-4 py-3 rounded-2xl bg-danger-500/15 border border-danger-500/30 text-danger-700 dark:text-danger-300 text-xs flex items-center gap-2"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 text-danger-500" aria-hidden="true" />
+            <span>{serverError}</span>
+          </div>
+        )}
+
+        <FormField
+          label="Motivo o Nombre del Feriado"
+          icon={Calendar}
+          required
+          error={fieldErrors.name}
+        >
           <input
             type="text"
             required
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setName(val);
+              if (fieldErrors.name) {
+                setFieldErrors((prev) => ({ ...prev, name: validateName(val) }));
+              }
+            }}
+            onBlur={() => setFieldErrors((prev) => ({ ...prev, name: validateName(name) }))}
             placeholder="Ej: Día del Trabajo, Navidad, Fiestas Patrias..."
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-900 dark:text-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
+            className={getFormInputClass({ hasLeftIcon: true, hasError: !!fieldErrors.name })}
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-surface-700 dark:text-surface-300 uppercase tracking-wider">
-            Fecha No Laborable *
-          </label>
+        <FormField
+          label="Fecha No Laborable"
+          icon={Calendar}
+          required
+          error={fieldErrors.date}
+        >
           <input
             type="date"
             required
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition dark:[color-scheme:dark]"
+            onChange={(e) => {
+              const val = e.target.value;
+              setDate(val);
+              if (fieldErrors.date) {
+                setFieldErrors((prev) => ({ ...prev, date: validateDate(val) }));
+              }
+            }}
+            onBlur={() => setFieldErrors((prev) => ({ ...prev, date: validateDate(date) }))}
+            className={getFormInputClass({
+              hasLeftIcon: true,
+              hasError: !!fieldErrors.date,
+              className: "cursor-pointer font-mono [color-scheme:light] dark:[color-scheme:dark]",
+            })}
           />
-        </div>
+        </FormField>
 
         {locations.length > 0 && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-surface-700 dark:text-surface-300 uppercase tracking-wider">
-              Alcance Geográfico
-            </label>
+          <FormField label="Alcance Geográfico" icon={MapPin}>
             <CustomSelect
               value={locationId}
               onChange={(val) => setLocationId(val)}
+              hasLeftIcon
               options={[
-                { value: "GLOBAL", label: "🌍 Alcance Global (Todas las sedes)" },
+                { value: "GLOBAL", label: "Alcance Global (Todas las sedes)" },
                 ...locations.map((loc) => ({
                   value: loc.id,
-                  label: `📍 Solo ${loc.name}`,
+                  label: `Solo ${loc.name}`,
                 })),
               ]}
             />
-          </div>
+          </FormField>
         )}
 
-        {/* Info pill */}
-        <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed flex items-start gap-2.5">
-          <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+        <div className="p-3.5 rounded-2xl bg-primary-50/80 dark:bg-primary-950/30 border border-primary-200/60 dark:border-primary-800/40 text-xs text-primary-800 dark:text-primary-300 leading-relaxed flex items-start gap-2.5">
+          <Sparkles className="w-4 h-4 text-primary-600 dark:text-primary-400 shrink-0 mt-0.5" aria-hidden="true" />
           <span>
             El cierre automatizado de medianoche (EOD) omitirá registrar faltas en este día, protegiendo las métricas de puntualidad de los colaboradores.
           </span>

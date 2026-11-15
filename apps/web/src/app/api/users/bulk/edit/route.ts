@@ -76,10 +76,10 @@ export async function PATCH(req: Request) {
       userUpdateData.locationId = data.locationId;
     }
     if (data.role !== undefined) {
-      // Supervisor no puede promover usuarios a ADMIN
-      if (userRole === "SUPERVISOR" && data.role === UserRole.ADMIN) {
+      // Supervisor no puede promover usuarios a ADMIN ni SUPER_ADMIN
+      if (userRole === "SUPERVISOR" && (data.role === UserRole.ADMIN || data.role === UserRole.SUPER_ADMIN)) {
         return NextResponse.json(
-          { error: "Un supervisor no puede asignar el rol Administrador" },
+          { error: "Un supervisor no puede asignar roles administrativos" },
           { status: 403 }
         );
       }

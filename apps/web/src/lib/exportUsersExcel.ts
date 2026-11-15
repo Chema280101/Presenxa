@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { toCsvRow } from "./csvUtils";
 import {
   createPresenxaWorkbook,
   renderExecutiveHeader,
@@ -412,19 +413,11 @@ export async function exportUsersToExcel(
 export function exportUsersToCsv(
   users: UserExportItem[],
   organizationName: string = "Empresa",
-  ruc?: string
+  _ruc?: string
 ): void {
   const now = new Date();
-  const dateFormatted = format(now, "dd/MM/yyyy HH:mm:ss");
 
-  const metaHeader = [
-    `"PADRÓN OFICIAL DE COLABORADORES - ${organizationName.toUpperCase()}"`,
-    `"${ruc ? `RUC: ${ruc} - ` : ""}Generado: ${dateFormatted} - Total Registros: ${users.length}"`,
-    `"Software: Presenxa Control Inteligente"`,
-    "",
-  ];
-
-  const tableHeader = [
+  const tableHeader = toCsvRow([
     "ID",
     "Tipo Doc",
     "N° Documento",
@@ -436,44 +429,42 @@ export function exportUsersToCsv(
     "Rol",
     "Estado",
     "Sede Principal",
-    "Horario Asignado",
+    "Horarios Asignados",
     "Tarjeta NFC UID",
-    "Token QR",
-  ].join(";");
+  ]);
 
   const rows = users.map((u) => {
-    const fullName = `${u.lastName}, ${u.firstName}`.replace(/"/g, '""');
-    const docId = (u.documentId || "").replace(/"/g, '""');
-    const phone = (u.phone || "").replace(/"/g, '""');
-    const role = formatUserRole(u.role).replace(/"/g, '""');
-    const status = u.isActive ? "Activo" : "Inactivo";
-    const locationName = (u.location?.name || "Sin sede").replace(/"/g, '""');
-    const scheduleName = (u.userSchedules?.[0]?.schedule?.name || "Sin horario").replace(/"/g, '""');
-    const nfcUid = (u.nfcCardUid || "").replace(/"/g, '""');
-    const qrToken = (u.qrToken || "").replace(/"/g, '""');
-    const email = (u.email || "").replace(/"/g, '""');
-    const lastName = (u.lastName || "").replace(/"/g, '""');
-    const firstName = (u.firstName || "").replace(/"/g, '""');
+    const schedules =
+      u.userSchedules && u.userSchedules.length > 0
+        ? u.userSchedules
+            .map((item) => {
+              const sch = item.schedule;
+              if (!sch) return null;
+              const h1 = `${String(sch.entryHour).padStart(2, "0")}:${String(sch.entryMinute).padStart(2, "0")} - ${String(sch.exitHour).padStart(2, "0")}:${String(sch.exitMinute).padStart(2, "0")}`;
+              return `${sch.name} (${h1})`;
+            })
+            .filter(Boolean)
+            .join(" | ")
+        : "Sin horario";
 
-    return [
-      `"${u.id}"`,
-      `"DNI"`,
-      `"${docId}"`,
-      `"${lastName}"`,
-      `"${firstName}"`,
-      `"${fullName}"`,
-      `"${email}"`,
-      `"${phone}"`,
-      `"${role}"`,
-      `"${status}"`,
-      `"${locationName}"`,
-      `"${scheduleName}"`,
-      `"${nfcUid}"`,
-      `"${qrToken}"`,
-    ].join(";");
+    return toCsvRow([
+      u.id,
+      "DNI",
+      u.documentId || "",
+      u.lastName || "",
+      u.firstName || "",
+      `${u.lastName}, ${u.firstName}`,
+      u.email || "",
+      u.phone || "",
+      formatUserRole(u.role),
+      u.isActive ? "Activo" : "Inactivo",
+      u.location?.name || "Sin sede",
+      schedules,
+      u.nfcCardUid || "",
+    ]);
   });
 
-  const csvContent = "\uFEFF" + [...metaHeader, tableHeader, ...rows].join("\r\n");
+  const csvContent = "\uFEFF" + [tableHeader, ...rows].join("\r\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

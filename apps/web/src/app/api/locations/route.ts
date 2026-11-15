@@ -1,4 +1,6 @@
 import { auth } from "@/auth";
+import { logAuditEvent } from "@/lib/audit";
+import { parsePaginationParams, buildPaginationMeta } from "@/lib/pagination";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,28 +12,55 @@ const LocationSchema = z.object({
 });
 
 // GET /api/locations
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
-    const locations = await prisma.location.findMany({
-      where: {
-        organizationId: session.user.organizationId,
-      },
-      orderBy: [{ isActive: "desc" }, { name: "asc" }],
-      include: {
-        _count: {
-          select: {
-            users: { where: { isActive: true } },
-            kiosks: { where: { isActive: true } },
-            attendances: true,
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search")?.trim() || "";
+    const { hasPagination, page, pageSize, skip, take } = parsePaginationParams(
+      searchParams,
+      25
+    );
+
+    const where: any = {
+      organizationId: session.user.organizationId,
+    };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { address: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [locations, total] = await Promise.all([
+      prisma.location.findMany({
+        where,
+        orderBy: [{ isActive: "desc" }, { name: "asc" }],
+        skip,
+        take,
+        include: {
+          _count: {
+            select: {
+              users: { where: { isActive: true } },
+              kiosks: { where: { isActive: true } },
+              attendances: true,
+            },
           },
         },
-      },
-    });
+      }),
+      hasPagination ? prisma.location.count({ where }) : Promise.resolve(0),
+    ]);
+
+    if (hasPagination) {
+      return NextResponse.json({
+        locations,
+        pagination: buildPaginationMeta(page, pageSize, total),
+      });
+    }
 
     return NextResponse.json({ locations });
   } catch (error: any) {
@@ -45,6 +74,11 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.organizationId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const role = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN"].includes(role)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
   }
 
   try {
@@ -68,6 +102,16 @@ export async function POST(req: Request) {
         timezone: data.timezone,
         isActive: true,
       },
+    });
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "ENTITY_CREATED",
+      entityType: "LOCATION",
+      entityId: location.id,
+      newData: { name: location.name, address: location.address, timezone: location.timezone },
+      req,
     });
 
     return NextResponse.json({ location }, { status: 201 });

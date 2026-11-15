@@ -52,6 +52,39 @@ const MONTH_NAMES = [
 
 const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
 
+function getDayButtonTitle(
+  isHoliday: boolean,
+  holiday: HolidayItem | null | undefined,
+  dayNum: number,
+  monthName: string
+): string {
+  if (isHoliday && holiday) {
+    const scope = holiday.locationId ? "Sede específica" : "Global";
+    return `${holiday.name} (${scope})`;
+  }
+  return `Registrar feriado para el ${dayNum} de ${monthName}`;
+}
+
+function getDayButtonClassName(
+  isHoliday: boolean,
+  isGlobal: boolean,
+  isToday: boolean,
+  isWeekend: boolean
+): string {
+  if (isHoliday) {
+    return isGlobal
+      ? "bg-emerald-500 hover:bg-emerald-600 text-white font-bold shadow-xs hover:scale-108 z-10"
+      : "bg-indigo-500 hover:bg-indigo-600 text-white font-bold shadow-xs hover:scale-108 z-10";
+  }
+  if (isToday) {
+    return "ring-2 ring-primary-500 text-primary-600 dark:text-primary-400 font-extrabold hover:bg-primary-50 dark:hover:bg-primary-950/30";
+  }
+  if (isWeekend) {
+    return "text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-white";
+  }
+  return "text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-white";
+}
+
 export function YearCalendarView({
   year,
   onYearChange,
@@ -59,7 +92,7 @@ export function YearCalendarView({
   locations,
   onSelectEmptyDate,
   onDeleteHoliday,
-}: YearCalendarViewProps) {
+}: Readonly<YearCalendarViewProps>) {
   const [selectedHoliday, setSelectedHoliday] = useState<HolidayItem | null>(null);
 
   // Group holidays by date YYYY-MM-DD
@@ -173,8 +206,9 @@ export function YearCalendarView({
           let monthHolidaysCount = 0;
           for (let d = 1; d <= daysInMonth; d++) {
             const dateStr = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-            if (holidaysByDate.has(dateStr)) {
-              monthHolidaysCount += holidaysByDate.get(dateStr)!.length;
+            const dayHolidays = holidaysByDate.get(dateStr);
+            if (dayHolidays) {
+              monthHolidaysCount += dayHolidays.length;
             }
           }
 
@@ -248,22 +282,8 @@ export function YearCalendarView({
                           onSelectEmptyDate(dateStr);
                         }
                       }}
-                      title={
-                        isHoliday && holiday
-                          ? `${holiday.name} (${holiday.locationId ? "Sede específica" : "Global"})`
-                          : `Registrar feriado para el ${dayNum} de ${monthName}`
-                      }
-                      className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                        isHoliday
-                          ? isGlobal
-                            ? "bg-emerald-500 hover:bg-emerald-600 text-white font-bold shadow-xs hover:scale-108 z-10"
-                            : "bg-indigo-500 hover:bg-indigo-600 text-white font-bold shadow-xs hover:scale-108 z-10"
-                          : isToday
-                          ? "ring-2 ring-primary-500 text-primary-600 dark:text-primary-400 font-extrabold hover:bg-primary-50 dark:hover:bg-primary-950/30"
-                          : isWeekend
-                          ? "text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-white"
-                          : "text-surface-700 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-white"
-                      }`}
+                      title={getDayButtonTitle(isHoliday, holiday, dayNum, monthName)}
+                      className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-semibold transition-all duration-150 cursor-pointer ${getDayButtonClassName(isHoliday, isGlobal, isToday, isWeekend)}`}
                     >
                       <span className="leading-none">{dayNum}</span>
 
@@ -283,10 +303,10 @@ export function YearCalendarView({
       {/* 3. Floating / Modal Holiday Inspector */}
       {selectedHoliday && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-950/50 backdrop-blur-xs animate-fade-in">
-          <div
-            className="w-full max-w-md bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 rounded-3xl p-6 shadow-xl space-y-4 animate-scale-in"
-            role="dialog"
+          <dialog
+            open
             aria-modal="true"
+            className="relative m-0 w-full max-w-md bg-white dark:bg-surface-900 text-surface-900 dark:text-white border border-surface-200 dark:border-surface-800 rounded-3xl p-6 shadow-xl space-y-4 animate-scale-in"
           >
             {/* Header */}
             <div className="flex items-start justify-between">
@@ -376,7 +396,7 @@ export function YearCalendarView({
                 Cerrar
               </Button>
             </div>
-          </div>
+          </dialog>
         </div>
       )}
     </div>

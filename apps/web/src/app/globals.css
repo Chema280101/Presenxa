@@ -160,12 +160,18 @@ a:active {
 
 /* ── Scrollbar personalizado ─────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--color-surface-950); }
+::-webkit-scrollbar-track { background: var(--color-surface-100); }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-surface-700);
+  background: var(--color-surface-300);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--color-primary-400); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-primary-500); }
+
+.dark ::-webkit-scrollbar-track { background: var(--color-surface-950); }
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-surface-700);
+}
+.dark ::-webkit-scrollbar-thumb:hover { background: var(--color-primary-400); }
 
 /* ── Glassmorphism & Surface Utilities ─────────────── */
 .glass {
@@ -345,19 +351,19 @@ a:active {
 }
 
 /* ── Status badges ───────────────────────────────── */
-.badge-presente    { @apply bg-lime-400/15 text-lime-300 ring-1 ring-lime-400/35 font-medium; }
-.badge-tarde       { @apply bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/35 font-medium; }
-.badge-ausente     { @apply bg-rose-500/15  text-rose-300  ring-1 ring-rose-500/35  font-medium; }
-.badge-abandono    { @apply bg-red-600/20   text-rose-300  ring-1 ring-red-600/45   font-medium; }
-.badge-incompleto  { @apply bg-amber-600/15 text-amber-300 ring-1 ring-amber-600/35 font-medium; }
-.badge-pendiente   { @apply bg-surface-700/50 text-slate-300 ring-1 ring-slate-600/40 font-medium; }
-.badge-justificado { @apply bg-sky-500/15   text-sky-300   ring-1 ring-sky-500/35   font-medium; }
-.badge-permiso     { @apply bg-lime-500/15  text-lime-300  ring-1 ring-lime-500/35  font-medium; }
+.badge-presente    { @apply bg-primary-50 text-primary-700 ring-1 ring-primary-600/20 dark:bg-lime-400/15 dark:text-lime-300 dark:ring-lime-400/35 font-medium; }
+.badge-tarde       { @apply bg-amber-50 text-amber-800 ring-1 ring-amber-600/25 dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-500/35 font-medium; }
+.badge-ausente     { @apply bg-rose-50 text-rose-700 ring-1 ring-rose-600/25 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/35 font-medium; }
+.badge-abandono    { @apply bg-red-100 text-red-800 ring-1 ring-red-600/30 dark:bg-red-600/20 dark:text-rose-300 dark:ring-red-600/45 font-medium; }
+.badge-incompleto  { @apply bg-amber-50 text-amber-800 ring-1 ring-amber-600/25 dark:bg-amber-600/15 dark:text-amber-300 dark:ring-amber-600/35 font-medium; }
+.badge-pendiente   { @apply bg-surface-100 text-surface-700 ring-1 ring-surface-300 dark:bg-surface-700/50 dark:text-slate-300 dark:ring-slate-600/40 font-medium; }
+.badge-justificado { @apply bg-sky-50 text-sky-700 ring-1 ring-sky-600/25 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/35 font-medium; }
+.badge-permiso     { @apply bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/25 dark:bg-lime-500/15 dark:text-lime-300 dark:ring-lime-500/35 font-medium; }
 
 /* ── Role badges ─────────────────────────────────── */
-.badge-role-admin      { @apply bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/35 font-semibold text-xs; }
-.badge-role-supervisor { @apply bg-sky-500/15    text-sky-300    ring-1 ring-sky-500/35    font-semibold text-xs; }
-.badge-role-empleado   { @apply bg-lime-400/15   text-lime-300   ring-1 ring-lime-400/35   font-semibold text-xs; }
+.badge-role-admin      { @apply bg-purple-50 text-purple-700 ring-1 ring-purple-600/25 dark:bg-purple-500/15 dark:text-purple-300 dark:ring-purple-500/35 font-semibold text-xs; }
+.badge-role-supervisor { @apply bg-sky-50 text-sky-700 ring-1 ring-sky-600/25 dark:bg-sky-500/15 dark:text-sky-300 dark:ring-sky-500/35 font-semibold text-xs; }
+.badge-role-empleado   { @apply bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/25 dark:bg-lime-400/15 dark:text-lime-300 dark:ring-lime-400/35 font-semibold text-xs; }
 
 /* ── Form Inputs ─────────────────────────────────── */
 .input-standard {
@@ -481,10 +487,15 @@ a:active {
   outline-offset: 2px;
 }
 
-/* Dark mode select options across all operating systems */
+/* Select options across light and dark mode */
 select option {
-  background-color: #060e17;
-  color: #f1f5f9;
+  background-color: var(--color-surface-50);
+  color: var(--color-surface-900);
+}
+
+.dark select option {
+  background-color: var(--color-surface-900);
+  color: var(--color-surface-50);
 }
 
 /* ── Glassmorphism & Elevation System ────────────── */
@@ -563,14 +574,16 @@ select option {
   /* Ocultar el resto de la interfaz interactiva cuando existe un portal de impresión activo */
   body:has(#credential-print-portal) > *:not(#credential-print-portal),
   body:has(#printable-report-portal) > *:not(#printable-report-portal),
-  body:has(#printable-users-report-portal) > *:not(#printable-users-report-portal) {
+  body:has(#printable-users-report-portal) > *:not(#printable-users-report-portal),
+  body:has(#printable-certificate-portal) > *:not(#printable-certificate-portal) {
     display: none !important;
   }
 
   /* Los portales deben estar en flujo estático natural para que el motor de paginación divida las hojas sin cortar */
   #credential-print-portal,
   #printable-report-portal,
-  #printable-users-report-portal {
+  #printable-users-report-portal,
+  #printable-certificate-portal {
     display: block !important;
     position: static !important;
     width: 100% !important;

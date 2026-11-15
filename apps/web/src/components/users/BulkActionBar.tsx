@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Edit2, UserX, X, Users, CheckSquare, Printer, Calendar } from "lucide-react";
+import { Edit2, UserX, X, CheckSquare, Printer, Calendar } from "lucide-react";
 
 interface BulkActionBarProps {
   selectedCount: number;

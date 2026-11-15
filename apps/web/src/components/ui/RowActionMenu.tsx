@@ -127,8 +127,8 @@ export function RowActionMenu({
         )}
       >
         <div className="space-y-0.5">
-          {items.map((item, idx) => (
-            <React.Fragment key={idx}>
+          {items.map((item) => (
+            <React.Fragment key={item.label}>
               {item.divider && (
                 <div className="my-1 border-t border-surface-100 dark:border-surface-800/80" />
               )}

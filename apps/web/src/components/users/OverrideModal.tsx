@@ -2,16 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import useSWR from "swr";
-import {
-  Calendar,
-  Clock,
-  Save,
-  Building,
-  MapPin,
-  Bell,
-  Sparkles,
-  ArrowRight,
-} from "lucide-react";
+import { Calendar, Clock, Save, Building, MapPin, Bell, Sparkles } from "lucide-react";
 import { ModalShell } from "@/components/ui/ModalShell";
 import { Button } from "@/components/ui/Button";
 import { CustomSelect, CustomSelectOption } from "@/components/ui/CustomSelect";

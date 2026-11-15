@@ -3,7 +3,7 @@ import * as React from "react";
 export function PresenxaIcon({ className = "w-6 h-6" }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 2000 2000"
+      viewBox="350 350 1300 1300"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}

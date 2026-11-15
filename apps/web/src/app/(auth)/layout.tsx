@@ -8,18 +8,27 @@ export const metadata: Metadata = {
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-[100dvh] flex flex-col justify-between font-sans text-surface-900 dark:text-surface-200 antialiased bg-surface-50 dark:bg-surface-950 relative overflow-x-hidden selection:bg-primary-500/30 selection:text-primary-800 dark:selection:text-primary-200 transition-colors">
+    <div className="min-h-[100dvh] flex flex-col justify-between font-sans text-surface-900 dark:text-surface-200 antialiased bg-surface-100 dark:bg-surface-950 relative overflow-x-hidden selection:bg-primary-500/30 selection:text-primary-800 dark:selection:text-primary-200 transition-colors">
       <style dangerouslySetInnerHTML={{__html: `
         .glow-radial-brand {
-          background: radial-gradient(circle at 50% 50%, rgba(0, 166, 80, 0.05) 0%, transparent 60%);
+          background: radial-gradient(circle at 50% 50%, rgba(0, 166, 80, 0.07) 0%, transparent 60%);
         }
         .dark .glow-radial-brand {
           background: radial-gradient(circle at 50% 50%, rgba(0, 166, 80, 0.1) 0%, transparent 60%);
+        }
+        .auth-dot-grid {
+          background-image: radial-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+          background-size: 24px 24px;
+        }
+        .dark .auth-dot-grid {
+          background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+          background-size: 24px 24px;
         }
       `}} />
       
       {/* Ambient Background */}
       <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute inset-0 auth-dot-grid"></div>
         <div className="absolute inset-0 glow-radial-brand transition-opacity"></div>
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-primary-50 dark:from-primary-500/10 via-transparent to-transparent blur-3xl"></div>
       </div>

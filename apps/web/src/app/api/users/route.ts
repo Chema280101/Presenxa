@@ -3,9 +3,11 @@ import { prisma, UserRole, AuditAction } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { generateSignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
+
+import { PASSWORD_MIN_LENGTH, validatePasswordStrength } from "@/lib/passwordPolicy";
 
 const optionalUuidOrNull = z
   .string()
@@ -23,41 +25,33 @@ const CreateUserSchema = z.object({
   birthDate: z.string().optional().nullable(),
   role: z.nativeEnum(UserRole).default(UserRole.EMPLEADO),
   locationId: optionalUuidOrNull,
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
+  password: z
+    .string()
+    .min(PASSWORD_MIN_LENGTH, `La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres`)
+    .refine((val) => validatePasswordStrength(val).isValid, {
+      message: "La contraseña debe incluir al menos un número y un símbolo (@#$%!).",
+    })
+    .optional()
+    .nullable(),
   scheduleId: optionalUuidOrNull,
   nfcCardUid: z.string().optional().nullable(),
   departmentId: optionalUuidOrNull,
 });
 
-// GET /api/users
-export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user?.organizationId) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
-  const userRole = (session.user as any).role;
-  const supervisorLocationId = (session.user as any).locationId;
-
-  if (userRole === "EMPLEADO") {
-    return NextResponse.json(
-      { error: "No tienes permiso para consultar el directorio de usuarios" },
-      { status: 403 }
-    );
-  }
-
-  const { searchParams } = new URL(req.url);
+function buildUsersWhereClause(
+  organizationId: string,
+  userRole: string,
+  supervisorLocationId: string | undefined,
+  searchParams: URLSearchParams
+) {
   const search = searchParams.get("search") || "";
   const role = searchParams.get("role") as UserRole | null;
   const locationId = searchParams.get("locationId");
   const departmentId = searchParams.get("departmentId");
   const isActiveParam = searchParams.get("isActive");
 
-  const where: any = {
-    organizationId: session.user.organizationId,
-  };
+  const where: any = { organizationId };
 
-  // RBAC: Supervisor solo puede ver usuarios de su sede
   if (userRole === "SUPERVISOR" && supervisorLocationId) {
     where.locationId = supervisorLocationId;
   } else if (locationId) {
@@ -86,59 +80,126 @@ export async function GET(req: Request) {
     where.isActive = isActiveParam === "true";
   }
 
+  return where;
+}
+
+// GET /api/users
+export async function GET(req: Request) {
+  const session = await auth();
+  if (!session?.user?.organizationId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const userRole = (session.user as any).role;
+  const supervisorLocationId = (session.user as any).locationId;
+
+  if (userRole === "EMPLEADO") {
+    return NextResponse.json(
+      { error: "No tienes permiso para consultar el directorio de usuarios" },
+      { status: 403 }
+    );
+  }
+
+  const { searchParams } = new URL(req.url);
+  const where = buildUsersWhereClause(
+    session.user.organizationId,
+    userRole,
+    supervisorLocationId,
+    searchParams
+  );
+
   try {
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        documentId: true,
-        birthDate: true,
-        role: true,
-        isActive: true,
-        qrToken: true,
-        qrGeneratedAt: true,
-        nfcCardUid: true,
-        locationId: true,
-        location: {
-          select: { id: true, name: true },
-        },
-        departmentId: true,
-        department: {
-          select: { id: true, name: true },
-        },
-        userSchedules: {
-          where: {
-            OR: [
-              { validUntil: null },
-              { validUntil: { gt: new Date() } }
-            ]
-          },
-          include: {
-            schedule: {
-              select: {
-                id: true,
-                name: true,
-                entryHour: true,
-                entryMinute: true,
-                exitHour: true,
-                exitMinute: true,
-                isSplit: true,
-                entryHour2: true,
-                entryMinute2: true,
-                exitHour2: true,
-                exitMinute2: true,
+    const hasPagination = searchParams.has("page");
+    const parsedPage = Number.parseInt(searchParams.get("page") || "1", 10);
+    const page = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+    const parsedPageSize = Number.parseInt(searchParams.get("pageSize") || "25", 10);
+    const pageSize = Number.isNaN(parsedPageSize)
+      ? 25
+      : Math.min(100, Math.max(10, parsedPageSize));
+
+    const limitParam = searchParams.get("limit");
+    const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+    const legacyTake =
+      parsedLimit && !Number.isNaN(parsedLimit) && parsedLimit > 0 ? parsedLimit : undefined;
+
+    const take = hasPagination ? pageSize : legacyTake;
+    const skip = hasPagination ? (page - 1) * pageSize : undefined;
+
+    const baseOrgWhere: any = { organizationId: session.user.organizationId };
+    if (userRole === "SUPERVISOR" && supervisorLocationId) {
+      baseOrgWhere.locationId = supervisorLocationId;
+    }
+
+    const [users, total, orgTotal, orgActive, orgEmployees, orgSupervisors] =
+      await Promise.all([
+        prisma.user.findMany({
+          where,
+          skip,
+          take,
+          orderBy: [{ isActive: "desc" }, { firstName: "asc" }],
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            documentId: true,
+            birthDate: true,
+            role: true,
+            isActive: true,
+            qrToken: true,
+            qrGeneratedAt: true,
+            nfcCardUid: true,
+            locationId: true,
+            location: {
+              select: { id: true, name: true },
+            },
+            departmentId: true,
+            department: {
+              select: { id: true, name: true },
+            },
+            userSchedules: {
+              where: {
+                OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
               },
+              include: {
+                schedule: {
+                  select: {
+                    id: true,
+                    name: true,
+                    entryHour: true,
+                    entryMinute: true,
+                    exitHour: true,
+                    exitMinute: true,
+                    isSplit: true,
+                    entryHour2: true,
+                    entryMinute2: true,
+                    exitHour2: true,
+                    exitMinute2: true,
+                  },
+                },
+              },
+              take: 1,
             },
           },
-          take: 1,
-        },
-      },
-    });
+        }),
+        hasPagination ? prisma.user.count({ where }) : Promise.resolve(0),
+        hasPagination ? prisma.user.count({ where: baseOrgWhere }) : Promise.resolve(0),
+        hasPagination
+          ? prisma.user.count({ where: { ...baseOrgWhere, isActive: true } })
+          : Promise.resolve(0),
+        hasPagination
+          ? prisma.user.count({ where: { ...baseOrgWhere, role: UserRole.EMPLEADO } })
+          : Promise.resolve(0),
+        hasPagination
+          ? prisma.user.count({
+              where: {
+                ...baseOrgWhere,
+                role: { in: [UserRole.ADMIN, UserRole.SUPERVISOR, UserRole.SUPER_ADMIN] },
+              },
+            })
+          : Promise.resolve(0),
+      ]);
 
     const usersWithSignedQr = users.map((u) => {
       return {
@@ -146,6 +207,24 @@ export async function GET(req: Request) {
         signedQrPayload: generateSignedQrPayload(u.id, u.qrToken),
       };
     });
+
+    if (hasPagination) {
+      return NextResponse.json({
+        users: usersWithSignedQr,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / pageSize)),
+        },
+        metrics: {
+          total: orgTotal,
+          active: orgActive,
+          employees: orgEmployees,
+          supervisors: orgSupervisors,
+        },
+      });
+    }
 
     return NextResponse.json({ users: usersWithSignedQr });
   } catch (error: any) {
@@ -282,10 +361,12 @@ export async function POST(req: Request) {
       req,
     });
 
+    const { passwordHash: _, ...safeUser } = newUser;
+
     return NextResponse.json(
       {
         user: {
-          ...newUser,
+          ...safeUser,
           signedQrPayload,
         },
       },

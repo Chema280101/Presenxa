@@ -21,6 +21,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const userRole = (session.user as any)?.role;
+  if (!["ADMIN", "SUPER_ADMIN", "SUPERVISOR"].includes(userRole)) {
+    return NextResponse.json({ error: "Permisos insuficientes" }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
   const period = searchParams.get("period") || "MONTH";
   const startDateParam = searchParams.get("startDate");
@@ -180,7 +185,7 @@ export async function GET(req: Request) {
     ).length;
 
     const totalLateMinutes = attendances.reduce(
-      (acc, a) => acc + (a.lateMinutes || 0),
+      (acc, a) => acc + (a.lateMinutes || 0) + (a.lateMinutes2 || 0),
       0
     );
 

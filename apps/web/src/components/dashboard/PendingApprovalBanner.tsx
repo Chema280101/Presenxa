@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, Eye, X, ShieldAlert, Camera } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Eye, X, Camera } from "lucide-react";
 
 interface PendingApprovalBannerProps {
   pendingCount?: number;
@@ -22,8 +22,8 @@ export function PendingApprovalBanner({
   kioskName = "Kiosk Cocina Caliente",
   timeStr = "08:31:02 AM",
   reason = "olvido de fotocheck NFC",
-  photoUrl,
-}: PendingApprovalBannerProps) {
+  photoUrl: _photoUrl,
+}: Readonly<PendingApprovalBannerProps>) {
   const [approved, setApproved] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);

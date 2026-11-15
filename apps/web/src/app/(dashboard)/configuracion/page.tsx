@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Building2,
   Upload,
@@ -8,16 +8,15 @@ import {
   CheckCircle2,
   AlertCircle,
   Save,
-  Trash2,
-  Globe,
   Clock,
   Shield,
   FileText,
-  Tablet,
   LayoutDashboard,
-  Eye,
-  RefreshCw,
-  Sparkles,
+  Hash,
+  Phone,
+  Mail,
+  MapPin,
+  Globe,
 } from "lucide-react";
 import { useToast } from "@/providers/ToastProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -103,8 +102,8 @@ function ConfiguracionSkeleton() {
             <div className="bg-white dark:bg-surface-900 rounded-2xl sm:rounded-3xl p-6 border border-surface-200 dark:border-surface-800 shadow-sm space-y-5">
               <Skeleton className="h-5 w-60 rounded-lg" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="space-y-2">
+                {["org-sk-1", "org-sk-2", "org-sk-3", "org-sk-4", "org-sk-5", "org-sk-6"].map((skKey) => (
+                  <div key={skKey} className="space-y-2">
                     <Skeleton className="h-3.5 w-28 rounded-md" />
                     <Skeleton className="h-10 w-full rounded-xl" />
                   </div>
@@ -181,8 +180,34 @@ export default function ConfiguracionPage() {
   const [gracePeriodMinutes, setGracePeriodMinutes] = useState<number>(10);
   const [timezone, setTimezone] = useState("America/Lima");
   const [offlineBuffer, setOfflineBuffer] = useState<boolean>(true);
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isEmailInvalid = useMemo(() => {
+    const trimmed = email.trim();
+    if (!trimmed) return false;
+    return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+  }, [email]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!org) return false;
+    return (
+      name !== (org.name || "") ||
+      type !== (org.type || "EMPRESA") ||
+      (logoUrl || null) !== (org.logoUrl || null) ||
+      ruc !== (org.settings?.ruc || "") ||
+      phone !== (org.settings?.phone || "") ||
+      email !== (org.settings?.email || "") ||
+      address !== (org.settings?.address || "") ||
+      footerText !== (org.settings?.footerText || "") ||
+      toleranceMinutes !== (org.settings?.tolerance_minutes ?? 10) ||
+      gracePeriodMinutes !== (org.settings?.grace_period_minutes ?? 10) ||
+      timezone !== (org.settings?.timezone || "America/Lima") ||
+      offlineBuffer !== (org.settings?.offline_buffer ?? true)
+    );
+  }, [org, name, type, logoUrl, ruc, phone, email, address, footerText, toleranceMinutes, gracePeriodMinutes, timezone, offlineBuffer]);
 
   const fetchOrganization = async () => {
     try {
@@ -208,7 +233,7 @@ export default function ConfiguracionPage() {
       } else {
         showToast(data.error || "No se pudo cargar la organización", "error");
       }
-    } catch (err: any) {
+    } catch {
       showToast("Error de conexión al cargar datos", "error");
     } finally {
       setIsLoading(false);
@@ -227,18 +252,30 @@ export default function ConfiguracionPage() {
     }
   };
 
-  // Manejador de subida de archivo de logo con redimensionamiento automático
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Manejador unificado de subida/arrastre de logo con validación de tamaño y redimensionamiento
+  const processLogoFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       showToast("Por favor selecciona un archivo de imagen válido (PNG, SVG, JPG, WebP)", "error");
       return;
     }
 
+    const MAX_FILE_BYTES = 2 * 1024 * 1024;
+    if (file.size > MAX_FILE_BYTES) {
+      showToast("El archivo supera el límite máximo de 2 MB", "error");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (!result) return;
+
+      if (file.type === "image/svg+xml") {
+        setLogoUrl(result);
+        showToast("Logo SVG cargado. Haz clic en 'Guardar Cambios' para aplicar.", "success");
+        return;
+      }
+
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
@@ -267,12 +304,24 @@ export default function ConfiguracionPage() {
           setLogoUrl(optimizedDataUrl);
           showToast("Logo optimizado y cargado. Haz clic en 'Guardar Cambios' para aplicar.", "success");
         } else {
-          setLogoUrl(event.target?.result as string);
+          setLogoUrl(result);
         }
       };
-      img.src = event.target?.result as string;
+      img.src = result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processLogoFile(file);
+  };
+
+  const handleLogoDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingLogo(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processLogoFile(file);
   };
 
   const handleRemoveLogo = () => {
@@ -285,6 +334,11 @@ export default function ConfiguracionPage() {
     e.preventDefault();
     if (!name.trim()) {
       showToast("El nombre de la empresa es obligatorio", "error");
+      return;
+    }
+    if (isEmailInvalid) {
+      setEmailTouched(true);
+      showToast("El correo electrónico de RRHH / Admin no tiene un formato válido", "error");
       return;
     }
 
@@ -303,8 +357,8 @@ export default function ConfiguracionPage() {
             email: email.trim() || null,
             address: address.trim() || null,
             footerText: footerText.trim() || null,
-            tolerance_minutes: Number(toleranceMinutes) || 0,
-            grace_period_minutes: Number(gracePeriodMinutes) || 10,
+            tolerance_minutes: Math.max(0, Math.min(120, Number(toleranceMinutes) || 0)),
+            grace_period_minutes: Math.max(0, Math.min(120, Number(gracePeriodMinutes) || 0)),
             timezone,
             offline_buffer: offlineBuffer,
           },
@@ -318,7 +372,7 @@ export default function ConfiguracionPage() {
       } else {
         showToast(data.error || "Error al guardar cambios", "error");
       }
-    } catch (err: any) {
+    } catch {
       showToast("Error de conexión al guardar", "error");
     } finally {
       setIsSaving(false);
@@ -335,21 +389,31 @@ export default function ConfiguracionPage() {
       <PageHeader
           title="Personalización & Configuración del Sistema"
           titleBadge={
-            <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40">V2.4 PRODUCCIÓN</span>
+            <span className="text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/40 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40">
+              {org?.slug ? org.slug.toUpperCase() : "ORGANIZACIÓN"}
+            </span>
           }
           subtitle="Personaliza la identidad visual corporativa (Marca Blanca), credenciales fiscales de la empresa y parámetros operativos de marcación en kiosks."
           icon={Shield}
           iconVariant="emerald"
           actionButtons={
             <>
-              <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-primary-600 dark:text-primary-400 font-mono mr-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
-                <span>Todos los cambios respaldados</span>
-              </div>
+              {hasUnsavedChanges ? (
+                <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-warning-700 dark:text-amber-300 bg-warning-50 dark:bg-amber-500/10 border border-warning-200 dark:border-amber-500/30 px-2.5 py-1 rounded-full font-medium mr-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Cambios sin guardar</span>
+                </div>
+              ) : (
+                <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-primary-700 dark:text-primary-400 font-medium mr-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Todos los cambios respaldados</span>
+                </div>
+              )}
               <AdminManualButton variant="header-button" />
               <Button
+                type="submit"
+                form="organization-settings-form"
                 variant="primary"
-                onClick={handleSave}
                 isLoading={isSaving}
                 icon={<Save className="w-4 h-4" />}
               >
@@ -360,7 +424,7 @@ export default function ConfiguracionPage() {
         />
 
         {/* Main Layout Grid: 2 Columns (~65% Left, ~35% Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <form id="organization-settings-form" onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* =================== LEFT COLUMN (Main Forms) =================== */}
           <div className="lg:col-span-8 space-y-6">
@@ -375,8 +439,8 @@ export default function ConfiguracionPage() {
                   </div>
                   <h2 className="text-sm font-bold text-surface-900 dark:text-white uppercase tracking-wider">Logotipo Corporativo (Marca Blanca)</h2>
                 </div>
-                <span className="self-start sm:self-auto text-[10px] font-semibold px-2.5 py-0.5 bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 rounded-full flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-primary-400 animate-pulse"></span>
+                <span className="self-start sm:self-auto text-[11px] font-semibold px-2.5 py-0.5 bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 rounded-full flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-primary-400" aria-hidden="true" />
                   White-Label Activo
                 </span>
               </div>
@@ -417,14 +481,29 @@ export default function ConfiguracionPage() {
                     className="hidden"
                     id="logo-upload-input"
                   />
-                  <label htmlFor="logo-upload-input" className="block border border-dashed border-surface-300 dark:border-surface-700 hover:border-primary-500 dark:hover:border-primary-400 rounded-2xl p-4 bg-surface-50/70 dark:bg-surface-950/40 text-center transition cursor-pointer group">
+                  <label
+                    htmlFor="logo-upload-input"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingLogo(true);
+                    }}
+                    onDragLeave={() => setIsDraggingLogo(false)}
+                    onDrop={handleLogoDrop}
+                    className={`block border border-dashed rounded-2xl p-4 text-center transition cursor-pointer group ${
+                      isDraggingLogo
+                        ? "border-primary-500 bg-primary-50/70 dark:bg-primary-950/30"
+                        : "border-surface-300 dark:border-surface-700 hover:border-primary-500 dark:hover:border-primary-400 bg-surface-50/70 dark:bg-surface-950/40"
+                    }`}
+                  >
                     <div className="flex items-center justify-center gap-3">
                       <div className="p-2.5 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 group-hover:scale-110 transition duration-150">
                         <Upload className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <div className="text-xs font-semibold text-surface-800 dark:text-surface-200 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition">Haz clic para subir o arrastra el archivo</div>
-                        <div className="text-[10px] text-surface-500 dark:text-surface-400">PNG con fondo transparente, SVG o WebP (Máx. 2 MB)</div>
+                        <div className="text-xs font-semibold text-surface-800 dark:text-surface-200 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition">
+                          {isDraggingLogo ? "Suelta el archivo aquí" : "Haz clic para subir o arrastra el archivo"}
+                        </div>
+                        <div className="text-[11px] text-surface-500 dark:text-surface-400">PNG con fondo transparente, SVG o WebP (Máx. 2 MB)</div>
                       </div>
                     </div>
                   </label>
@@ -456,81 +535,130 @@ export default function ConfiguracionPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 {/* Nombre Comercial */}
                 <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
+                  <label htmlFor="org-name" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
                     Nombre Comercial / Razón Social <span className="text-primary-600 dark:text-primary-400">*</span>
                   </label>
-                  <input 
-                    type="text" 
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500 font-medium focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                    placeholder="Ej. Corporación Andina S.A.C."
-                  />
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <Building2 className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-name"
+                      type="text" 
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500 font-medium focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
+                      placeholder="Ej. Corporación Andina S.A.C."
+                    />
+                  </div>
                 </div>
                 
                 {/* RUC / NIF */}
                 <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
+                  <label htmlFor="org-ruc" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
                     RUC / NIF / Identificador Fiscal
                   </label>
-                  <input 
-                    type="text" 
-                    value={ruc}
-                    onChange={(e) => setRuc(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-mono focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                    placeholder="Ej. 20601234567"
-                  />
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <Hash className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-ruc"
+                      type="text" 
+                      value={ruc}
+                      onChange={(e) => setRuc(e.target.value)}
+                      className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-mono focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
+                      placeholder="Ej. 20601234567"
+                    />
+                  </div>
                 </div>
                 
                 {/* Teléfono de Contacto */}
                 <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Teléfono de Contacto</label>
-                  <input 
-                    type="text" 
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-mono focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                    placeholder="Ej. +51 987 654 321"
-                  />
+                  <label htmlFor="org-phone" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Teléfono de Contacto</label>
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <Phone className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-phone"
+                      type="tel" 
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-mono focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
+                      placeholder="Ej. +51 987 654 321"
+                    />
+                  </div>
                 </div>
                 
                 {/* Correo Electrónico de RRHH / Admin */}
                 <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Correo Electrónico de RRHH / Admin</label>
-                  <input 
-                    type="email" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 font-mono focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                    placeholder="rrhh@empresa.com"
-                  />
+                  <label htmlFor="org-email" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Correo Electrónico de RRHH / Admin</label>
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <Mail className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-email"
+                      type="email" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onBlur={() => setEmailTouched(true)}
+                      aria-invalid={emailTouched && isEmailInvalid}
+                      aria-describedby={emailTouched && isEmailInvalid ? "org-email-error" : undefined}
+                      className={`w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border text-surface-900 dark:text-surface-100 font-mono focus:ring-2 outline-none transition-all ${
+                        emailTouched && isEmailInvalid
+                          ? "border-danger-500 focus:border-danger-500 focus:ring-danger-500/20"
+                          : "border-surface-200 dark:border-surface-800 focus:border-primary-500 focus:ring-primary-500/20"
+                      }`} 
+                      placeholder="rrhh@empresa.com"
+                    />
+                  </div>
+                  {emailTouched && isEmailInvalid && (
+                    <p id="org-email-error" className="text-[11px] text-danger-600 dark:text-danger-400 mt-1">
+                      Ingresa un correo electrónico válido (ej. rrhh@empresa.com).
+                    </p>
+                  )}
                 </div>
                 
                 {/* Dirección de Sede Central */}
                 <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Dirección de Sede Central</label>
-                  <input 
-                    type="text" 
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                    placeholder="Av. Principal 123"
-                  />
+                  <label htmlFor="org-address" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Dirección de Sede Central</label>
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <MapPin className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-address"
+                      type="text" 
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
+                      placeholder="Av. Principal 123"
+                    />
+                  </div>
                 </div>
                 
                 {/* Texto de Pie de Página para Reportes */}
                 <div className="sm:col-span-2">
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
+                  <label htmlFor="org-footer-text" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
                     Texto de Pie de Página (Para Reportes Oficiales & Constancias)
                   </label>
-                  <input 
-                    type="text" 
-                    value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
-                    className="w-full rounded-xl px-3 py-2 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                    placeholder="Ej. Documento emitido por la Dirección de Gestión de Talento - Registro Inmutable SHA-256"
-                  />
-                  <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-1">Este texto figurará en la nota de certificación inferior de cada reporte exportado.</p>
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <FileText className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-footer-text"
+                      type="text" 
+                      value={footerText}
+                      onChange={(e) => setFooterText(e.target.value)}
+                      className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
+                      placeholder="Ej. Documento emitido por la Dirección de Gestión de Talento - Registro Inmutable SHA-256"
+                    />
+                  </div>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-1">Este texto figurará en la nota de certificación inferior de cada reporte exportado.</p>
                 </div>
               </div>
             </section>
@@ -553,57 +681,74 @@ export default function ConfiguracionPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs mb-4">
                 {/* Tolerancia de Entrada */}
                 <div className="p-3.5 rounded-xl bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800">
-                  <label className="block text-surface-800 dark:text-surface-200 font-medium mb-1">Tolerancia de Entrada (min)</label>
+                  <label htmlFor="org-tolerance" className="block text-surface-800 dark:text-surface-200 font-medium mb-1">Tolerancia de Entrada (min)</label>
                   <div className="flex items-center gap-2">
                     <input 
+                      id="org-tolerance"
                       type="number" 
+                      min={0}
+                      max={120}
                       value={toleranceMinutes}
-                      onChange={(e) => setToleranceMinutes(Number(e.target.value))}
-                      className="w-24 rounded-lg px-2.5 py-1.5 text-center font-bold text-primary-600 dark:text-primary-400 text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 focus:border-primary-500 outline-none" 
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setToleranceMinutes(Math.max(0, Math.min(120, Number.isNaN(val) ? 0 : val)));
+                      }}
+                      className="w-24 rounded-lg px-2.5 py-1.5 text-center font-bold text-primary-600 dark:text-primary-400 text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none" 
                     />
                     <span className="text-[11px] text-surface-500 dark:text-surface-400">minutos</span>
                   </div>
-                  <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-1.5 leading-snug">Margen de cortesía antes de clasificar como Tardanza.</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-1.5 leading-snug">Margen de cortesía antes de clasificar como Tardanza (0–120 min).</p>
                 </div>
                 
                 {/* Ventana de Anticipación */}
                 <div className="p-3.5 rounded-xl bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800">
-                  <label className="block text-surface-800 dark:text-surface-200 font-medium mb-1">Ventana Anticipada (min)</label>
+                  <label htmlFor="org-grace-period" className="block text-surface-800 dark:text-surface-200 font-medium mb-1">Ventana Anticipada (min)</label>
                   <div className="flex items-center gap-2">
                     <input 
+                      id="org-grace-period"
                       type="number" 
+                      min={0}
+                      max={120}
                       value={gracePeriodMinutes}
-                      onChange={(e) => setGracePeriodMinutes(Number(e.target.value))}
-                      className="w-24 rounded-lg px-2.5 py-1.5 text-center font-bold text-primary-600 dark:text-primary-400 text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 focus:border-primary-500 outline-none" 
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setGracePeriodMinutes(Math.max(0, Math.min(120, Number.isNaN(val) ? 0 : val)));
+                      }}
+                      className="w-24 rounded-lg px-2.5 py-1.5 text-center font-bold text-primary-600 dark:text-primary-400 text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-800 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none" 
                     />
                     <span className="text-[11px] text-surface-500 dark:text-surface-400">minutos</span>
                   </div>
-                  <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-1.5 leading-snug">Permite registrarse antes del inicio oficial del turno.</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-1.5 leading-snug">Permite registrarse antes del inicio oficial del turno (0–120 min).</p>
                 </div>
                 
                 {/* Expiración Token */}
                 <div className="p-3.5 rounded-xl bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800">
-                  <label className="block text-surface-800 dark:text-surface-200 font-medium mb-1">Expiración Token QR (seg)</label>
+                  <label htmlFor="org-qr-expiry" className="block text-surface-800 dark:text-surface-200 font-medium mb-1">Expiración Token QR (seg)</label>
                   <div className="flex items-center gap-2">
                     <input 
+                      id="org-qr-expiry"
                       type="number" 
-                      value="30" 
+                      value={30} 
                       readOnly
-                      className="w-24 rounded-lg px-2.5 py-1.5 text-center font-bold text-primary-600 dark:text-primary-400 text-sm bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 opacity-80" 
+                      disabled
+                      aria-readonly="true"
+                      className="w-24 rounded-lg px-2.5 py-1.5 text-center font-bold text-surface-600 dark:text-surface-300 text-sm bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 cursor-not-allowed opacity-80" 
                     />
-                    <span className="text-[11px] text-surface-500 dark:text-surface-400">segundos</span>
+                    <span className="text-[11px] text-surface-500 dark:text-surface-400">segundos (fijo)</span>
                   </div>
-                  <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-1.5 leading-snug">Rotación anti-suplantación en la App Colaborador.</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-1.5 leading-snug">Rotación anti-suplantación en la App Colaborador.</p>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-surface-200 dark:border-surface-800 text-xs">
                 {/* Zona Horaria */}
                 <div>
-                  <label className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Zona Horaria Oficial</label>
+                  <label htmlFor="org-timezone" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">Zona Horaria Oficial</label>
                   <CustomSelect 
+                    id="org-timezone"
                     value={timezone}
                     onChange={(val) => setTimezone(val)}
+                    leftIcon={Globe}
                     options={[
                       { value: "America/Lima", label: "America/Lima (UTC-05:00) · Hora Oficial" },
                       { value: "America/Bogota", label: "America/Bogota (UTC-05:00)" },
@@ -616,23 +761,29 @@ export default function ConfiguracionPage() {
                 </div>
                 
                 {/* Modo Offline Buffer */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-surface-50 dark:bg-surface-950/40 border border-surface-200 dark:border-surface-800">
-                  <div>
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface-50 dark:bg-surface-950/40 border border-surface-200 dark:border-surface-800">
+                  <label htmlFor="offlineToggle" className="cursor-pointer">
                     <span className="block font-medium text-surface-800 dark:text-surface-200">Offline Buffer en Kiosks</span>
-                    <span className="text-[10px] text-surface-500 dark:text-surface-400">Sync por lotes cada 10s ante pérdida red</span>
-                  </div>
-                  <div className="relative inline-block w-10 align-middle select-none transition duration-200 ease-in cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      name="toggle" 
-                      id="offlineToggle" 
-                      className="sr-only" 
-                      checked={offlineBuffer}
-                      onChange={(e) => setOfflineBuffer(e.target.checked)} 
+                    <span className="text-[11px] text-surface-500 dark:text-surface-400">Sync por lotes cada 10s ante pérdida red</span>
+                  </label>
+                  <button
+                    type="button"
+                    role="switch"
+                    id="offlineToggle"
+                    aria-checked={offlineBuffer}
+                    aria-label="Activar o desactivar Offline Buffer en Kiosks"
+                    onClick={() => setOfflineBuffer((prev) => !prev)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
+                      offlineBuffer ? "bg-primary-600" : "bg-surface-300 dark:bg-surface-700"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        offlineBuffer ? "translate-x-5" : "translate-x-0"
+                      }`}
                     />
-                    <div className={`block w-10 h-5 rounded-full shadow-inner transition-colors ${offlineBuffer ? 'bg-primary-600' : 'bg-surface-300 dark:bg-surface-700'}`}></div>
-                    <div className={`absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform transform shadow-md ${offlineBuffer ? '' : '-translate-x-5'}`}></div>
-                  </div>
+                  </button>
                 </div>
               </div>
             </section>
@@ -664,14 +815,14 @@ export default function ConfiguracionPage() {
                     )}
                     <div>
                       <div className="text-[11px] font-bold text-surface-900 dark:text-white uppercase tracking-tight truncate max-w-[120px]">{name || "Empresa"}</div>
-                      <div className="text-[8px] text-surface-500 dark:text-surface-400 font-mono">{ruc ? `RUC: ${ruc}` : "RUC: 20XXXXXXXXX"} · Sede</div>
+                      <div className="text-[10px] text-surface-500 dark:text-surface-400 font-mono">{ruc ? `RUC: ${ruc}` : "RUC: 20XXXXXXXXX"} · Sede</div>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 uppercase">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 border border-primary-200 dark:border-primary-800/40 uppercase">
                       Reporte Certificado
                     </span>
-                    <div className="text-[7px] text-surface-400 dark:text-surface-500 font-mono mt-0.5">Emitido: Hoy</div>
+                    <div className="text-[9px] text-surface-400 dark:text-surface-500 font-mono mt-0.5">Emitido: Hoy</div>
                   </div>
                 </div>
                 <div className="mt-2 space-y-1">
@@ -679,11 +830,11 @@ export default function ConfiguracionPage() {
                   <div className="h-1.5 bg-surface-200 dark:bg-surface-800 rounded w-full"></div>
                   <div className="h-1.5 bg-surface-100 dark:bg-surface-800/60 rounded w-4/6"></div>
                 </div>
-                <div className="mt-2.5 pt-1.5 border-t border-surface-200 dark:border-surface-800 text-[7px] text-surface-500 dark:text-surface-400 text-center font-mono truncate px-1">
+                <div className="mt-2.5 pt-1.5 border-t border-surface-200 dark:border-surface-800 text-[10px] text-surface-500 dark:text-surface-400 text-center font-mono truncate px-1">
                   {footerText || "Validez de Auditoría Interna · Registro Criptográfico SHA-256"}
                 </div>
               </div>
-              <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-3 text-center">
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-3 text-center">
                 Así se renderizará el membrete en descargas de asistencia mensual y constancias de RRHH.
               </p>
             </section>
@@ -724,9 +875,9 @@ export default function ConfiguracionPage() {
             <AdminManualButton variant="card" />
 
             {/* CARD 4: Canal de Soporte Directo WhatsApp */}
-            <AdminWhatsAppSupportButton variant="card" organizationName={name || "Hotel Italia"} />
+            <AdminWhatsAppSupportButton variant="card" organizationName={name.trim() || "Mi Organización"} />
           </div>
-        </div>
+        </form>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FolderTree, Edit2, Trash2, Users } from "lucide-react";
+import { Building2, Edit2, Trash2, Users } from "lucide-react";
 import { ActionButton, ActionButtonGroup } from "@/components/ui/ActionButton";
 
 export interface DepartmentData {
@@ -29,7 +29,7 @@ export function DepartmentCard({ department, onEdit, onDelete }: DepartmentCardP
           <div 
             className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors bg-surface-100 dark:bg-surface-800 text-surface-400 dark:text-surface-500 border border-surface-200 dark:border-surface-700 group-hover:bg-primary-50 dark:group-hover:bg-primary-500/10 group-hover:text-primary-600 dark:group-hover:text-primary-400 group-hover:border-primary-200 dark:group-hover:border-primary-500/20"
           >
-            <FolderTree className="w-6 h-6 sm:w-7 sm:h-7" />
+            <Building2 className="w-6 h-6 sm:w-7 sm:h-7" aria-hidden="true" />
           </div>
 
           <div className="flex flex-col min-w-0 pt-1">
@@ -45,7 +45,7 @@ export function DepartmentCard({ department, onEdit, onDelete }: DepartmentCardP
           </div>
         </div>
 
-        <ActionButtonGroup align="right" className="self-end sm:self-start shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <ActionButtonGroup align="right" className="self-end sm:self-start shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
           <ActionButton
             size="md"
             variant="warning"
