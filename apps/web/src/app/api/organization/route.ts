@@ -11,6 +11,7 @@ const UpdateOrganizationSchema = z.object({
   settings: z
     .object({
       ruc: z.string().optional().nullable(),
+      legalName: z.string().optional().nullable(),
       brandColor: z.string().optional().nullable(),
       phone: z.string().optional().nullable(),
       email: z.string().optional().nullable(),

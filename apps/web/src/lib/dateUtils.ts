@@ -16,7 +16,7 @@ export function getLocalDateString(
   timeZone: string = DEFAULT_TIMEZONE
 ): string {
   const d = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
-  
+
   // Usar el locale 'en-CA' para obtener formato ISO 'YYYY-MM-DD' garantizado
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: timeZone || DEFAULT_TIMEZONE,
@@ -66,6 +66,29 @@ export function getLocalTimeParts(
 }
 
 /**
+ * Construye un Date UTC exacto a partir de una fecha calendario ('YYYY-MM-DD') y una hora local ('hour:minute')
+ * en la zona horaria indicada, independientemente de la zona horaria del servidor.
+ */
+export function buildZonedDateTime(
+  baseDateStr: string,
+  hour: number,
+  minute: number,
+  timeZone: string = DEFAULT_TIMEZONE,
+  dayOffset = 0
+): Date {
+  const [year, month, day] = baseDateStr.split("-").map(Number);
+  const targetLocalMs = Date.UTC(year, month - 1, day + dayOffset, hour, minute, 0, 0);
+  const utcGuess = new Date(targetLocalMs);
+
+  const shownDateStr = getLocalDateString(utcGuess, timeZone);
+  const [ly, lm, ld] = shownDateStr.split("-").map(Number);
+  const { hour: lh, minute: lmin, second: lsec } = getLocalTimeParts(utcGuess, timeZone);
+  const shownLocalMs = Date.UTC(ly, lm - 1, ld, lh, lmin, lsec, 0);
+
+  return new Date(utcGuess.getTime() + (targetLocalMs - shownLocalMs));
+}
+
+/**
  * Formatea una fecha u hora según la zona horaria local.
  * Soporta patrones comunes: 'HH:mm', 'HH:mm:ss', 'yyyy-MM-dd', 'dd/MM/yyyy HH:mm'.
  */
@@ -103,9 +126,12 @@ export function formatLocalTime(
 }
 
 export interface OvertimeScheduleInfo {
+  entryHour?: number;
+  entryMinute?: number;
   exitHour: number;
   exitMinute: number;
   isSplit?: boolean;
+  crossesMidnight?: boolean;
   exitHour2?: number | null;
   exitMinute2?: number | null;
 }
@@ -113,12 +139,14 @@ export interface OvertimeScheduleInfo {
 /**
  * Calcula los minutos de sobretiempo (horas extras) a partir de la hora real de salida
  * comparada contra el horario programado. Umbral mínimo: 15 minutos.
+ * Soporta turnos nocturnos y salidas que cruzan la medianoche (ej. salida 23:00 -> marca 00:45).
  */
 export function computeOvertime(
   exitDate: Date,
   schedule: OvertimeScheduleInfo | null | undefined,
   timeZone: string = DEFAULT_TIMEZONE,
-  minThresholdMinutes = 15
+  minThresholdMinutes = 15,
+  entryDate?: Date | null
 ): { overtimeMinutes: number; overtimeStatus: "NONE" | "PENDING" } {
   if (!schedule) {
     return { overtimeMinutes: 0, overtimeStatus: "NONE" };
@@ -134,10 +162,38 @@ export function computeOvertime(
       : schedule.exitMinute;
 
   const scheduledExitMins = targetHour * 60 + targetMinute;
+
+  if (entryDate) {
+    const entryDateStr = getLocalDateString(entryDate, timeZone);
+    const hasEntryHours =
+      typeof schedule.entryHour === "number" && typeof schedule.entryMinute === "number";
+    const entryMins = hasEntryHours
+      ? schedule.entryHour! * 60 + schedule.entryMinute!
+      : getLocalTimeParts(entryDate, timeZone).hour * 60 + getLocalTimeParts(entryDate, timeZone).minute;
+    const isOvernight = Boolean(schedule.crossesMidnight) || scheduledExitMins <= entryMins;
+    const scheduledExitDate = buildZonedDateTime(
+      entryDateStr,
+      targetHour,
+      targetMinute,
+      timeZone,
+      isOvernight ? 1 : 0
+    );
+    const diff = Math.round((exitDate.getTime() - scheduledExitDate.getTime()) / 60000);
+    if (diff >= minThresholdMinutes) {
+      return { overtimeMinutes: diff, overtimeStatus: "PENDING" };
+    }
+    return { overtimeMinutes: 0, overtimeStatus: "NONE" };
+  }
+
   const { hour, minute } = getLocalTimeParts(exitDate, timeZone);
   const actualExitMins = hour * 60 + minute;
 
-  const diff = actualExitMins - scheduledExitMins;
+  let diff = actualExitMins - scheduledExitMins;
+  // Si el turno terminaba tarde (ej. 23:00) y la salida real cruzó la medianoche (ej. 00:45)
+  if (diff < -720) {
+    diff += 24 * 60;
+  }
+
   if (diff >= minThresholdMinutes) {
     return { overtimeMinutes: diff, overtimeStatus: "PENDING" };
   }

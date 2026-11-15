@@ -36,6 +36,9 @@ interface EditAttendanceModalProps {
     exitTime?: string | null;
     entryTime2?: string | null;
     exitTime2?: string | null;
+    originalEntryTime?: string | null;
+    originalExitTime?: string | null;
+    isManualEdited?: boolean;
     notes?: string | null;
     lateMinutes?: number | null;
     lateMinutes2?: number | null;
@@ -59,6 +62,9 @@ export function EditAttendanceModal({
   const [notes, setNotes] = useState("");
   const [lateMinutes, setLateMinutes] = useState(0);
   const [lateMinutes2, setLateMinutes2] = useState(0);
+  const [originalEntryTime, setOriginalEntryTime] = useState<string | null>(null);
+  const [originalExitTime, setOriginalExitTime] = useState<string | null>(null);
+  const [isManualEdited, setIsManualEdited] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [error, setError] = useState("");
@@ -84,6 +90,9 @@ export function EditAttendanceModal({
     if (attendance.notes !== undefined) setNotes(attendance.notes || "");
     if (attendance.lateMinutes !== undefined) setLateMinutes(attendance.lateMinutes || 0);
     if (attendance.lateMinutes2 !== undefined) setLateMinutes2(attendance.lateMinutes2 || 0);
+    setOriginalEntryTime(attendance.originalEntryTime || null);
+    setOriginalExitTime(attendance.originalExitTime || null);
+    setIsManualEdited(Boolean(attendance.isManualEdited));
 
     // If attendance object lacks details, fetch full record by ID
     if (!attendance.userName || !attendance.status || attendance.entryTime === undefined) {
@@ -103,6 +112,9 @@ export function EditAttendanceModal({
             setNotes(att.notes || "");
             setLateMinutes(att.lateMinutes || 0);
             setLateMinutes2(att.lateMinutes2 || 0);
+            setOriginalEntryTime(att.originalEntryTime || null);
+            setOriginalExitTime(att.originalExitTime || null);
+            setIsManualEdited(Boolean(att.isManualEdited));
           }
         })
         .catch((err) => console.error("Error cargando registro:", err))
@@ -227,14 +239,32 @@ export function EditAttendanceModal({
 
         {/* Section 2: Tramo 1 */}
         <div className="rounded-2xl p-5 bg-warning-50 dark:bg-warning-500/5 border border-warning-200 dark:border-warning-500/20 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-warning-200/50 dark:border-warning-500/10">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-warning-200/50 dark:border-warning-500/10 flex-wrap">
             <div className="flex items-center gap-2">
               <Sun className="w-4 h-4 text-warning-500" aria-hidden="true" />
               <h4 className="text-xs font-bold text-warning-800 dark:text-warning-300 uppercase tracking-wider">
                 2. Tramo 1 (Turno Mañana / Jornada Continua)
               </h4>
             </div>
+            {entryTime && exitTime && exitTime <= entryTime && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
+                <Moon className="w-3 h-3" />
+                Turno Nocturno (+1 día · Salida al día siguiente)
+              </span>
+            )}
           </div>
+
+          {isManualEdited && (originalEntryTime || originalExitTime) && (
+            <div className="px-3.5 py-2.5 rounded-xl bg-amber-100/80 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-[11px] text-amber-900 dark:text-amber-200 flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                <strong>Respaldo Original (Kiosko):</strong>{" "}
+                {originalEntryTime ? `Entrada ${format(new Date(originalEntryTime), "HH:mm")}` : "Sin entrada original"}
+                {" · "}
+                {originalExitTime ? `Salida ${format(new Date(originalExitTime), "HH:mm")}` : "Sin salida original"}
+              </span>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Hora de Entrada (T1)" icon={Clock}>

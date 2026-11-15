@@ -26,6 +26,9 @@ export interface AttendanceExportItem {
   workedMinutes?: number | null;
   lateMinutes?: number | null;
   lateMinutes2?: number | null;
+  originalEntryTime?: Date | string | null;
+  originalExitTime?: Date | string | null;
+  isManualEdited?: boolean;
   status: string;
   notes?: string | null;
   statusChangedBy?: string | null;
@@ -209,6 +212,20 @@ export async function generateAttendanceExcelWorkbook(options: {
     const roleText = formatUserRole(a.user.role);
     const statusText = formatAttendanceStatus(a.status);
 
+    const originalParts: string[] = [];
+    if (a.isManualEdited) {
+      if (a.originalEntryTime) {
+        originalParts.push(`E.Orig ${format(new Date(a.originalEntryTime), "HH:mm")}`);
+      }
+      if (a.originalExitTime) {
+        originalParts.push(`S.Orig ${format(new Date(a.originalExitTime), "HH:mm")}`);
+      }
+    }
+    const auditTag = a.isManualEdited
+      ? ` [Ajuste Manual${originalParts.length ? ` · ${originalParts.join(" / ")}` : ""}]`
+      : "";
+    const notesWithAudit = a.notes ? `${a.notes}${auditTag}` : auditTag.trim() || "-";
+
     const values = [
       index + 1,
       dateStr,
@@ -224,7 +241,7 @@ export async function generateAttendanceExcelWorkbook(options: {
       workedHours,
       statusText,
       (a.lateMinutes || 0) + (a.lateMinutes2 || 0),
-      a.notes || "-",
+      notesWithAudit,
       a.statusChangedBy || "Sistema",
     ];
 

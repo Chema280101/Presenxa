@@ -13,6 +13,12 @@ import {
   formatLocalTime,
   computeOvertime,
 } from "@/lib/dateUtils";
+import {
+  computeEntryDelayMinutes,
+  fetchEffectiveScheduleForUserDate,
+  isOvernightSchedule,
+} from "@/lib/scheduleResolver";
+import { offloadDataUrlIfConfigured } from "@/lib/storage";
 import { generateMicroInteraction } from "@/lib/microInteractions";
 import { checkToleranceWeeklyLimit } from "@/lib/toleranceChecker";
 import { sendPushToSupervisors } from "@/lib/webPush";
@@ -170,6 +176,7 @@ interface ShiftExecutionContext {
     toleranceMinutes2: number | null;
   } | null;
   today: Date;
+  shiftDateStr: string;
   now: Date;
   timezone: string;
   localTimeFormatted: string;
@@ -248,11 +255,18 @@ async function handleSplitShiftEntry1(ctx: ShiftExecutionContext): Promise<Shift
   if (ctx.schedule) {
     const scheduledMinutes = ctx.schedule.entryHour * 60 + ctx.schedule.entryMinute;
     const tolerance = resolveToleranceMinutes(ctx.schedule.toleranceMinutes, ctx.kiosk.location.organization?.settings);
+    const delayMinutes = computeEntryDelayMinutes(
+      ctx.now,
+      ctx.shiftDateStr,
+      ctx.schedule.entryHour,
+      ctx.schedule.entryMinute,
+      ctx.timezone
+    );
     const checkResult = await checkToleranceWeeklyLimit(
       ctx.user.id,
       ctx.kiosk.location.organization?.settings,
       ctx.today,
-      ctx.actualTotalMinutes,
+      scheduledMinutes + delayMinutes,
       scheduledMinutes,
       tolerance
     );
@@ -433,7 +447,7 @@ async function handleSplitShiftExit2(
     const dniSuffix = ctx.isDniScan ? " (Pendiente de confirmación)" : "";
     const message = `¡Hasta luego, ${ctx.user.firstName}! Jornada completada con éxito. Total trabajado: ${workedStr}.${dniSuffix}`;
     const dniNote = `[PENDIENTE_VALIDACION_DNI] Salida final por DNI a las ${formatLocalTime(ctx.now, "HH:mm:ss", ctx.timezone)}.`;
-    const overtime = computeOvertime(ctx.now, ctx.schedule, ctx.timezone);
+    const overtime = computeOvertime(ctx.now, ctx.schedule, ctx.timezone, 15, attendance.entryTime);
 
     const updated = await prisma.attendance.update({
       where: { id: attendance.id },
@@ -514,11 +528,18 @@ async function handleContinuousEntry(ctx: ShiftExecutionContext): Promise<ShiftE
   if (ctx.schedule) {
     const scheduledTotalMinutes = ctx.schedule.entryHour * 60 + ctx.schedule.entryMinute;
     const tolerance = resolveToleranceMinutes(ctx.schedule.toleranceMinutes, ctx.kiosk.location.organization?.settings);
+    const delayMinutes = computeEntryDelayMinutes(
+      ctx.now,
+      ctx.shiftDateStr,
+      ctx.schedule.entryHour,
+      ctx.schedule.entryMinute,
+      ctx.timezone
+    );
     const checkResult = await checkToleranceWeeklyLimit(
       ctx.user.id,
       ctx.kiosk.location.organization?.settings,
       ctx.today,
-      ctx.actualTotalMinutes,
+      scheduledTotalMinutes + delayMinutes,
       scheduledTotalMinutes,
       tolerance
     );
@@ -599,7 +620,7 @@ async function processContinuousShift(
     const finalStatus =
       attendance.status === AttendanceStatus.TARDE ? AttendanceStatus.TARDE : AttendanceStatus.PRESENTE;
     const dniNote = `[PENDIENTE_VALIDACION_DNI] Salida manual por DNI a las ${formatLocalTime(ctx.now, "HH:mm:ss", ctx.timezone)}.`;
-    const overtime = computeOvertime(ctx.now, ctx.schedule, ctx.timezone);
+    const overtime = computeOvertime(ctx.now, ctx.schedule, ctx.timezone, 15, entryDate);
 
     const updated = await prisma.attendance.update({
       where: { id: attendance.id },
@@ -744,16 +765,21 @@ async function executeShiftAttendance(params: {
   kiosk: ShiftExecutionContext["kiosk"];
   schedule: ShiftExecutionContext["schedule"];
   today: Date;
+  shiftDateStr: string;
+  existingAttendance?: AttendanceRecord | null;
   now: Date;
   timezone: string;
   isDniScan: boolean;
   searchQrToken: string;
   mode: "AUTO" | "ENTRY" | "EXIT";
 }): Promise<ShiftExecutionResult | null> {
-  const { user, kiosk, schedule, today, now, timezone, isDniScan, searchQrToken, mode } = params;
-  let attendance = await prisma.attendance.findUnique({
-    where: { userId_date: { userId: user.id, date: today } },
-  });
+  const { user, kiosk, schedule, today, shiftDateStr, existingAttendance, now, timezone, isDniScan, searchQrToken, mode } = params;
+  const attendance =
+    existingAttendance !== undefined
+      ? existingAttendance
+      : await prisma.attendance.findUnique({
+          where: { userId_date: { userId: user.id, date: today } },
+        });
 
   if (mode !== "ENTRY") {
     const recentExitInfo = await findRecentAccidentalExit(user.id, now, timezone);
@@ -764,12 +790,6 @@ async function executeShiftAttendance(params: {
         status: recentExitInfo.attendance.status,
         message: recentExitInfo.message,
       };
-    }
-    if (!attendance?.entryTime) {
-      const openPreviousShift = await findOpenOvernightShift(user.id, now);
-      if (openPreviousShift) {
-        attendance = openPreviousShift;
-      }
     }
   }
 
@@ -783,6 +803,7 @@ async function executeShiftAttendance(params: {
     kiosk,
     schedule,
     today,
+    shiftDateStr,
     now,
     timezone,
     localTimeFormatted: formatLocalTime(now, "HH:mm", timezone),
@@ -970,26 +991,87 @@ export async function POST(req: Request) {
     const timezone = kiosk.location.timezone || orgSettings.timezone || DEFAULT_TIMEZONE;
     const now = new Date();
     const today = getLocalTodayDate(now, timezone);
+    const todayStr = today.toISOString().slice(0, 10);
 
-    const shiftOverride = await prisma.shiftOverride.findUnique({
+    // 1. Verificar primero si el colaborador está cerrando un turno nocturno abierto de ayer (ej. entró Lunes 22:00, sale Martes 06:00 aunque Martes sea su día libre)
+    let targetShiftDate = today;
+    let targetShiftDateStr = todayStr;
+    let preloadedAttendance = await prisma.attendance.findUnique({
       where: { userId_date: { userId: user.id, date: today } },
-      include: { schedule: true },
     });
 
-    if (shiftOverride?.isDayOff) {
-      return NextResponse.json(
-        { error: "Hoy es tu día libre programado. No requieres registrar asistencia." },
-        { status: 400 }
+    const isClosingOpenOvernight =
+      mode !== "ENTRY" && !preloadedAttendance?.entryTime
+        ? await findOpenOvernightShift(user.id, now)
+        : null;
+
+    let schedule: ShiftExecutionContext["schedule"] = null;
+
+    if (isClosingOpenOvernight) {
+      preloadedAttendance = isClosingOpenOvernight;
+      targetShiftDate = isClosingOpenOvernight.date;
+      targetShiftDateStr = isClosingOpenOvernight.date.toISOString().slice(0, 10);
+      const resolvedPrev = await fetchEffectiveScheduleForUserDate(
+        user.id,
+        targetShiftDate,
+        targetShiftDateStr
       );
+      schedule = resolvedPrev.schedule || user.userSchedules?.[0]?.schedule;
+    } else {
+      // 2. Verificar si es una entrada tardía post-medianoche de un turno nocturno de ayer (ej. turno Lunes 23:45, llega Martes 00:10)
+      let matchedLateOvernight = false;
+      if (mode !== "EXIT" && !preloadedAttendance?.entryTime) {
+        const yesterdayDate = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+        const resolvedYesterday = await fetchEffectiveScheduleForUserDate(
+          user.id,
+          yesterdayDate,
+          yesterdayStr
+        );
+        const ySched = resolvedYesterday.schedule;
+        if (ySched && !resolvedYesterday.isDayOff && isOvernightSchedule(ySched)) {
+          const delayFromYesterday = computeEntryDelayMinutes(
+            now,
+            yesterdayStr,
+            ySched.entryHour,
+            ySched.entryMinute,
+            timezone
+          );
+          if (delayFromYesterday >= 0 && delayFromYesterday <= 240) {
+            const yesterdayAtt = await prisma.attendance.findUnique({
+              where: { userId_date: { userId: user.id, date: yesterdayDate } },
+            });
+            if (!yesterdayAtt?.entryTime && (!yesterdayAtt || yesterdayAtt.status === "PENDIENTE")) {
+              matchedLateOvernight = true;
+              targetShiftDate = yesterdayDate;
+              targetShiftDateStr = yesterdayStr;
+              preloadedAttendance = yesterdayAtt;
+              schedule = ySched;
+            }
+          }
+        }
+      }
+
+      if (!matchedLateOvernight) {
+        const resolvedToday = await fetchEffectiveScheduleForUserDate(user.id, today, todayStr);
+        if (resolvedToday.isDayOff && resolvedToday.isOverride) {
+          return NextResponse.json(
+            { error: "Hoy es tu día libre programado. No requieres registrar asistencia." },
+            { status: 400 }
+          );
+        }
+        schedule = resolvedToday.schedule || user.userSchedules?.[0]?.schedule;
+      }
     }
 
-    const schedule = shiftOverride?.schedule || user.userSchedules?.[0]?.schedule;
     const isSplit = Boolean(schedule?.isSplit);
     const shiftResult = await executeShiftAttendance({
       user,
       kiosk,
       schedule,
-      today,
+      today: targetShiftDate,
+      shiftDateStr: targetShiftDateStr,
+      existingAttendance: preloadedAttendance,
       now,
       timezone,
       isDniScan,
@@ -1004,9 +1086,14 @@ export async function POST(req: Request) {
     const { attendance, scanType, status, message } = shiftResult;
 
     if (isDniScan && verificationPhotoUrl && scanType !== "ALREADY_REGISTERED") {
+      const storedPhotoUrl = await offloadDataUrlIfConfigured(
+        verificationPhotoUrl,
+        kiosk.location.organizationId,
+        "kiosk-photos"
+      );
       await prisma.attendance.update({
         where: { id: attendance.id },
-        data: { verificationPhotoUrl },
+        data: { verificationPhotoUrl: storedPhotoUrl },
       });
     }
 

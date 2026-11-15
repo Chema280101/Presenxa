@@ -1,5 +1,6 @@
 import { prisma, AttendanceStatus } from "@asistencias/db";
-import { getLocalDateString, getLocalTimeParts, computeOvertime, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
+import { getLocalDateString, computeOvertime, DEFAULT_TIMEZONE } from "@/lib/dateUtils";
+import { computeEntryDelayMinutes } from "@/lib/scheduleResolver";
 import { notifySupervisorsInOrg } from "@/lib/notifications";
 
 export interface EodResult {
@@ -180,6 +181,11 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
       include: {
         user: {
           include: {
+            shiftOverrides: {
+              where: { date: targetDateDb },
+              include: { schedule: true },
+              take: 1,
+            },
             userSchedules: {
               where: {
                 OR: [
@@ -210,15 +216,19 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
           totalWorkedMinutes += Math.max(0, Math.round(diff2Ms / (1000 * 60)));
         }
 
-        const schedule = att.user.userSchedules[0]?.schedule;
+        const override = att.user.shiftOverrides[0];
+        const schedule = override?.schedule || att.user.userSchedules[0]?.schedule;
         let lateMinutes = att.lateMinutes ?? 0;
         let newStatus: AttendanceStatus = att.status === "TARDE" ? "TARDE" : "PRESENTE";
 
         if (schedule && att.status === "PENDIENTE") {
-          const { hour: entryHour, minute: entryMin } = getLocalTimeParts(att.entryTime, DEFAULT_TIMEZONE);
-          const expectedEntryMinutes = schedule.entryHour * 60 + schedule.entryMinute;
-          const actualEntryMinutes = entryHour * 60 + entryMin;
-          const diffEntry = actualEntryMinutes - expectedEntryMinutes;
+          const diffEntry = computeEntryDelayMinutes(
+            att.entryTime,
+            dateStr,
+            schedule.entryHour,
+            schedule.entryMinute,
+            DEFAULT_TIMEZONE
+          );
           if (diffEntry > (schedule.toleranceMinutes || 0)) {
             newStatus = "TARDE";
             lateMinutes = Math.max(0, diffEntry);
@@ -231,7 +241,7 @@ export async function runDailyCloser(targetDate?: Date): Promise<EodResult> {
         const finalExitDate = att.exitTime2 || att.exitTime;
         const overtime =
           att.overtimeStatus === "NONE" && finalExitDate
-            ? computeOvertime(finalExitDate, schedule, DEFAULT_TIMEZONE)
+            ? computeOvertime(finalExitDate, schedule, DEFAULT_TIMEZONE, 15, att.entryTime)
             : null;
 
         await prisma.attendance.update({

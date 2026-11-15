@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import sharp from "sharp";
+import { uploadBufferToStorage } from "@/lib/storage";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 MB
 const MAX_PDF_SIZE = 2.5 * 1024 * 1024; // 2.5 MB
@@ -55,12 +56,20 @@ export async function POST(req: Request) {
         );
       }
 
-      const base64 = buffer.toString("base64");
+      const uploaded = await uploadBufferToStorage({
+        buffer,
+        mimeType: "application/pdf",
+        extension: "pdf",
+        organizationId: session.user.organizationId || "default",
+        category: "justifications",
+      });
+
       return NextResponse.json({
-        url: `data:application/pdf;base64,${base64}`,
+        url: uploaded.url,
         fileName: file.name,
         mimeType: "application/pdf",
         size: buffer.length,
+        provider: uploaded.provider,
       });
     }
 
@@ -71,12 +80,20 @@ export async function POST(req: Request) {
         .webp({ quality: 80 })
         .toBuffer();
 
-      const base64 = optimizedBuffer.toString("base64");
+      const uploaded = await uploadBufferToStorage({
+        buffer: optimizedBuffer,
+        mimeType: "image/webp",
+        extension: "webp",
+        organizationId: session.user.organizationId || "default",
+        category: "attachments",
+      });
+
       return NextResponse.json({
-        url: `data:image/webp;base64,${base64}`,
+        url: uploaded.url,
         fileName: file.name,
         mimeType: "image/webp",
         size: optimizedBuffer.length,
+        provider: uploaded.provider,
       });
     }
 

@@ -34,6 +34,7 @@ interface OrganizationData {
   logoUrl?: string | null;
   settings?: {
     ruc?: string | null;
+    legalName?: string | null;
     brandColor?: string | null;
     phone?: string | null;
     email?: string | null;
@@ -172,6 +173,7 @@ export default function ConfiguracionPage() {
   const [type, setType] = useState<"EMPRESA">("EMPRESA");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [ruc, setRuc] = useState("");
+  const [legalName, setLegalName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
@@ -198,6 +200,7 @@ export default function ConfiguracionPage() {
       type !== (org.type || "EMPRESA") ||
       (logoUrl || null) !== (org.logoUrl || null) ||
       ruc !== (org.settings?.ruc || "") ||
+      legalName !== (org.settings?.legalName || "") ||
       phone !== (org.settings?.phone || "") ||
       email !== (org.settings?.email || "") ||
       address !== (org.settings?.address || "") ||
@@ -207,7 +210,7 @@ export default function ConfiguracionPage() {
       timezone !== (org.settings?.timezone || "America/Lima") ||
       offlineBuffer !== (org.settings?.offline_buffer ?? true)
     );
-  }, [org, name, type, logoUrl, ruc, phone, email, address, footerText, toleranceMinutes, gracePeriodMinutes, timezone, offlineBuffer]);
+  }, [org, name, type, logoUrl, ruc, legalName, phone, email, address, footerText, toleranceMinutes, gracePeriodMinutes, timezone, offlineBuffer]);
 
   const fetchOrganization = async () => {
     try {
@@ -222,6 +225,7 @@ export default function ConfiguracionPage() {
         setType(o.type || "EMPRESA");
         setLogoUrl(o.logoUrl || null);
         setRuc(o.settings?.ruc || "");
+        setLegalName(o.settings?.legalName || "");
         setPhone(o.settings?.phone || "");
         setEmail(o.settings?.email || "");
         setAddress(o.settings?.address || "");
@@ -353,6 +357,7 @@ export default function ConfiguracionPage() {
           logoUrl,
           settings: {
             ruc: ruc.trim() || null,
+            legalName: legalName.trim() || null,
             phone: phone.trim() || null,
             email: email.trim() || null,
             address: address.trim() || null,
@@ -536,7 +541,7 @@ export default function ConfiguracionPage() {
                 {/* Nombre Comercial */}
                 <div>
                   <label htmlFor="org-name" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
-                    Nombre Comercial / Razón Social <span className="text-primary-600 dark:text-primary-400">*</span>
+                    Nombre Comercial <span className="text-primary-600 dark:text-primary-400">*</span>
                   </label>
                   <div className="relative group">
                     <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
@@ -549,7 +554,27 @@ export default function ConfiguracionPage() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500 font-medium focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
-                      placeholder="Ej. Corporación Andina S.A.C."
+                      placeholder="Ej. Hotel Gran Marqués"
+                    />
+                  </div>
+                </div>
+
+                {/* Razón Social Legal */}
+                <div>
+                  <label htmlFor="org-legal-name" className="block text-surface-700 dark:text-surface-300 font-medium mb-1.5">
+                    Razón Social Oficial (SUNAFIL / Reportes)
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute top-0 left-0 h-10 pl-3.5 flex items-center pointer-events-none text-surface-400 group-focus-within:text-primary-500 transition-colors">
+                      <FileText className="w-4 h-4" aria-hidden="true" />
+                    </div>
+                    <input 
+                      id="org-legal-name"
+                      type="text" 
+                      value={legalName}
+                      onChange={(e) => setLegalName(e.target.value)}
+                      className="w-full h-10 rounded-xl pl-10 pr-3.5 bg-surface-50 dark:bg-surface-950/60 border border-surface-200 dark:border-surface-800 text-surface-900 dark:text-surface-100 placeholder-surface-400 dark:placeholder-surface-500 font-medium focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 outline-none transition-all" 
+                      placeholder="Ej. Inversiones Hoteleras del Sur S.A.C."
                     />
                   </div>
                 </div>

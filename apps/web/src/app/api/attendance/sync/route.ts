@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rateLimit";
 import { isSignedQrPayload, verifySignedQrPayload } from "@/lib/qrCrypto";
 import { logAuditEvent } from "@/lib/audit";
 import { DEFAULT_TIMEZONE, getLocalTodayDate, getLocalTimeParts, formatLocalTime } from "@/lib/dateUtils";
+import { fetchEffectiveScheduleForUserDate } from "@/lib/scheduleResolver";
 
 const SyncRecordSchema = z.object({
   id: z.string(),
@@ -314,12 +315,32 @@ async function processSingleSyncRecord(
   const isSigned = isSignedQrPayload(record.qrToken.trim());
   const isDniScan = isOfflineDniScan(user, searchQrToken, cleanToken, isSigned, isUuid);
   const timezone = kiosk.location.timezone || DEFAULT_TIMEZONE;
-  const today = getLocalTodayDate(now, timezone);
-  const schedule = user.userSchedules?.[0]?.schedule;
+  let today = getLocalTodayDate(now, timezone);
+  let todayStr = today.toISOString().slice(0, 10);
 
-  const existingAttendance = await prisma.attendance.findUnique({
+  let existingAttendance = await prisma.attendance.findUnique({
     where: { userId_date: { userId: user.id, date: today } },
   });
+
+  if (record.mode !== "ENTRY" && !existingAttendance?.entryTime) {
+    const sixteenHoursAgo = new Date(now.getTime() - 16 * 60 * 60 * 1000);
+    const openPrev = await prisma.attendance.findFirst({
+      where: {
+        userId: user.id,
+        entryTime: { gte: sixteenHoursAgo, lte: now },
+        OR: [{ exitTime: null }, { entryTime2: { not: null }, exitTime2: null }],
+      },
+      orderBy: { entryTime: "desc" },
+    });
+    if (openPrev) {
+      existingAttendance = openPrev;
+      today = openPrev.date;
+      todayStr = openPrev.date.toISOString().slice(0, 10);
+    }
+  }
+
+  const resolvedSchedule = await fetchEffectiveScheduleForUserDate(user.id, today, todayStr);
+  const schedule = resolvedSchedule.schedule || user.userSchedules?.[0]?.schedule;
 
   const { hour: localHour, minute: localMinute } = getLocalTimeParts(now, timezone);
   const formattedTime = formatLocalTime(now, "HH:mm:ss", timezone);

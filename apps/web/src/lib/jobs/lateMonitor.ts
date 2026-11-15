@@ -159,6 +159,11 @@ export async function runLateMonitor(targetDate?: Date): Promise<LateMonitorResu
       include: {
         user: {
           include: {
+            shiftOverrides: {
+              where: { date: targetDateDb },
+              include: { schedule: true },
+              take: 1,
+            },
             userSchedules: {
               where: {
                 OR: [
@@ -182,7 +187,9 @@ export async function runLateMonitor(targetDate?: Date): Promise<LateMonitorResu
     const lateByOrg = new Map<string, string[]>();
 
     for (const att of pendingAttendances) {
-      const schedule = att.user.userSchedules[0]?.schedule;
+      const override = att.user.shiftOverrides[0];
+      if (override?.isDayOff) continue;
+      const schedule = override?.schedule || att.user.userSchedules[0]?.schedule;
       if (!schedule) continue;
 
       const scheduleEntryMinutes = schedule.entryHour * 60 + schedule.entryMinute;

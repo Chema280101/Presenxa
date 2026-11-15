@@ -3,23 +3,10 @@ import { prisma, AttendanceStatus, AuditAction } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { logAuditEvent } from "@/lib/audit";
+import { DEFAULT_TIMEZONE } from "@/lib/dateUtils";
+import { parseShiftTimeWithOvernight } from "@/lib/scheduleResolver";
 
 import { differenceInMinutes } from "date-fns";
-
-function parseTimeString(timeVal: string | null | undefined, baseDate: Date): Date | null {
-  if (!timeVal) return null;
-  if (timeVal.includes("T") || timeVal.includes("-")) {
-    const d = new Date(timeVal);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  const [hStr, mStr] = timeVal.split(":");
-  const h = Number.parseInt(hStr, 10);
-  const m = Number.parseInt(mStr, 10);
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  const d = new Date(baseDate);
-  d.setHours(h, m, 0, 0);
-  return d;
-}
 
 const PatchAttendanceSchema = z.object({
   status: z.nativeEnum(AttendanceStatus).optional(),
@@ -112,6 +99,14 @@ export async function PATCH(
 
     const existing = await prisma.attendance.findFirst({
       where: whereCondition,
+      include: {
+        location: {
+          select: {
+            timezone: true,
+            organization: { select: { settings: true } },
+          },
+        },
+      },
     });
 
     if (!existing) {
@@ -121,6 +116,16 @@ export async function PATCH(
       );
     }
 
+    const orgSettings =
+      existing.location?.organization?.settings &&
+      typeof existing.location.organization.settings === "object"
+        ? (existing.location.organization.settings as Record<string, unknown>)
+        : {};
+    const timezone =
+      existing.location?.timezone ||
+      (typeof orgSettings.timezone === "string" ? orgSettings.timezone : null) ||
+      DEFAULT_TIMEZONE;
+
     const updateData: any = {};
     if (data.status) {
       updateData.status = data.status;
@@ -128,16 +133,60 @@ export async function PATCH(
       updateData.statusChangedBy = session.user.name || session.user.email || "ADMIN";
     }
     if (data.entryTime !== undefined) {
-      updateData.entryTime = parseTimeString(data.entryTime, existing.date);
+      updateData.entryTime = parseShiftTimeWithOvernight(data.entryTime, existing.date, null, timezone);
     }
+    const effectiveEntry1 =
+      data.entryTime !== undefined ? updateData.entryTime : existing.entryTime;
+
     if (data.exitTime !== undefined) {
-      updateData.exitTime = parseTimeString(data.exitTime, existing.date);
+      updateData.exitTime = parseShiftTimeWithOvernight(
+        data.exitTime,
+        existing.date,
+        effectiveEntry1,
+        timezone
+      );
     }
+    const effectiveExit1 =
+      data.exitTime !== undefined ? updateData.exitTime : existing.exitTime;
+
     if (data.entryTime2 !== undefined) {
-      updateData.entryTime2 = parseTimeString(data.entryTime2, existing.date);
+      updateData.entryTime2 = parseShiftTimeWithOvernight(
+        data.entryTime2,
+        existing.date,
+        effectiveExit1 || effectiveEntry1,
+        timezone
+      );
     }
+    const effectiveEntry2 =
+      data.entryTime2 !== undefined ? updateData.entryTime2 : existing.entryTime2;
+
     if (data.exitTime2 !== undefined) {
-      updateData.exitTime2 = parseTimeString(data.exitTime2, existing.date);
+      updateData.exitTime2 = parseShiftTimeWithOvernight(
+        data.exitTime2,
+        existing.date,
+        effectiveEntry2 || effectiveExit1 || effectiveEntry1,
+        timezone
+      );
+    }
+
+    // Respaldo inmutable del marcaje original de kiosko (Cumplimiento SUNAFIL)
+    const entryChanged =
+      data.entryTime !== undefined &&
+      updateData.entryTime?.getTime() !== existing.entryTime?.getTime();
+    const exitChanged =
+      data.exitTime !== undefined &&
+      updateData.exitTime?.getTime() !== existing.exitTime?.getTime();
+
+    if (entryChanged && !existing.originalEntryTime && existing.entryTime) {
+      updateData.originalEntryTime = existing.entryTime;
+    }
+    if (exitChanged && !existing.originalExitTime && existing.exitTime) {
+      updateData.originalExitTime = existing.exitTime;
+    }
+    if (entryChanged || exitChanged) {
+      updateData.isManualEdited = true;
+      updateData.statusChangedAt = new Date();
+      updateData.statusChangedBy = session.user.name || session.user.email || "ADMIN";
     }
     if (data.notes !== undefined) {
       updateData.notes = data.notes;

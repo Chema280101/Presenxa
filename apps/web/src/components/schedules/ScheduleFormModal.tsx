@@ -460,11 +460,30 @@ export function ScheduleFormModal({
                   {isSplit ? "Tramo 1 (Turno Mañana)" : "Horario de la Jornada"}
                 </h4>
               </div>
-              {isSplit && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning-100 dark:bg-warning-500/15 text-warning-700 dark:text-warning-300 font-semibold border border-warning-200 dark:border-warning-500/30">
-                  Bloque 1
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const [eH, eM] = entryTime.split(":").map(Number);
+                  const [xH, xM] = exitTime.split(":").map(Number);
+                  if (!Number.isNaN(eH) && !Number.isNaN(xH) && xH * 60 + xM <= eH * 60 + eM) {
+                    const mins = 24 * 60 - (eH * 60 + eM) + (xH * 60 + xM);
+                    const hrs = Math.floor(mins / 60);
+                    const rem = mins % 60;
+                    const durText = rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
+                    return (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200 dark:border-indigo-500/30">
+                        <Moon className="w-3 h-3" />
+                        Turno Nocturno (+1 día · {durText})
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+                {isSplit && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning-100 dark:bg-warning-500/15 text-warning-700 dark:text-warning-300 font-semibold border border-warning-200 dark:border-warning-500/30">
+                    Bloque 1
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

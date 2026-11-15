@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { logAuditEvent } from "@/lib/audit";
+import { isOvernightSchedule } from "@/lib/scheduleResolver";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -105,9 +106,23 @@ export async function PUT(
       return NextResponse.json({ error: "Horario no encontrado" }, { status: 404 });
     }
 
+    const mergedForOvernight = {
+      entryHour: parsed.data.entryHour ?? existing.entryHour,
+      entryMinute: parsed.data.entryMinute ?? existing.entryMinute,
+      exitHour: parsed.data.exitHour ?? existing.exitHour,
+      exitMinute: parsed.data.exitMinute ?? existing.exitMinute,
+      isSplit: parsed.data.isSplit ?? existing.isSplit,
+      exitHour2: parsed.data.exitHour2 !== undefined ? parsed.data.exitHour2 : existing.exitHour2,
+      exitMinute2: parsed.data.exitMinute2 !== undefined ? parsed.data.exitMinute2 : existing.exitMinute2,
+    };
+    const crossesMidnight = isOvernightSchedule(mergedForOvernight);
+
     const updated = await prisma.schedule.update({
       where: { id },
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        crossesMidnight,
+      },
     });
 
     await logAuditEvent({

@@ -209,6 +209,7 @@ model Schedule {
 
   // Soporte para Jornada Partida / Doble Turno (ej. Mañana 08:00-13:00 y Tarde 15:00-19:00)
   isSplit           Boolean @default(false)
+  crossesMidnight   Boolean @default(false)
   entryHour2        Int?
   entryMinute2      Int?
   exitHour2         Int?
@@ -328,9 +329,12 @@ model Attendance {
   verificationPhotoUrl String? // Foto instantánea tomada en kiosko en marcación manual
 
   // Auditoría de cambios de estado
-  notes           String?
-  statusChangedAt DateTime?
-  statusChangedBy String? // UUID del admin o literal "SISTEMA" / "CRON_EOD"
+  notes             String?
+  originalEntryTime DateTime?
+  originalExitTime  DateTime?
+  isManualEdited    Boolean   @default(false)
+  statusChangedAt   DateTime?
+  statusChangedBy   String? // UUID del admin o literal "SISTEMA" / "CRON_EOD"
 
   // Modo Ultra-Offline (Kiosk)
   isOfflineSync Boolean @default(false)

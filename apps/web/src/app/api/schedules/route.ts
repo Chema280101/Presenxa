@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { logAuditEvent } from "@/lib/audit";
 import { parsePaginationParams, buildPaginationMeta } from "@/lib/pagination";
+import { isOvernightSchedule } from "@/lib/scheduleResolver";
 import { prisma } from "@asistencias/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -110,6 +111,7 @@ export async function POST(req: Request) {
     }
 
     const data = parsed.data;
+    const crossesMidnight = isOvernightSchedule(data);
 
     const schedule = await prisma.schedule.create({
       data: {
@@ -122,6 +124,7 @@ export async function POST(req: Request) {
         exitMinute: data.exitMinute,
         toleranceMinutes: data.toleranceMinutes,
         isSplit: data.isSplit,
+        crossesMidnight,
         entryHour2: data.isSplit ? data.entryHour2 : null,
         entryMinute2: data.isSplit ? data.entryMinute2 : null,
         exitHour2: data.isSplit ? data.exitHour2 : null,

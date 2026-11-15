@@ -160,7 +160,7 @@ export async function GET(req: Request) {
     ]);
 
     const orgSettings = (organization?.settings as any) || {};
-    const companyName = organization?.name || "Empresa";
+    const companyName = (orgSettings.legalName && String(orgSettings.legalName).trim()) || organization?.name || "Empresa";
     const ruc = orgSettings.ruc ? `RUC: ${orgSettings.ruc}` : "";
 
     const sanitizedOrg = companyName.replace(/[^a-zA-Z0-9]/g, "_");

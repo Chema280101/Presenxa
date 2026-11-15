@@ -138,14 +138,7 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
       },
     });
 
-    // 2. Filtrar usuarios cuyo horario incluya el día de hoy
-    const eligibleUsers = users.filter((u) => {
-      const activeSchedule = u.userSchedules[0]?.schedule;
-      if (!activeSchedule) return true; // Si no tiene horario específico, se incluye por defecto
-      return (activeSchedule.workdaysMask & dayBit) > 0;
-    });
-
-    const [approvedTimeOffs, dayOffOverrides] = await Promise.all([
+    const [approvedTimeOffs, dayOffOverrides, shiftOverrides] = await Promise.all([
       prisma.timeOffRequest.findMany({
         where: {
           status: "APPROVED",
@@ -156,7 +149,21 @@ export async function runDailyStarter(targetDate?: Date): Promise<JobResult> {
       prisma.shiftOverride.findMany({
         where: { date: startOfToday, isDayOff: true },
       }),
+      prisma.shiftOverride.findMany({
+        where: { date: startOfToday, isDayOff: false, scheduleId: { not: null } },
+        select: { userId: true },
+      }),
     ]);
+
+    const overrideWorkUserIds = new Set(shiftOverrides.map((o) => o.userId));
+
+    // 2. Filtrar usuarios cuyo horario incluya el día de hoy (o tengan turno rotativo asignado hoy)
+    const eligibleUsers = users.filter((u) => {
+      if (overrideWorkUserIds.has(u.id)) return true;
+      const activeSchedule = u.userSchedules[0]?.schedule;
+      if (!activeSchedule) return true; // Si no tiene horario específico, se incluye por defecto
+      return (activeSchedule.workdaysMask & dayBit) > 0;
+    });
 
     const timeOffByUser = new Map(approvedTimeOffs.map((t) => [t.userId, t.type]));
     const dayOffUserIds = new Set(dayOffOverrides.map((o) => o.userId));
