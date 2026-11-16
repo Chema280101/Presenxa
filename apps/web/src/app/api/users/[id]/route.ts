@@ -22,7 +22,12 @@ const UpdateUserSchema = z.object({
   role: z.nativeEnum(UserRole).optional(),
   locationId: optionalUuidOrNull,
   departmentId: optionalUuidOrNull,
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres").optional().nullable(),
+  password: z
+    .string()
+    .min(6, "La contraseña debe tener al menos 6 caracteres")
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => undefined)),
   scheduleId: optionalUuidOrNull,
   nfcCardUid: z.string().optional().nullable(),
   isActive: z.boolean().optional(),

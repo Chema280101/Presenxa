@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import QRCode from "qrcode";
-import { Users, UserPlus, QrCode, Edit2, CheckCircle2, Building, FolderTree, Shield, Clock, RefreshCw, UserCheck, UserX, Calendar, MapPin, Printer, KeyRound, Copy, FileSpreadsheet, SearchX } from "lucide-react";
+import { Users, UserPlus, QrCode, Edit2, CheckCircle2, Building, Layers, Shield, Clock, RefreshCw, UserCheck, UserX, Calendar, MapPin, Printer, KeyRound, Copy, FileSpreadsheet, SearchX } from "lucide-react";
 import { UserRole } from "@asistencias/db";
 import { ModalShell } from "@/components/ui/ModalShell";
 import { QrModal } from "@/components/users/QrModal";
@@ -620,7 +620,7 @@ function UsersPageContent() {
           },
           {
             id: "department",
-            icon: FolderTree,
+            icon: Layers,
             value: selectedDepartment,
             onChange: (val) => { setSelectedDepartment(val); setPage(1); },
             options: [

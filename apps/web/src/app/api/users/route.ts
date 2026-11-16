@@ -32,7 +32,8 @@ const CreateUserSchema = z.object({
       message: "La contraseña debe incluir al menos un número y un símbolo (@#$%!).",
     })
     .optional()
-    .nullable(),
+    .nullable()
+    .or(z.literal("").transform(() => undefined)),
   scheduleId: optionalUuidOrNull,
   nfcCardUid: z.string().optional().nullable(),
   departmentId: optionalUuidOrNull,

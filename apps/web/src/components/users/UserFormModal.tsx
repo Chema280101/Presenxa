@@ -18,7 +18,7 @@ import {
   Check,
   Sparkles,
   Loader2,
-  FolderTree,
+  Layers,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { ModalShell } from "@/components/ui/ModalShell";
@@ -296,7 +296,11 @@ export function UserFormModal({
 
     setIsSubmitting(true);
     try {
-      const success = await onSave(formData);
+      const payload: UserFormData = { ...formData };
+      if (!payload.password || !payload.password.trim()) {
+        delete payload.password;
+      }
+      const success = await onSave(payload);
       if (success) {
         onClose();
       }
@@ -489,7 +493,7 @@ export function UserFormModal({
             />
           </FormField>
 
-          <FormField label="Departamento / Área" icon={FolderTree}>
+          <FormField label="Departamento / Área" icon={Layers}>
             <CustomSelect
               value={formData.departmentId || ""}
               onChange={(val) => setFormData({ ...formData, departmentId: val })}
