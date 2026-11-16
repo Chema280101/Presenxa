@@ -107,7 +107,7 @@ export function CredentialBadge({
 
   return (
     <div
-      style={scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: "top center" } : undefined}
+      style={scale !== 1 ? { zoom: scale } : undefined}
       className={`credential-badge-container select-none print:transform-none w-full flex justify-center ${className}`}
     >
       <div

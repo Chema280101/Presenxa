@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import ExcelJS from "exceljs";
 import { UserRole } from "@asistencias/db";
 import { parseCsvRFC4180 } from "@/lib/csvUtils";
@@ -14,6 +14,7 @@ import {
   FileSpreadsheet,
   Download,
   AlertCircle,
+  Check,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -67,6 +68,8 @@ export function BulkImportModal({
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isDragging, setIsDragging] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
   const [parsedRows, setParsedRows] = useState<ParsedUserRow[]>([]);
   const [defaultLocationId, setDefaultLocationId] = useState<string>("");
   const [defaultScheduleId, setDefaultScheduleId] = useState<string>("");
@@ -78,6 +81,17 @@ export function BulkImportModal({
     failed: number;
     errors: Array<{ row: number; email: string; error: string }>;
   } | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentStep(1);
+      setParsedRows([]);
+      setImportResult(null);
+      setIsDragging(false);
+      setIsParsing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [isOpen]);
 
   const locationOptions: CustomSelectOption[] = [
     { value: "", label: "Sin sede (asignar después)" },
@@ -99,6 +113,8 @@ export function BulkImportModal({
 
   // Descarga de plantilla nativa de Excel (.xlsx) con validaciones y diseño ejecutivo
   const handleDownloadExcelTemplate = async () => {
+    if (isDownloadingTemplate) return;
+    setIsDownloadingTemplate(true);
     try {
       const workbook = createPresenxaWorkbook("Plantilla de Importación Masiva Presenxa");
 
@@ -235,6 +251,8 @@ export function BulkImportModal({
     } catch (err: any) {
       console.error("Error generando Excel:", err);
       toast.error("No se pudo generar la plantilla de Excel");
+    } finally {
+      setIsDownloadingTemplate(false);
     }
   };
 
@@ -350,13 +368,28 @@ export function BulkImportModal({
     const fileName = file.name.toLowerCase();
     const isXlsx = fileName.endsWith(".xlsx");
     const isLegacyXls = fileName.endsWith(".xls");
+    const isCsv = fileName.endsWith(".csv");
 
     if (isLegacyXls) {
       toast.warning("El formato binario .xls antiguo no es compatible. Guarda el archivo como .xlsx o .csv.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
+    if (!isXlsx && !isCsv) {
+      toast.warning("Formato de archivo no compatible. Selecciona un archivo Excel (.xlsx) o CSV (.csv).");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setIsParsing(true);
     const reader = new FileReader();
+
+    reader.onerror = () => {
+      setIsParsing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast.error("No se pudo leer el archivo seleccionado.");
+    };
 
     if (isXlsx) {
       reader.onload = async (event) => {
@@ -380,6 +413,9 @@ export function BulkImportModal({
           processMatrixData(rawRows);
         } catch (err: any) {
           toast.error("Error al leer el archivo de Excel: " + err.message);
+        } finally {
+          setIsParsing(false);
+          if (fileInputRef.current) fileInputRef.current.value = "";
         }
       };
       reader.readAsArrayBuffer(file);
@@ -395,6 +431,9 @@ export function BulkImportModal({
           processMatrixData(rawRows);
         } catch (err: any) {
           toast.error("Error al procesar el archivo CSV: " + err.message);
+        } finally {
+          setIsParsing(false);
+          if (fileInputRef.current) fileInputRef.current.value = "";
         }
       };
       reader.readAsText(file, "UTF-8");
@@ -409,6 +448,7 @@ export function BulkImportModal({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
+    if (isParsing) return;
     const file = e.dataTransfer.files?.[0];
     if (file) handleFileProcess(file);
   };
@@ -466,6 +506,7 @@ export function BulkImportModal({
     setCurrentStep(1);
     setParsedRows([]);
     setImportResult(null);
+    setIsDragging(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -474,11 +515,11 @@ export function BulkImportModal({
     if (currentStep === 1) {
       return (
         <div className="flex items-center justify-between w-full">
-          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+          <Button type="button" variant="secondary" size="sm" onClick={onClose} disabled={isParsing}>
             Cancelar
           </Button>
           <div className="flex items-center gap-2 text-xs text-surface-500 dark:text-slate-400">
-            <span>Sube un archivo para previsualizar</span>
+            <span>{isParsing ? "Leyendo hoja de cálculo..." : "Sube un archivo para previsualizar"}</span>
           </div>
         </div>
       );
@@ -491,7 +532,7 @@ export function BulkImportModal({
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setCurrentStep(1)}
+            onClick={handleReset}
             disabled={isSubmitting}
             className="flex items-center gap-1.5"
           >
@@ -544,6 +585,7 @@ export function BulkImportModal({
     <ModalShell
       isOpen={isOpen}
       onClose={onClose}
+      preventClose={isSubmitting || isParsing}
       title="Importación Masiva de Colaboradores"
       description="Carga listas de colaboradores directamente desde una hoja de cálculo."
       icon={FileSpreadsheet}
@@ -551,86 +593,66 @@ export function BulkImportModal({
       maxWidth="3xl"
       footer={renderFooter()}
     >
-      {/* Stepper Rediseñado con Alto Contraste y Alineación */}
-      <div className="flex items-center justify-center gap-3 mb-6">
-        {/* Paso 1 */}
-        <div
-          className={clsx(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition border",
-            currentStep === 1
-              ? "bg-primary-500/15 text-primary-700 dark:text-primary-300 border-primary-500/30 shadow-xs"
-              : currentStep > 1
-              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
-              : "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-white/5"
-          )}
-        >
-          <span
-            className={clsx(
-              "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0",
-              currentStep === 1
-                ? "bg-primary-600 text-white"
-                : currentStep > 1
-                ? "bg-emerald-500 text-white"
-                : "bg-surface-300 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
-            )}
-          >
-            {currentStep > 1 ? "✓" : "1"}
-          </span>
-          <span>Archivo Excel</span>
-        </div>
+      {/* Stepper con Semántica ARIA y Diseño Responsive */}
+      <ol
+        aria-label="Pasos de importación"
+        className="flex items-center justify-center flex-wrap gap-1.5 sm:gap-2.5 mb-6"
+      >
+        {(
+          [
+            { step: 1, label: "Archivo Excel" },
+            { step: 2, label: "Validación" },
+            { step: 3, label: "Resultado" },
+          ] as const
+        ).map(({ step, label }, idx) => {
+          const isActive = currentStep === step;
+          const isCompleted = currentStep > step;
 
-        <div className="w-6 h-0.5 bg-surface-200 dark:bg-surface-800 rounded-full" />
+          return (
+            <li
+              key={step}
+              aria-current={isActive ? "step" : undefined}
+              className="flex items-center gap-1.5 sm:gap-2.5"
+            >
+              <div
+                className={clsx(
+                  "flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold transition border",
+                  isActive
+                    ? "bg-primary-500/15 text-primary-700 dark:text-primary-300 border-primary-500/30 shadow-xs"
+                    : isCompleted
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                    : "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-white/5"
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={clsx(
+                    "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0",
+                    isActive
+                      ? "bg-primary-600 text-white"
+                      : isCompleted
+                      ? "bg-emerald-500 text-white"
+                      : "bg-surface-300 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
+                  )}
+                >
+                  {isCompleted ? <Check className="w-3 h-3 stroke-[3]" /> : step}
+                </span>
+                <span>
+                  {isCompleted && <span className="sr-only">Completado: </span>}
+                  {label}
+                </span>
+              </div>
 
-        {/* Paso 2 */}
-        <div
-          className={clsx(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition border",
-            currentStep === 2
-              ? "bg-primary-500/15 text-primary-700 dark:text-primary-300 border-primary-500/30 shadow-xs"
-              : currentStep > 2
-              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
-              : "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-white/5"
-          )}
-        >
-          <span
-            className={clsx(
-              "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0",
-              currentStep === 2
-                ? "bg-primary-600 text-white"
-                : currentStep > 2
-                ? "bg-emerald-500 text-white"
-                : "bg-surface-300 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
-            )}
-          >
-            {currentStep > 2 ? "✓" : "2"}
-          </span>
-          <span>Validación</span>
-        </div>
-
-        <div className="w-6 h-0.5 bg-surface-200 dark:bg-surface-800 rounded-full" />
-
-        {/* Paso 3 */}
-        <div
-          className={clsx(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition border",
-            currentStep === 3
-              ? "bg-primary-500/15 text-primary-700 dark:text-primary-300 border-primary-500/30 shadow-xs"
-              : "bg-surface-100 dark:bg-surface-800 text-surface-500 dark:text-surface-400 border-surface-200 dark:border-white/5"
-          )}
-        >
-          <span
-            className={clsx(
-              "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0",
-              currentStep === 3
-                ? "bg-primary-600 text-white"
-                : "bg-surface-300 dark:bg-surface-700 text-surface-700 dark:text-surface-300"
-            )}
-          >
-            3
-          </span>
-          <span>Resultado</span>
-        </div>
-      </div>
+              {idx < 2 && (
+                <div
+                  aria-hidden="true"
+                  className="w-3 sm:w-6 h-0.5 bg-surface-200 dark:bg-surface-800 rounded-full"
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
 
       {/* PASO 1: Subida de archivo Excel */}
       {currentStep === 1 && (
@@ -652,11 +674,21 @@ export function BulkImportModal({
             </div>
             <button
               type="button"
+              disabled={isDownloadingTemplate}
               onClick={handleDownloadExcelTemplate}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-white dark:bg-surface-800 hover:bg-surface-50 dark:hover:bg-surface-700 text-primary-700 dark:text-primary-300 border border-primary-300/80 dark:border-primary-500/30 shadow-xs hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs bg-white dark:bg-surface-800 hover:bg-surface-50 dark:hover:bg-surface-700 text-primary-700 dark:text-primary-300 border border-primary-300/80 dark:border-primary-500/30 shadow-xs hover:scale-[1.02] active:scale-[0.98] transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             >
-              <Download className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
-              <span>Descargar .xlsx</span>
+              {isDownloadingTemplate ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary-600 dark:text-primary-400" />
+                  <span>Generando...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                  <span>Descargar .xlsx</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -668,47 +700,73 @@ export function BulkImportModal({
             className="hidden"
           />
 
-          {/* Dropzone interactivo */}
+          {/* Dropzone interactivo accesible por teclado */}
           <div
+            role="button"
+            tabIndex={isParsing ? -1 : 0}
+            aria-disabled={isParsing}
+            aria-label="Seleccionar o arrastrar tu archivo Excel (.xlsx) o CSV (.csv)"
             onDragOver={(e) => {
               e.preventDefault();
-              setIsDragging(true);
+              if (!isParsing) setIsDragging(true);
             }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (!isParsing) fileInputRef.current?.click();
+            }}
+            onKeyDown={(e) => {
+              if (!isParsing && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             className={clsx(
-              "border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center",
-              isDragging
-                ? "border-primary-500 bg-primary-50/60 dark:bg-primary-950/40 scale-[1.01] ring-4 ring-primary-500/10"
-                : "border-surface-300 dark:border-surface-700 hover:border-primary-500 dark:hover:border-primary-400 bg-surface-50/50 dark:bg-surface-900/30"
+              "border-2 border-dashed rounded-3xl p-6 sm:p-8 text-center transition-all duration-200 group flex flex-col items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
+              isParsing
+                ? "border-primary-400 bg-primary-50/40 dark:bg-primary-950/20 cursor-wait opacity-80"
+                : isDragging
+                ? "border-primary-500 bg-primary-50/60 dark:bg-primary-950/40 scale-[1.01] ring-4 ring-primary-500/10 cursor-pointer"
+                : "border-surface-300 dark:border-surface-700 hover:border-primary-500 dark:hover:border-primary-400 bg-surface-50/50 dark:bg-surface-900/30 cursor-pointer"
             )}
           >
             <div className="w-12 h-12 rounded-2xl bg-primary-500/10 text-primary-600 dark:text-primary-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform shadow-inner ring-1 ring-primary-500/20">
-              <Upload className="w-6 h-6" />
+              {isParsing ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <Upload className="w-6 h-6" />
+              )}
             </div>
 
             <h4 className="text-sm font-bold text-surface-900 dark:text-white mb-1">
-              Selecciona o arrastra tu archivo Excel (.xlsx)
+              {isParsing
+                ? "Procesando archivo..."
+                : "Selecciona o arrastra tu archivo Excel (.xlsx) o CSV (.csv)"}
             </h4>
             <p className="text-xs text-surface-500 dark:text-slate-400 max-w-sm mb-3">
-              Haz clic aquí para examinar archivos o suelta tu hoja de cálculo directamente.
+              {isParsing
+                ? "Validando filas y columnas de la hoja de cálculo."
+                : "Haz clic aquí para examinar archivos o suelta tu hoja de cálculo directamente."}
             </p>
 
             {/* Píldora de formato */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-100 dark:bg-surface-800 text-[11px] font-mono text-surface-600 dark:text-slate-300 border border-surface-200 dark:border-white/10">
-              <span>Columnas: Nombres • Apellidos • Correo • Documento • Teléfono</span>
+            <div className="inline-flex flex-wrap items-center justify-center gap-1.5 px-3 py-1.5 rounded-2xl sm:rounded-full bg-surface-100 dark:bg-surface-800 text-[11px] font-mono text-surface-600 dark:text-slate-300 border border-surface-200 dark:border-white/10 text-center leading-relaxed">
+              <span>Columnas: Nombres* • Apellidos* • Correo* • Documento • Teléfono • Rol</span>
             </div>
           </div>
 
           {/* Opciones por defecto opcionales */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
             <div>
-              <label className="block text-xs font-bold text-surface-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <label
+                htmlFor="bulk-import-default-location"
+                className="text-xs font-bold text-surface-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5"
+              >
                 <Building className="w-3.5 h-3.5 text-primary-500" />
                 Sede por defecto (Opcional)
               </label>
               <CustomSelect
+                id="bulk-import-default-location"
                 value={defaultLocationId}
                 onChange={setDefaultLocationId}
                 options={locationOptions}
@@ -717,11 +775,15 @@ export function BulkImportModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-surface-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <label
+                htmlFor="bulk-import-default-schedule"
+                className="text-xs font-bold text-surface-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5"
+              >
                 <Clock className="w-3.5 h-3.5 text-primary-500" />
                 Horario / Turno por defecto (Opcional)
               </label>
               <CustomSelect
+                id="bulk-import-default-schedule"
                 value={defaultScheduleId}
                 onChange={setDefaultScheduleId}
                 options={scheduleOptions}
@@ -736,8 +798,8 @@ export function BulkImportModal({
       {/* PASO 2: Previsualización de datos */}
       {currentStep === 2 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className="font-bold text-surface-900 dark:text-white">
                 {parsedRows.length} filas detectadas
               </span>
@@ -752,9 +814,9 @@ export function BulkImportModal({
             </div>
           </div>
 
-          <div className="border border-surface-200 dark:border-surface-800 rounded-2xl overflow-hidden max-h-72 overflow-y-auto shadow-inner">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-surface-100 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 text-[10px] uppercase font-bold text-surface-500">
+          <div className="border border-surface-200 dark:border-surface-800 rounded-2xl overflow-auto max-h-72 shadow-inner">
+            <table className="w-full text-xs text-left min-w-[520px]">
+              <thead className="sticky top-0 z-10 bg-surface-100 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-800 text-[10px] uppercase font-bold text-surface-500">
                 <tr>
                   <th className="py-2.5 px-3">#</th>
                   <th className="py-2.5 px-3">Colaborador</th>
@@ -785,14 +847,12 @@ export function BulkImportModal({
                     <td className="py-2 px-3 text-right">
                       {row.isValid ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="w-3 h-3" /> Válido
+                          <CheckCircle2 className="w-3 h-3 shrink-0" /> Válido
                         </span>
                       ) : (
-                        <span
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-danger-600 dark:text-danger-400 bg-danger-500/10 px-2 py-0.5 rounded-full"
-                          title={row.errors.join(", ")}
-                        >
-                          <XCircle className="w-3 h-3" /> {row.errors[0]}
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-danger-600 dark:text-danger-400 bg-danger-500/10 px-2.5 py-0.5 rounded-full text-left">
+                          <XCircle className="w-3 h-3 shrink-0" />
+                          <span>{row.errors.join(" • ")}</span>
                         </span>
                       )}
                     </td>
@@ -807,22 +867,55 @@ export function BulkImportModal({
       {/* PASO 3: Resumen Final */}
       {currentStep === 3 && importResult && (
         <div className="py-6 text-center space-y-4">
-          <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center mx-auto shadow-inner">
-            <CheckCircle2 className="w-9 h-9" />
-          </div>
-          <div>
-            <h4 className="text-base font-bold text-surface-900 dark:text-white">
-              ¡Proceso de importación finalizado!
-            </h4>
-            <p className="text-xs text-surface-500 dark:text-slate-400 mt-1">
-              Se crearon exitosamente <strong>{importResult.created}</strong> colaboradores en Presenxa.
-            </p>
-          </div>
+          {importResult.created === 0 ? (
+            <>
+              <div className="w-16 h-16 rounded-3xl bg-danger-500/15 text-danger-500 flex items-center justify-center mx-auto shadow-inner">
+                <XCircle className="w-9 h-9" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-surface-900 dark:text-white">
+                  No se pudo importar ningún colaborador
+                </h4>
+                <p className="text-xs text-surface-500 dark:text-slate-400 mt-1">
+                  Las <strong>{importResult.failed}</strong> filas enviadas presentaron incidencias. Revisa el detalle a continuación.
+                </p>
+              </div>
+            </>
+          ) : importResult.failed > 0 ? (
+            <>
+              <div className="w-16 h-16 rounded-3xl bg-amber-500/15 text-amber-500 flex items-center justify-center mx-auto shadow-inner">
+                <AlertCircle className="w-9 h-9" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-surface-900 dark:text-white">
+                  Importación completada con observaciones
+                </h4>
+                <p className="text-xs text-surface-500 dark:text-slate-400 mt-1">
+                  Se crearon <strong>{importResult.created}</strong> colaboradores y{" "}
+                  <strong>{importResult.failed}</strong> filas no pudieron procesarse.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-3xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 className="w-9 h-9" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-surface-900 dark:text-white">
+                  ¡Proceso de importación finalizado!
+                </h4>
+                <p className="text-xs text-surface-500 dark:text-slate-400 mt-1">
+                  Se crearon exitosamente <strong>{importResult.created}</strong> colaboradores en Presenxa.
+                </p>
+              </div>
+            </>
+          )}
 
           {importResult.errors && importResult.errors.length > 0 && (
             <div className="text-left mt-4 p-4 rounded-2xl bg-danger-500/10 border border-danger-500/20">
               <div className="text-xs font-bold text-danger-700 dark:text-danger-300 mb-2 flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 {importResult.errors.length} incidencias no pudieron ser importadas:
               </div>
               <ul className="text-[11px] text-danger-600 dark:text-danger-400 space-y-1 list-disc list-inside max-h-36 overflow-y-auto">

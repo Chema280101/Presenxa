@@ -1,5 +1,5 @@
 import React from "react";
-import { Eye, Layers, RotateCcw, Sparkles, ZoomIn, ZoomOut } from "lucide-react";
+import { Eye, Layers, RotateCcw, Sparkles, Users, ZoomIn, ZoomOut } from "lucide-react";
 import {
   CredentialBadge,
   type CredentialBadgeOptions,
@@ -286,6 +286,7 @@ interface BulkPrintPreviewPaneProps {
   previewSheets: PreviewSheetDescriptor[];
   pagesCount: number;
   activeUsersCount: number;
+  onClearExcluded: () => void;
   isGeneratingQrs: boolean;
   zoomLevel: number;
   setZoomLevel: React.Dispatch<React.SetStateAction<number>>;
@@ -330,7 +331,7 @@ function PreviewSheetContent({
         {sheet.pageUsers.map((user) => (
           <React.Fragment key={`preview-pair-${user.id}`}>
             <div className="flex flex-col items-center gap-1 w-full min-w-0">
-              <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+              <span className="text-[10.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                 Frente
               </span>
               <CredentialBadge
@@ -342,7 +343,7 @@ function PreviewSheetContent({
               />
             </div>
             <div className="flex flex-col items-center gap-1 w-full min-w-0">
-              <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+              <span className="text-[10.5px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                 Reverso
               </span>
               <CredentialBadge
@@ -421,7 +422,11 @@ function PreviewHeaderStatus({
   }
 
   return (
-    <div className="flex items-center p-0.5 rounded-lg bg-white dark:bg-white/5 border border-slate-300 dark:border-white/10 text-[11px] font-semibold">
+    <div
+      role="tablist"
+      aria-label="Seleccionar cara de vista previa"
+      className="flex items-center p-0.5 rounded-lg bg-white dark:bg-white/5 border border-slate-300 dark:border-white/10 text-[11px] font-semibold"
+    >
       {(
         [
           { id: "all", label: "Ambas Caras" },
@@ -432,8 +437,10 @@ function PreviewHeaderStatus({
         <button
           key={tab.id}
           type="button"
+          role="tab"
+          aria-selected={previewFace === tab.id}
           onClick={() => setPreviewFace(tab.id)}
-          className={`px-2.5 py-0.5 rounded transition cursor-pointer ${
+          className={`px-2.5 py-1 rounded transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
             previewFace === tab.id
               ? "bg-primary-500 text-white shadow-sm"
               : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
@@ -458,6 +465,7 @@ export function BulkPrintPreviewPane({
   previewSheets,
   pagesCount,
   activeUsersCount,
+  onClearExcluded,
   isGeneratingQrs,
   zoomLevel,
   setZoomLevel,
@@ -470,7 +478,7 @@ export function BulkPrintPreviewPane({
         visibleOnMobile ? "flex" : "hidden lg:flex"
       }`}
     >
-      <div className="px-4 py-2 bg-slate-100 dark:bg-[#0e1726] border-b border-slate-300 dark:border-white/10 flex items-center justify-between text-xs shrink-0">
+      <div className="px-4 py-2 bg-slate-100 dark:bg-[#0e1726] border-b border-slate-300 dark:border-white/10 flex items-center justify-between text-xs shrink-0 gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <PreviewHeaderStatus
             includeBackside={Boolean(options.includeBackside)}
@@ -483,71 +491,102 @@ export function BulkPrintPreviewPane({
           />
 
           {isGeneratingQrs && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-primary-500 animate-pulse font-semibold ml-1">
+            <span className="inline-flex items-center gap-1 text-[11px] text-primary-500 animate-pulse font-semibold ml-1">
               <Sparkles className="w-3 h-3" /> Generando QRs...
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1 bg-white dark:bg-white/5 rounded-lg border border-slate-300 dark:border-white/10 p-0.5">
+        <div className="flex items-center gap-1.5 bg-white dark:bg-white/5 rounded-lg border border-slate-300 dark:border-white/10 p-1">
           <button
             type="button"
+            disabled={zoomLevel <= 0.7}
             onClick={() => setZoomLevel((z) => Math.max(0.7, Math.round((z - 0.1) * 10) / 10))}
-            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 cursor-pointer"
+            className="w-8 h-8 sm:w-7 sm:h-7 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             title="Reducir zoom"
+            aria-label="Reducir zoom"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
-          <span className="text-[10px] font-mono px-1.5 text-slate-700 dark:text-slate-200">
+          <span
+            aria-live="polite"
+            className="text-[11px] font-mono px-1.5 text-slate-700 dark:text-slate-200 min-w-[3ch] text-center"
+          >
             {Math.round(zoomLevel * 100)}%
           </span>
           <button
             type="button"
+            disabled={zoomLevel >= 1.2}
             onClick={() => setZoomLevel((z) => Math.min(1.2, Math.round((z + 0.1) * 10) / 10))}
-            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 cursor-pointer"
+            className="w-8 h-8 sm:w-7 sm:h-7 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             title="Aumentar zoom"
+            aria-label="Aumentar zoom"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
+            disabled={zoomLevel === 1}
             onClick={() => setZoomLevel(1.0)}
-            className="p-1 rounded hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 cursor-pointer ml-0.5"
-            title="Restablecer zoom"
+            className="w-8 h-8 sm:w-7 sm:h-7 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            title="Restablecer zoom al 100%"
+            aria-label="Restablecer zoom al 100%"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col items-center gap-6 min-h-0">
-        {previewSheets.map((sheet) => (
-          <div key={sheet.key} className="flex flex-col items-center shrink-0">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                Página {sheet.sheetNumber} de {sheet.totalSheets}
-              </span>
-              <span
-                className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${getSheetPillClass(sheet)}`}
-              >
-                {sheet.badgeText}
-              </span>
+      <div className="flex-1 overflow-auto p-4 sm:p-6 flex flex-col items-center gap-6 min-h-0">
+        {activeUsersCount === 0 ? (
+          <div className="my-auto max-w-sm w-full bg-white dark:bg-surface-900 border border-surface-200 dark:border-white/10 rounded-2xl p-6 text-center shadow-lg">
+            <div className="w-11 h-11 rounded-xl bg-primary-500/10 text-primary-500 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-5 h-5" />
             </div>
-
-            <div
-              style={{ width: getSimulatedSheetWidth(format, options.orientation, zoomLevel) }}
-              className="bg-white text-slate-900 shadow-xl rounded-xl p-4 sm:p-5 box-border border border-slate-300/80 transition-all duration-150"
+            <h3 className="text-sm font-bold text-surface-900 dark:text-white mb-1">
+              Ningún colaborador seleccionado
+            </h3>
+            <p className="text-xs text-surface-500 dark:text-slate-400 mb-4">
+              Has desmarcado a todos los colaboradores de esta tanda de impresión. Incluye al menos
+              uno para generar la vista previa.
+            </p>
+            <button
+              type="button"
+              onClick={onClearExcluded}
+              className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
             >
-              <PreviewSheetContent
-                format={format}
-                sheet={sheet}
-                options={options}
-                qrDataUrls={qrDataUrls}
-                zoomLevel={zoomLevel}
-              />
-            </div>
+              Incluir todos los colaboradores
+            </button>
           </div>
-        ))}
+        ) : (
+          previewSheets.map((sheet) => (
+            <div key={sheet.key} className="flex flex-col items-center shrink-0 mx-auto">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Página {sheet.sheetNumber} de {sheet.totalSheets}
+                </span>
+                <span
+                  className={`text-[10.5px] font-black uppercase px-2.5 py-0.5 rounded-full border ${getSheetPillClass(sheet)}`}
+                >
+                  {sheet.badgeText}
+                </span>
+              </div>
+
+              <div
+                style={{ width: getSimulatedSheetWidth(format, options.orientation, zoomLevel) }}
+                className="bg-white text-slate-900 shadow-xl rounded-xl p-4 sm:p-5 box-border border border-slate-300/80 transition-all duration-150"
+              >
+                <PreviewSheetContent
+                  format={format}
+                  sheet={sheet}
+                  options={options}
+                  qrDataUrls={qrDataUrls}
+                  zoomLevel={zoomLevel}
+                />
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
